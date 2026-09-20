@@ -4,7 +4,9 @@
   "version": "${version}",
   "name": "AutoBattle",
   "description": "JEV-powered multiplayer AI autobattler for Minecraft Java Edition.",
-  "authors": ["Kardane"],
+  "authors": [
+    "Kardane"
+  ],
   "contact": {
     "sources": "https://github.com/Kardane/AutoBattle"
   },
@@ -20,5 +22,8 @@
     "minecraft": ">=${minecraft_version}",
     "java": ">=21",
     "fabric-api": ">=${fabric_api_version}"
-  }
+  },
+  "mixins": [
+    "autobattle.mixins.json"
+  ]
 }
