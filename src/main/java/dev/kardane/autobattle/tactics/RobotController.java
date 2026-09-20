@@ -294,7 +294,7 @@ public final class RobotController {
     private void retreat() {
         entity.setTarget(null);
 
-        resolvePlanTarget().ifPresentOrElse(
+        resolveNearestEnemy().ifPresentOrElse(
             threat -> {
                 Vec3 away = entity.position()
                     .subtract(threat.position());
@@ -344,6 +344,24 @@ public final class RobotController {
             destination.z,
             speed
         );
+    }
+
+    private Optional<RobotZombie> resolveNearestEnemy() {
+        if (entity == null) {
+            return Optional.empty();
+        }
+
+        return registry.alive().stream()
+            .filter(controller -> controller != this)
+            .flatMap(controller -> controller.entity().stream())
+            .filter(target ->
+                target.matchId().equals(entity.matchId())
+            )
+            .min(
+                java.util.Comparator.comparingDouble(
+                    target -> entity.distanceToSqr(target)
+                )
+            );
     }
 
     private Optional<RobotZombie> resolvePlanTarget() {
