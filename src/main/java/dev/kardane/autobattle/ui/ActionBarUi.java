@@ -29,12 +29,23 @@ public final class ActionBarUi {
                 .map(tacticalPlan -> tacticalPlan.externalId())
                 .orElse("WAITING");
 
+            String commandState = slot.runtime()
+                .activeCommand()
+                .map(active -> active.type().name())
+                .orElseGet(() ->
+                    slot.runtime().commandUsed()
+                        ? "USED"
+                        : "READY"
+                );
+
             text = "HP "
                 + Math.round(hp)
                 + "/"
                 + Math.round(maxHp)
                 + " | "
                 + plan
+                + " | COMMAND "
+                + commandState
                 + " | SCORE "
                 + slot.score().roundScore();
         } else {
