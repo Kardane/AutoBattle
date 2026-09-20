@@ -15,6 +15,7 @@ import dev.kardane.autobattle.robot.RobotRuntimeState;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.RobotController;
+import dev.kardane.autobattle.ui.UiCoordinator;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -37,6 +38,7 @@ public final class MatchManager {
     private final DamageRules damageRules = new DamageRules();
     private final CombatTracker combatTracker = new CombatTracker();
     private final RobotRespawnManager respawnManager;
+    private final UiCoordinator ui;
     private final MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
@@ -47,11 +49,13 @@ public final class MatchManager {
         AutoBattleConfig config,
         RobotRegistry robotRegistry,
         RobotFactory robotFactory,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        UiCoordinator ui
     ) {
         this.config = config;
         this.robotFactory = robotFactory;
         this.planExecutor = planExecutor;
+        this.ui = ui;
         this.respawnManager = new RobotRespawnManager(
             config,
             robotFactory,
@@ -86,9 +90,10 @@ public final class MatchManager {
         respawnManager.tick(server, session, serverTick);
         tickRegen();
         session.core().tick(session, serverTick);
+        ui.tickRound(server, session, serverTick);
 
         if (session.roundState().expired(serverTick)) {
-            stopPrototypeRound();
+            stopPrototypeRound(server);
         }
     }
 
@@ -208,6 +213,25 @@ public final class MatchManager {
                 AutoBattleConstants.KILL_SCORE
             )
         );
+
+        PlayerSlot victimSlot = session.player(
+            victimRobot.ownerUuid()
+        ).orElse(null);
+
+        PlayerSlot killerSlot = resolution.killerOwner()
+            .flatMap(session::player)
+            .orElse(null);
+
+        if (killerSlot != null
+            && victimSlot != null
+            && victimRobot.level() instanceof ServerLevel level) {
+            ui.onRobotKilled(
+                level.getServer(),
+                session,
+                killerSlot,
+                victimSlot
+            );
+        }
 
         for (UUID assistOwner : resolution.assistOwnerUuids()) {
             session.player(assistOwner).ifPresent(
@@ -383,10 +407,22 @@ public final class MatchManager {
             serverTick
         );
 
+        ui.onRoundStart(
+            server,
+            session,
+            serverTick
+        );
+
         return true;
     }
 
     public boolean stopPrototypeRound() {
+        return stopPrototypeRound(null);
+    }
+
+    public boolean stopPrototypeRound(
+        MinecraftServer server
+    ) {
         if (session.phase() != MatchPhase.ROUND_ACTIVE) {
             return false;
         }
@@ -401,6 +437,12 @@ public final class MatchManager {
             MatchPhase.ROUND_REVIEW,
             serverTick
         );
+
+        if (server != null) {
+            ui.onRoundEnd(server, session);
+        } else {
+            ui.cleanup();
+        }
 
         return true;
     }
