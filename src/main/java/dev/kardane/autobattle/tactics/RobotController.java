@@ -123,6 +123,9 @@ public final class RobotController {
     public void detachEntity() {
         clearPlan();
         entity = null;
+        decisionPending = false;
+        decisionGeneration++;
+        redecisionRequested = true;
         registry.reindexEntity(this);
     }
 
