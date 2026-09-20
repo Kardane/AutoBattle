@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public final class PlanExecutor {
     private final RobotRegistry registry;
-    private final RobotConfig robotConfig;
+    private RobotConfig robotConfig;
 
     public PlanExecutor(
         RobotRegistry registry,
@@ -21,6 +21,13 @@ public final class PlanExecutor {
             registry,
             "registry"
         );
+        this.robotConfig = Objects.requireNonNull(
+            robotConfig,
+            "robotConfig"
+        );
+    }
+
+    public void reloadConfig(RobotConfig robotConfig) {
         this.robotConfig = Objects.requireNonNull(
             robotConfig,
             "robotConfig"
