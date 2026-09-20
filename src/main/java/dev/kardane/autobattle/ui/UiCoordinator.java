@@ -64,16 +64,7 @@ public final class UiCoordinator {
         MatchSession match,
         long currentTick
     ) {
-        bossBar.clear();
-
-        for (PlayerSlot slot : match.players()) {
-            ServerPlayer player = server.getPlayerList()
-                .getPlayer(slot.playerUuid());
-
-            if (player != null) {
-                bossBar.addPlayer(player);
-            }
-        }
+        syncHudPlayers(server, match);
 
         lastCoreOwner = match.core()
             .state()
@@ -152,6 +143,49 @@ public final class UiCoordinator {
         }
     }
 
+    public void tickBetweenRounds(
+        MinecraftServer server,
+        MatchSession match,
+        long currentTick
+    ) {
+        if (currentTick % BOSS_BAR_INTERVAL_TICKS == 0L) {
+            syncHudPlayers(server, match);
+
+            bossBar.updateIntermission(
+                match,
+                currentTick,
+                config.roundCount(),
+                config.countdownTicks()
+            );
+
+            sidebar.create(server);
+            sidebar.update(server, match);
+        }
+
+        if (currentTick % ACTION_BAR_INTERVAL_TICKS == 0L) {
+            for (PlayerSlot slot : match.players()) {
+                if (slot.forfeited()) {
+                    continue;
+                }
+
+                ServerPlayer player = server.getPlayerList()
+                    .getPlayer(slot.playerUuid());
+
+                if (player == null) {
+                    continue;
+                }
+
+                actionBar.updateIntermission(
+                    player,
+                    slot,
+                    match.phase(),
+                    match.currentRound(),
+                    config.roundCount()
+                );
+            }
+        }
+    }
+
     public void onRobotKilled(
         MinecraftServer server,
         MatchSession match,
@@ -171,9 +205,15 @@ public final class UiCoordinator {
         MatchSession match
     ) {
         chat.roundEnded(server, match);
-        bossBar.clear();
-        sidebar.clear(server);
-        lastCoreOwner = null;
+        syncHudPlayers(server, match);
+        bossBar.updateIntermission(
+            match,
+            match.phaseStartedTick(),
+            config.roundCount(),
+            config.countdownTicks()
+        );
+        sidebar.create(server);
+        sidebar.update(server, match);
 
         for (PlayerSlot slot : match.players()) {
             if (slot.forfeited()) {
@@ -244,6 +284,24 @@ public final class UiCoordinator {
         bossBar.clear();
         sidebar.clear(server);
         lastCoreOwner = null;
+    }
+
+    private void syncHudPlayers(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        for (PlayerSlot slot : match.players()) {
+            if (slot.forfeited()) {
+                continue;
+            }
+
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null) {
+                bossBar.addPlayer(player);
+            }
+        }
     }
 
     private void forEachActivePlayer(
