@@ -10,6 +10,7 @@ public final class AutoBattleConstants {
     public static final int DECISION_INTERVAL_TICKS = 20 * 3;
     public static final int DECISION_LOCK_TICKS = 20 * 2;
     public static final int DECISION_DEBOUNCE_TICKS = 10;
+    public static final int JEV_TIMEOUT_MS = 1500;
 
     public static final int COMMAND_DURATION_TICKS = 20 * 10;
 
