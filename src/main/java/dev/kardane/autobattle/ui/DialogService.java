@@ -94,7 +94,8 @@ public final class DialogService {
                 Component.literal("Robot Doctrine"),
                 body,
                 inputs,
-                false
+                false,
+                DialogAction.CLOSE
             ),
             List.of(
                 actionButton(
@@ -199,7 +200,8 @@ public final class DialogService {
                 Component.literal("Round Review"),
                 body,
                 List.of(),
-                true
+                true,
+                DialogAction.WAIT_FOR_RESPONSE
             ),
             List.of(
                 actionButton(
@@ -256,7 +258,8 @@ public final class DialogService {
                 Component.literal("Doctrine 수정"),
                 body,
                 List.of(),
-                true
+                true,
+                DialogAction.WAIT_FOR_RESPONSE
             ),
             buttons,
             Optional.empty(),
@@ -293,7 +296,8 @@ public final class DialogService {
                         current
                     )
                 ),
-                false
+                false,
+                DialogAction.CLOSE
             ),
             List.of(
                 actionButton(
@@ -346,9 +350,12 @@ public final class DialogService {
                 Component.literal("AutoBattle Final Result"),
                 body,
                 List.of(),
-                true
+                true,
+                DialogAction.CLOSE
             ),
-            List.of(),
+            List.of(
+                closeButton("결과 닫기")
+            ),
             Optional.empty(),
             1
         );
@@ -378,16 +385,27 @@ public final class DialogService {
         Component title,
         List<DialogBody> body,
         List<Input> inputs,
-        boolean canCloseWithEscape
+        boolean canCloseWithEscape,
+        DialogAction afterAction
     ) {
         return new CommonDialogData(
             title,
             Optional.empty(),
             canCloseWithEscape,
             false,
-            DialogAction.CLOSE,
+            afterAction,
             body,
             inputs
+        );
+    }
+
+    private ActionButton closeButton(String label) {
+        return new ActionButton(
+            new CommonButtonData(
+                Component.literal(label),
+                BUTTON_WIDTH
+            ),
+            Optional.empty()
         );
     }
 
