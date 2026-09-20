@@ -600,7 +600,7 @@ public final class AutoBattleCommands {
         if (!matchManager.startPrototypeRound(source.getServer())) {
             source.sendFailure(
                 Component.literal(
-                    "Unable to start prototype round. Need at least two active participants and a valid arena dimension."
+                    "Unable to start round. Need at least four active participants, submitted doctrines, and a valid arena dimension."
                 )
             );
             return 0;
@@ -677,6 +677,15 @@ public final class AutoBattleCommands {
             ),
             false
         );
+
+        if (matchManager.beginCountdownIfDoctrinesReady()) {
+            source.sendSuccess(
+                () -> Component.literal(
+                    "All doctrines submitted. Match is ready to start."
+                ),
+                true
+            );
+        }
 
         return 1;
     }
@@ -796,12 +805,12 @@ public final class AutoBattleCommands {
             false
         );
 
-        if (matchManager.canStart()) {
+        if (matchManager.beginDoctrineSetupIfReady()) {
             source.sendSuccess(
                 () -> Component.literal(
-                    "All players are ready. Doctrine setup can begin."
+                    "All players are ready. Doctrine setup started."
                 ),
-                false
+                true
             );
         }
 
