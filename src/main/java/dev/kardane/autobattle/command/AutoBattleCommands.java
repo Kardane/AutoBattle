@@ -876,14 +876,14 @@ public final class AutoBattleCommands {
         if (!matchManager.leave(player)) {
             source.sendFailure(
                 Component.literal(
-                    "You are not in the lobby, or the match has already started."
+                    "You are not an active AutoBattle participant."
                 )
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal("Left the AutoBattle lobby."),
+            () -> Component.literal("Left AutoBattle. Active robots are forfeited immediately."),
             false
         );
 
