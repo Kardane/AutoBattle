@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:notice",
+  "title": {"text": "Doctrine 1 수정"},
+  "body": {
+    "type": "minecraft:plain_message",
+    "contents": {"text": "Doctrine 1의 새 문장을 입력하세요."},
+    "width": 420
+  },
+  "inputs": [
+    {
+      "type": "minecraft:text",
+      "key": "line",
+      "label": {"text": "새 Doctrine 1"},
+      "width": 420,
+      "max_length": 120
+    }
+  ],
+  "pause": false,
+  "after_action": "close",
+  "action": {
+    "label": {"text": "수정 저장"},
+    "action": {
+      "type": "minecraft:dynamic/custom",
+      "id": "autobattle:doctrine_replace_1"
+    }
+  }
+}
