@@ -1,6 +1,7 @@
 package dev.kardane.autobattle;
 
 import dev.kardane.autobattle.command.AutoBattleCommands;
+import dev.kardane.autobattle.command.CarpetTestCommands;
 import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.AutoBattleConfigLoader;
@@ -147,6 +148,13 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             commandService,
             reviewService,
             configReloadService,
+            language
+        );
+
+        CarpetTestCommands.register(
+            matchManager,
+            doctrineService,
+            commandService,
             language
         );
 
