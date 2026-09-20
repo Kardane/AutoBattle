@@ -33,13 +33,13 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class MatchManager {
-    private final AutoBattleConfig config;
+    private AutoBattleConfig config;
     private final RobotRegistry robotRegistry;
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
     private final DamageRules damageRules = new DamageRules();
-    private final CombatTracker combatTracker;
-    private final RobotRespawnManager respawnManager;
+    private CombatTracker combatTracker;
+    private RobotRespawnManager respawnManager;
     private final PlayerCommandService commandService;
     private final JevDecisionService decisionService;
     private final UiCoordinator ui;
@@ -80,6 +80,38 @@ public final class MatchManager {
         return config;
     }
 
+    public boolean canReloadConfig() {
+        return session.phase() == MatchPhase.LOBBY
+            && playerCount() == 0;
+    }
+
+    public void reloadConfig(AutoBattleConfig config) {
+        if (!canReloadConfig()) {
+            throw new IllegalStateException(
+                "Config reload requires an empty LOBBY."
+            );
+        }
+
+        this.config = java.util.Objects.requireNonNull(
+            config,
+            "config"
+        );
+
+        this.combatTracker = new CombatTracker(
+            config.scoring().assistWindowTicks()
+        );
+
+        this.respawnManager = new RobotRespawnManager(
+            config,
+            robotFactory,
+            planExecutor
+        );
+
+        pendingDamage.clear();
+        session = createSession();
+    }
+
+
     public MatchSession session() {
         return session;
     }
@@ -92,10 +124,26 @@ public final class MatchManager {
         serverTick = server.getTickCount();
 
         if (session.phase() == MatchPhase.COUNTDOWN) {
+            ui.tickBetweenRounds(
+                server,
+                session,
+                serverTick
+            );
+
             if (serverTick - session.phaseStartedTick()
                 >= config.countdownTicks()) {
                 startPrototypeRound(server);
             }
+            return;
+        }
+
+        if (session.phase() == MatchPhase.ROUND_REVIEW
+            || session.phase() == MatchPhase.DOCTRINE_EDIT) {
+            ui.tickBetweenRounds(
+                server,
+                session,
+                serverTick
+            );
             return;
         }
 
