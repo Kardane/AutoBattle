@@ -11,6 +11,7 @@ import dev.kardane.autobattle.jev.JsonlDecisionLogRepository;
 import dev.kardane.autobattle.jev.RobotStateSerializer;
 import dev.kardane.autobattle.jev.ScriptedJevClient;
 import dev.kardane.autobattle.match.MatchManager;
+import dev.kardane.autobattle.review.RoundReviewService;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.tactics.PlanExecutor;
@@ -65,6 +66,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         DoctrineService doctrineService = new DoctrineService(
             new DoctrineValidator()
         );
+        RoundReviewService reviewService =
+            new RoundReviewService(decisionLogs);
 
         matchManager = new MatchManager(
             config,
@@ -81,7 +84,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             robotFactory,
             planExecutor,
             doctrineService,
-            commandService
+            commandService,
+            reviewService
         );
 
         AutoBattleEvents.register(
