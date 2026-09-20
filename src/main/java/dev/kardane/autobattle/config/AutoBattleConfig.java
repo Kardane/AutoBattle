@@ -9,6 +9,7 @@ public record AutoBattleConfig(
     TypeSafeConfig typesafe,
     MatchRulesConfig match,
     AiConfig ai,
+    DoctrineConfig doctrine,
     RobotConfig robot,
     ScoringConfig scoring,
     CoreRulesConfig core,
@@ -18,6 +19,7 @@ public record AutoBattleConfig(
         Objects.requireNonNull(typesafe, "typesafe");
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(ai, "ai");
+        Objects.requireNonNull(doctrine, "doctrine");
         Objects.requireNonNull(robot, "robot");
         Objects.requireNonNull(scoring, "scoring");
         Objects.requireNonNull(core, "core");
@@ -84,7 +86,11 @@ public record AutoBattleConfig(
                 AutoBattleConstants.DECISION_LOCK_TICKS,
                 AutoBattleConstants.DECISION_DEBOUNCE_TICKS,
                 AutoBattleConstants.JEV_TIMEOUT_MS,
-                AutoBattleConstants.JEV_MIN_CONFIDENCE
+                AutoBattleConstants.JEV_MIN_CONFIDENCE,
+                AutoBattleConstants.JEV_FALLBACK_RETREAT_HP_RATIO
+            ),
+            new DoctrineConfig(
+                AutoBattleConstants.DOCTRINE_MAX_LINE_LENGTH
             ),
             new RobotConfig(
                 AutoBattleConstants.ROBOT_MAX_HEALTH,
