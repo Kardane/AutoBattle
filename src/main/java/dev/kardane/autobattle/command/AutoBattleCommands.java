@@ -87,6 +87,7 @@ public final class AutoBattleCommands {
                                     .executes(context ->
                                         spawnTestRobot(
                                             context.getSource(),
+                                            matchManager,
                                             robotFactory,
                                             planExecutor,
                                             StringArgumentType.getString(
@@ -260,16 +261,17 @@ public final class AutoBattleCommands {
             player.getYRot()
         );
 
-        planExecutor.register(red);
-        planExecutor.register(blue);
-
         long currentTick = matchManager.serverTick();
+
+        planExecutor.register(red, currentTick);
+        planExecutor.register(blue, currentTick);
         long lockTicks = AutoBattleConstants.DECISION_LOCK_TICKS;
 
         planExecutor.assignPlan(
             red,
             TacticalPlan.engage(
-                blue.getUUID(),
+                blue.ownerUuid(),
+                "ENGAGE_BLUE",
                 currentTick,
                 lockTicks
             ),
@@ -279,7 +281,8 @@ public final class AutoBattleCommands {
         planExecutor.assignPlan(
             blue,
             TacticalPlan.engage(
-                red.getUUID(),
+                red.ownerUuid(),
+                "ENGAGE_RED",
                 currentTick,
                 lockTicks
             ),
@@ -298,6 +301,7 @@ public final class AutoBattleCommands {
 
     private static int spawnTestRobot(
         CommandSourceStack source,
+        MatchManager matchManager,
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
         String rawColor
@@ -319,7 +323,7 @@ public final class AutoBattleCommands {
 
         ServerPlayer player = source.getPlayerOrException();
         RobotZombie robot = robotFactory.spawnTestRobot(player, color);
-        planExecutor.register(robot);
+        planExecutor.register(robot, matchManager.serverTick());
 
         source.sendSuccess(
             () -> Component.literal("Spawned test robot ")
