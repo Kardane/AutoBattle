@@ -1,7 +1,5 @@
 package dev.kardane.autobattle.combat;
 
-import dev.kardane.autobattle.AutoBattleConstants;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -11,8 +9,19 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class CombatTracker {
+    private final int assistWindowTicks;
     private final Map<UUID, Deque<CombatRecord>>
         recentDamageByVictim = new LinkedHashMap<>();
+
+    public CombatTracker(int assistWindowTicks) {
+        if (assistWindowTicks < 1) {
+            throw new IllegalArgumentException(
+                "assistWindowTicks must be positive"
+            );
+        }
+
+        this.assistWindowTicks = assistWindowTicks;
+    }
 
     public void recordDamage(
         UUID attackerOwner,
@@ -105,7 +114,7 @@ public final class CombatTracker {
         long currentTick
     ) {
         long oldestAllowed =
-            currentTick - AutoBattleConstants.ASSIST_WINDOW_TICKS;
+            currentTick - assistWindowTicks;
 
         while (!records.isEmpty()
             && records.peekFirst().tick() < oldestAllowed) {
