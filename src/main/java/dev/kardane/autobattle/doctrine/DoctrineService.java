@@ -8,9 +8,38 @@ import net.minecraft.server.level.ServerPlayer;
 
 public final class DoctrineService {
     private DoctrineValidator validator;
+    private DoctrineNormalizer normalizer;
+
+    public DoctrineService(
+        DoctrineValidator validator,
+        DoctrineNormalizer normalizer
+    ) {
+        this.validator = java.util.Objects.requireNonNull(
+            validator,
+            "validator"
+        );
+        this.normalizer = java.util.Objects.requireNonNull(
+            normalizer,
+            "normalizer"
+        );
+    }
 
     public DoctrineService(DoctrineValidator validator) {
-        this.validator = validator;
+        this(
+            validator,
+            new PassThroughDoctrineNormalizer(
+                "Doctrine normalizer is not configured"
+            )
+        );
+    }
+
+    public void reloadNormalizer(
+        DoctrineNormalizer normalizer
+    ) {
+        this.normalizer = java.util.Objects.requireNonNull(
+            normalizer,
+            "normalizer"
+        );
     }
 
     public void reloadConfig(DoctrineConfig config) {
@@ -53,10 +82,21 @@ public final class DoctrineService {
             return validated;
         }
 
-        Doctrine doctrine = validated.doctrine();
+        Doctrine doctrine = normalize(
+            validated.doctrine()
+        );
         slot.setDoctrine(doctrine);
 
         return DoctrineEditResult.success(doctrine);
+    }
+
+    private Doctrine normalize(Doctrine source) {
+        DoctrineNormalizationResult result =
+            normalizer.normalize(
+                source.lines()
+            );
+
+        return source.withNormalization(result);
     }
 
     public DoctrineEditResult replaceLine(
@@ -111,9 +151,11 @@ public final class DoctrineService {
             );
         }
 
-        Doctrine updated = current.replace(
-            index,
-            validated.normalizedText()
+        Doctrine updated = normalize(
+            current.replace(
+                index,
+                validated.normalizedText()
+            )
         );
 
         slot.setDoctrine(updated);
