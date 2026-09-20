@@ -32,3 +32,6 @@ run/
 !gradle/wrapper/gradle-wrapper.jar
 !vendor/*.jar
 .vendor-build/
+
+# AutoBattle runtime secrets/config
+/config/autobattle.yml
