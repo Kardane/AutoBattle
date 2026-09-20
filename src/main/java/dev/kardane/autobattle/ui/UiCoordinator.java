@@ -21,18 +21,38 @@ public final class UiCoordinator {
     private final ActionBarUi actionBar = new ActionBarUi();
     private final ChatAnnouncer chat = new ChatAnnouncer();
     private final SidebarUi sidebar = new SidebarUi();
+    private final DialogService dialogs;
 
     private UUID lastCoreOwner;
 
     public UiCoordinator(
         AutoBattleConfig config,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        DialogService dialogs
     ) {
         this.config = Objects.requireNonNull(config, "config");
         this.planExecutor = Objects.requireNonNull(
             planExecutor,
             "planExecutor"
         );
+        this.dialogs = Objects.requireNonNull(
+            dialogs,
+            "dialogs"
+        );
+    }
+
+    public void onDoctrineSetup(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        for (PlayerSlot slot : match.players()) {
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null && !slot.forfeited()) {
+                dialogs.openDoctrineSetup(player);
+            }
+        }
     }
 
     public void onRoundStart(
@@ -150,6 +170,15 @@ public final class UiCoordinator {
         bossBar.clear();
         sidebar.clear(server);
         lastCoreOwner = null;
+
+        for (PlayerSlot slot : match.players()) {
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null && !slot.forfeited()) {
+                dialogs.openDoctrineReview(player);
+            }
+        }
     }
 
     public void cleanup() {
