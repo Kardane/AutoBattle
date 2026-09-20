@@ -22,6 +22,7 @@ public final class ConfigReloadService {
     private final DoctrineValidator doctrineValidator;
     private final DialogService dialogs;
     private final UiCoordinator ui;
+    private final LanguageService language;
     private final Function<AutoBattleConfig, JevClient>
         jevClientFactory;
 
@@ -34,6 +35,7 @@ public final class ConfigReloadService {
         DoctrineValidator doctrineValidator,
         DialogService dialogs,
         UiCoordinator ui,
+        LanguageService language,
         Function<AutoBattleConfig, JevClient> jevClientFactory
     ) {
         this.matchManager = Objects.requireNonNull(
@@ -65,6 +67,10 @@ public final class ConfigReloadService {
             "dialogs"
         );
         this.ui = Objects.requireNonNull(ui, "ui");
+        this.language = Objects.requireNonNull(
+            language,
+            "language"
+        );
         this.jevClientFactory = Objects.requireNonNull(
             jevClientFactory,
             "jevClientFactory"
@@ -82,6 +88,9 @@ public final class ConfigReloadService {
             AutoBattleConfig next =
                 AutoBattleConfigLoader.load();
 
+            LanguageConfig nextLanguage =
+                LanguageConfigLoader.load();
+
             JevClient nextClient =
                 jevClientFactory.apply(next);
 
@@ -96,12 +105,15 @@ public final class ConfigReloadService {
             dialogs.reloadMaxLineLength(
                 next.doctrine().maxLineLength()
             );
+            language.reload(nextLanguage);
             ui.reloadConfig(next);
             matchManager.reloadConfig(next);
 
             return ConfigReloadResult.ok(
                 "Reloaded "
                     + AutoBattleConfigLoader.configPath()
+                    + " and "
+                    + LanguageConfigLoader.messagePath()
             );
         } catch (RuntimeException exception) {
             return ConfigReloadResult.failure(
