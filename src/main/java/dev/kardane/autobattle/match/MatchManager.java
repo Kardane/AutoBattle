@@ -176,7 +176,7 @@ public final class MatchManager {
         if (pending != null) {
             applyRobotDamage(
                 pending,
-                Math.min(
+                (float) Math.min(
                     pending.amount(),
                     RobotFactory.MAX_HEALTH
                 )
