@@ -78,6 +78,51 @@ public final class LanguageConfigLoader {
           doctrine-keep-unavailable: "Doctrine keep is unavailable in the current phase."
           doctrine-kept: "Doctrine kept unchanged."
 
+        commands:
+          # {message}
+          reload-success: "{message}"
+          reload-failure: "{message}"
+          start-failed: "Unable to start round. Check active participants, submitted doctrines, and arena dimension."
+          # {round}
+          start-success: "Started AutoBattle prototype round {round}."
+          stop-failed: "No active AutoBattle round to stop."
+          stop-success: "Stopped AutoBattle prototype round."
+          # {result}
+          player-command-rejected: "Command rejected: {result}"
+          # {type}, {seconds}
+          player-command-success: "Command {type} activated for {seconds} seconds."
+          # {error}
+          doctrine-rejected: "Doctrine rejected: {error}"
+          # {version}
+          doctrine-saved: "Doctrine v{version} saved."
+          doctrines-ready: "All doctrines submitted. Match is ready to start."
+          # {error}
+          doctrine-edit-rejected: "Doctrine edit rejected: {error}"
+          # {line}, {version}
+          doctrine-line-updated: "Doctrine line {line} updated. Version {version}."
+          join-failed: "Unable to join AutoBattle. The lobby may be closed or full."
+          # {color}
+          joined: "Joined AutoBattle as {color}."
+          leave-failed: "You are not an active AutoBattle participant."
+          left: "Left AutoBattle. Active robots are forfeited immediately."
+          join-first: "Join the AutoBattle lobby first."
+          ready: "You are ready."
+          not-ready: "You are no longer ready."
+          doctrine-setup-started: "All players are ready. Doctrine setup started."
+          review-ready-invalid: "Review ready is only available during ROUND_REVIEW."
+          review-ready: "Round review marked ready."
+          doctrine-keep-invalid: "Doctrine keep is only available during DOCTRINE_EDIT."
+          doctrine-kept: "Doctrine kept unchanged for the next round."
+          review-not-participant: "You are not an AutoBattle participant."
+          # {round}, {score}, {kills}, {deaths}, {assists}
+          review-summary: "Round {round} | Score {score} | K/D/A {kills}/{deaths}/{assists}"
+          # {core_captures}, {core_hold_seconds}, {damage_dealt}, {damage_taken}
+          review-metrics: "CORE captures {core_captures} | Hold {core_hold_seconds}s | Damage {damage_dealt} dealt / {damage_taken} taken"
+          # {plans}
+          review-plans: "Plans: {plans}"
+          # {importance}, {tick}, {plan}, {confidence}, {result}
+          review-critical: "Critical #{importance} @ tick {tick}: {plan} confidence={confidence} result={result}"
+
         dialogs:
           doctrine-setup:
             title: "Robot Doctrine"
