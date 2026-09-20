@@ -91,6 +91,14 @@ public final class MatchManager {
     public void tick(MinecraftServer server) {
         serverTick = server.getTickCount();
 
+        if (session.phase() == MatchPhase.COUNTDOWN) {
+            if (serverTick - session.phaseStartedTick()
+                >= AutoBattleConstants.COUNTDOWN_TICKS) {
+                startPrototypeRound(server);
+            }
+            return;
+        }
+
         if (session.phase() != MatchPhase.ROUND_ACTIVE) {
             return;
         }
@@ -378,6 +386,79 @@ public final class MatchManager {
         return true;
     }
 
+    public boolean markReviewReady(ServerPlayer player) {
+        PlayerSlot slot = session.player(
+            player.getUUID()
+        ).orElse(null);
+
+        if (slot == null
+            || slot.forfeited()
+            || session.phase() != MatchPhase.ROUND_REVIEW) {
+            return false;
+        }
+
+        slot.runtime().setReviewReady(true);
+
+        if (!allActivePlayersReadyForReview()) {
+            return true;
+        }
+
+        if (session.currentRound() >= config.roundCount()) {
+            session.setPhase(
+                MatchPhase.FINISHED,
+                serverTick
+            );
+            return true;
+        }
+
+        resetReviewReady();
+
+        session.setPhase(
+            MatchPhase.DOCTRINE_EDIT,
+            serverTick
+        );
+
+        return true;
+    }
+
+    public boolean markDoctrineEditDone(
+        ServerPlayer player
+    ) {
+        PlayerSlot slot = session.player(
+            player.getUUID()
+        ).orElse(null);
+
+        if (slot == null
+            || slot.forfeited()
+            || session.phase() != MatchPhase.DOCTRINE_EDIT) {
+            return false;
+        }
+
+        slot.runtime().setReviewReady(true);
+
+        if (allActivePlayersReadyForReview()) {
+            session.setPhase(
+                MatchPhase.COUNTDOWN,
+                serverTick
+            );
+        }
+
+        return true;
+    }
+
+    private boolean allActivePlayersReadyForReview() {
+        return session.players()
+            .stream()
+            .filter(slot -> !slot.forfeited())
+            .allMatch(slot -> slot.runtime().reviewReady());
+    }
+
+    private void resetReviewReady() {
+        for (PlayerSlot slot : session.players()) {
+            slot.runtime().setReviewReady(false);
+        }
+    }
+
     public boolean startPrototypeRound(MinecraftServer server) {
         if (session.phase() == MatchPhase.ROUND_ACTIVE) {
             return false;
@@ -486,6 +567,8 @@ public final class MatchManager {
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
+
+        resetReviewReady();
 
         session.setPhase(
             MatchPhase.ROUND_REVIEW,
