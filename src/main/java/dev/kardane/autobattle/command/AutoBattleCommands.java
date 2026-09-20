@@ -96,6 +96,26 @@ public final class AutoBattleCommands {
                                 )
                         )
                         .then(
+                            Commands.literal("debug")
+                                .then(
+                                    Commands.argument(
+                                        "color",
+                                        StringArgumentType.word()
+                                    )
+                                    .executes(context ->
+                                        debugRobot(
+                                            context.getSource(),
+                                            matchManager,
+                                            planExecutor,
+                                            StringArgumentType.getString(
+                                                context,
+                                                "color"
+                                            )
+                                        )
+                                    )
+                                )
+                        )
+                        .then(
                             Commands.literal("plan")
                                 .then(
                                     Commands.argument(
@@ -188,6 +208,99 @@ public final class AutoBattleCommands {
     }
 
 
+
+
+    private static int debugRobot(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        PlanExecutor planExecutor,
+        String rawColor
+    ) {
+        RobotColor color;
+
+        try {
+            color = RobotColor.valueOf(
+                rawColor.toUpperCase(Locale.ROOT)
+            );
+        } catch (IllegalArgumentException exception) {
+            source.sendFailure(
+                Component.literal("Unknown robot color.")
+            );
+            return 0;
+        }
+
+        PlayerSlot slot = matchManager.session()
+            .players()
+            .stream()
+            .filter(candidate -> candidate.color() == color)
+            .findFirst()
+            .orElse(null);
+
+        if (slot == null) {
+            source.sendFailure(
+                Component.literal(
+                    "No participant owns " + color.name() + "."
+                )
+            );
+            return 0;
+        }
+
+        var score = slot.score();
+        var controller = planExecutor
+            .byOwner(slot.playerUuid())
+            .orElse(null);
+
+        String robotState;
+
+        if (controller == null) {
+            robotState = "unspawned";
+        } else if (controller.alive()) {
+            float hp = controller.entity()
+                .map(RobotZombie::getHealth)
+                .orElse(0.0F);
+
+            String plan = controller.currentPlan()
+                .map(TacticalPlan::externalId)
+                .orElse("none");
+
+            robotState = "alive hp="
+                + String.format(Locale.ROOT, "%.1f", hp)
+                + " plan=" + plan;
+        } else {
+            long remaining = Math.max(
+                0L,
+                controller.runtime().respawnAtTick()
+                    - matchManager.serverTick()
+            );
+
+            robotState = "dead respawnTicks=" + remaining;
+        }
+
+        String message = color.name()
+            + " total=" + score.totalScore()
+            + " round=" + score.roundScore()
+            + " K/D/A="
+            + score.roundKills() + "/"
+            + score.roundDeaths() + "/"
+            + score.roundAssists()
+            + " coreCaptures=" + score.roundCoreCaptures()
+            + " coreTicks=" + score.roundCoreHoldTicks()
+            + " damage="
+            + String.format(
+                Locale.ROOT,
+                "%.1f/%.1f",
+                score.roundDamageDealt(),
+                score.roundDamageTaken()
+            )
+            + " " + robotState;
+
+        source.sendSuccess(
+            () -> Component.literal(message),
+            false
+        );
+
+        return 1;
+    }
 
     private static int assignTestPlan(
         CommandSourceStack source,
