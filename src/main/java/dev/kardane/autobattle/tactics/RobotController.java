@@ -23,13 +23,13 @@ public final class RobotController {
     private final UUID ownerUuid;
     private final RobotColor color;
     private final RobotRegistry registry;
-    private final RobotConfig config;
+    private RobotConfig config;
     private final RobotRuntimeState runtime =
         new RobotRuntimeState();
 
-    private final Vec3 arenaCenter;
-    private final double arenaRadius;
-    private final double arenaRadiusSqr;
+    private Vec3 arenaCenter;
+    private double arenaRadius;
+    private double arenaRadiusSqr;
 
     private RobotZombie entity;
     private TacticalPlan currentPlan;
@@ -62,22 +62,28 @@ public final class RobotController {
             "config"
         );
 
-        Objects.requireNonNull(arena, "arena");
-
-        BlockPos core = arena.corePos();
-
-        this.arenaCenter = new Vec3(
-            core.getX() + 0.5D,
-            core.getY(),
-            core.getZ() + 0.5D
+        configureArena(
+            Objects.requireNonNull(arena, "arena")
         );
-        this.arenaRadius = calculateArenaRadius(
-            arena,
-            arenaCenter,
-            config.positionReachedDistance()
+    }
+
+    public void reloadConfig(
+        RobotConfig config,
+        ArenaConfig arena
+    ) {
+        this.config = Objects.requireNonNull(
+            config,
+            "config"
         );
-        this.arenaRadiusSqr =
-            arenaRadius * arenaRadius;
+        configureArena(
+            Objects.requireNonNull(arena, "arena")
+        );
+
+        if (currentPlan != null
+            && currentPlan.type() == TacticalPlanType.RETREAT) {
+            retreatPlanDestination =
+                calculateRetreatDestination().orElse(null);
+        }
     }
 
     public UUID ownerUuid() {
@@ -776,6 +782,23 @@ public final class RobotController {
         }
 
         return maxRadius + Math.max(1.0D, margin);
+    }
+
+    private void configureArena(ArenaConfig arena) {
+        BlockPos core = arena.corePos();
+
+        this.arenaCenter = new Vec3(
+            core.getX() + 0.5D,
+            core.getY(),
+            core.getZ() + 0.5D
+        );
+        this.arenaRadius = calculateArenaRadius(
+            arena,
+            arenaCenter,
+            config.positionReachedDistance()
+        );
+        this.arenaRadiusSqr =
+            arenaRadius * arenaRadius;
     }
 
     private static double horizontalDistanceSqr(

@@ -24,6 +24,26 @@ public final class RoundState {
         active = false;
     }
 
+    public void reloadDuration(
+        int durationTicks,
+        long currentTick
+    ) {
+        if (durationTicks < 1) {
+            throw new IllegalArgumentException(
+                "durationTicks must be positive"
+            );
+        }
+
+        if (!active) {
+            return;
+        }
+
+        endsAtTick = Math.max(
+            currentTick,
+            startedTick + durationTicks
+        );
+    }
+
     public int roundNumber() {
         return roundNumber;
     }

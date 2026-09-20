@@ -38,6 +38,13 @@ public final class PlanExecutor {
 
         this.robotConfig = config.robot();
         this.arenaConfig = config.arena();
+
+        for (RobotController controller : registry.all()) {
+            controller.reloadConfig(
+                robotConfig,
+                arenaConfig
+            );
+        }
     }
 
     public RobotController register(

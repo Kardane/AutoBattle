@@ -47,6 +47,10 @@ public final class SidebarUi {
                 null
             );
 
+        objective.setDisplayName(
+            language.component("sidebar.title")
+        );
+
         scoreboard.setDisplayObjective(
             DisplaySlot.SIDEBAR,
             objective

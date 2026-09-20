@@ -4,11 +4,13 @@ import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.jev.JevClient;
 import dev.kardane.autobattle.jev.JevDecisionService;
+import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.ui.DialogService;
 import dev.kardane.autobattle.ui.UiCoordinator;
+import net.minecraft.server.MinecraftServer;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -78,11 +80,12 @@ public final class ConfigReloadService {
     }
 
     public ConfigReloadResult reload() {
-        if (!matchManager.canReloadConfig()) {
-            return ConfigReloadResult.failure(
-                "Config reload is only allowed in an empty LOBBY."
-            );
-        }
+        return reload(null);
+    }
+
+    public ConfigReloadResult reload(
+        MinecraftServer server
+    ) {
 
         try {
             AutoBattleConfig next =
@@ -94,7 +97,14 @@ public final class ConfigReloadService {
             JevClient nextClient =
                 jevClientFactory.apply(next);
 
-            planExecutor.clear();
+            boolean emptyLobby =
+                matchManager.session().phase() == MatchPhase.LOBBY
+                    && matchManager.playerCount() == 0;
+
+            if (emptyLobby) {
+                planExecutor.clear();
+            }
+
             robotFactory.reloadConfig(next.robot());
             planExecutor.reloadConfig(next);
             commandService.reloadConfig(next);
@@ -109,16 +119,29 @@ public final class ConfigReloadService {
             ui.reloadConfig(next);
             matchManager.reloadConfig(next);
 
+            if (server != null) {
+                ui.refreshAfterReload(
+                    server,
+                    matchManager.session()
+                );
+            }
+
             return ConfigReloadResult.ok(
-                "Reloaded "
-                    + AutoBattleConfigLoader.configPath()
-                    + " and "
-                    + LanguageConfigLoader.messagePath()
+                language.format(
+                    "commands.reload-applied",
+                    "config",
+                    AutoBattleConfigLoader.configPath(),
+                    "messages",
+                    LanguageConfigLoader.messagePath()
+                )
             );
         } catch (RuntimeException exception) {
             return ConfigReloadResult.failure(
-                "Config reload failed: "
-                    + exception.getMessage()
+                language.format(
+                    "commands.reload-error",
+                    "error",
+                    exception.getMessage()
+                )
             );
         }
     }

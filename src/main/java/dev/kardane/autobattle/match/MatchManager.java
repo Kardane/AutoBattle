@@ -96,17 +96,10 @@ public final class MatchManager {
     }
 
     public boolean canReloadConfig() {
-        return session.phase() == MatchPhase.LOBBY
-            && playerCount() == 0;
+        return true;
     }
 
     public void reloadConfig(AutoBattleConfig config) {
-        if (!canReloadConfig()) {
-            throw new IllegalStateException(
-                "Config reload requires an empty LOBBY."
-            );
-        }
-
         this.config = java.util.Objects.requireNonNull(
             config,
             "config"
@@ -122,8 +115,17 @@ public final class MatchManager {
             planExecutor
         );
 
+        session.core().reloadConfig(
+            config.arena(),
+            config.core(),
+            config.scoring()
+        );
+        session.roundState().reloadDuration(
+            config.roundDurationTicks(),
+            serverTick
+        );
+
         pendingDamage.clear();
-        session = createSession();
     }
 
 
@@ -879,17 +881,46 @@ public final class MatchManager {
         return true;
     }
 
-    public String statusLine() {
-        return "phase=" + session.phase()
-            + ", round=" + session.currentRound()
-            + ", players=" + playerCount()
-            + ", ready=" + readyCount()
-            + ", minimum=" + config.minimumPlayers()
-            + ", coreOwner="
-            + session.core().state().ownerUuid()
-                .flatMap(session::player)
-                .map(slot -> slot.color().name())
-                .orElse("none");
+    public boolean endMatch(MinecraftServer server) {
+        Objects.requireNonNull(server, "server");
+
+        if (session.currentRound() <= 0
+            || session.phase() == MatchPhase.LOBBY
+            || session.phase() == MatchPhase.DOCTRINE_SETUP
+            || session.phase() == MatchPhase.FINISHED) {
+            return false;
+        }
+
+        if (session.phase() == MatchPhase.ROUND_ACTIVE) {
+            matchLogs.roundEnded(
+                server,
+                session,
+                serverTick
+            );
+        }
+
+        session.roundState().stop();
+        respawnManager.cancelAll(session);
+        planExecutor.clear();
+        combatTracker.reset();
+        pendingDamage.clear();
+        resetReviewReady();
+
+        MatchSession finished = session;
+        finished.setPhase(
+            MatchPhase.FINISHED,
+            serverTick
+        );
+
+        matchLogs.matchFinished(
+            server,
+            finished,
+            serverTick
+        );
+
+        ui.onFinished(server, finished);
+        resetToFreshLobby(server);
+        return true;
     }
 
     public void handleDisconnect(

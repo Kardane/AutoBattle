@@ -19,7 +19,7 @@ public final class LanguageConfigLoader {
         # AutoBattle UI language configuration
         #
         # Supported placeholders are documented next to each section.
-        # Edit this file and run /autobattle admin reload in an empty lobby.
+        # Edit this file and run /autobattle admin reload at any time.
 
         sidebar:
           title: "AUTO BATTLE"
@@ -35,6 +35,8 @@ public final class LanguageConfigLoader {
           # {round}, {total_rounds}
           review: "ROUND {round}/{total_rounds} | REVIEW"
           doctrine-edit: "ROUND {round}/{total_rounds} | DOCTRINE EDIT"
+          # {round}, {total_rounds}, {phase}
+          intermission: "ROUND {round}/{total_rounds} | {phase}"
           # {phase}
           phase: "AUTO BATTLE | {phase}"
           neutral-core: "NEUTRAL"
@@ -89,11 +91,17 @@ public final class LanguageConfigLoader {
           # {message}
           reload-success: "{message}"
           reload-failure: "{message}"
+          # {config}, {messages}
+          reload-applied: "Reloaded {config} and {messages}."
+          # {error}
+          reload-error: "Config reload failed: {error}"
           start-failed: "Unable to start round. Check active participants, submitted doctrines, and arena dimension."
           # {round}
           start-success: "Started AutoBattle prototype round {round}."
           stop-failed: "No active AutoBattle round to stop."
           stop-success: "Stopped AutoBattle prototype round."
+          end-failed: "No active AutoBattle match can be ended immediately."
+          end-success: "Ended the AutoBattle match immediately."
           # {result}
           player-command-rejected: "Command rejected: {result}"
           # {type}, {seconds}
@@ -107,6 +115,16 @@ public final class LanguageConfigLoader {
           doctrine-edit-rejected: "Doctrine edit rejected: {error}"
           # {line}, {version}
           doctrine-line-updated: "Doctrine line {line} updated. Version {version}."
+          # {player}
+          doctrine-view-player-not-found: "Player {player} is not online."
+          # {player}
+          doctrine-view-not-participant: "{player} is not an active AutoBattle participant."
+          # {player}
+          doctrine-view-unavailable: "{player} has not submitted a Doctrine yet."
+          # {player}, {color}, {version}
+          doctrine-view-title: "{player}'s Doctrine ({color}, version {version})"
+          # {line}, {text}
+          doctrine-view-line: "  {line}. {text}"
           join-failed: "Unable to join AutoBattle. The lobby may be closed or full."
           # {color}
           joined: "Joined AutoBattle as {color}."
@@ -129,6 +147,30 @@ public final class LanguageConfigLoader {
           review-plans: "Plans: {plans}"
           # {importance}, {tick}, {plan}, {confidence}, {result}
           review-critical: "Critical #{importance} @ tick {tick}: {plan} confidence={confidence} result={result}"
+          # {phase}, {round}, {players}, {ready}, {minimum}, {core_owner}
+          status: "phase={phase}, round={round}, players={players}, ready={ready}, minimum={minimum}, coreOwner={core_owner}"
+          admin:
+            # {color}
+            debug-no-owner: "No participant owns {color}."
+            debug-unknown-color: "Unknown robot color."
+            # {color}
+            debug-robot-not-alive: "{color} robot is not alive."
+            # {plan}
+            debug-plan-requires-target: "{plan} requires targetColor."
+            debug-unknown-target-color: "Unknown target robot color."
+            debug-target-invalid: "Target must be another participant."
+            debug-no-reposition-nodes: "Arena has no reposition nodes."
+            debug-plan-invalid: "Plan must be engage, chase, capture, defend, retreat, or reposition."
+            debug-plan-locked: "Plan change rejected by decision lock."
+            # {color}, {total}, {round}, {kills}, {deaths}, {assists}, {core_captures}, {core_ticks}, {damage_dealt}, {state}
+            debug-status: "{color} total={total} round={round} K/D/A={kills}/{deaths}/{assists} coreCaptures={core_captures} coreTicks={core_ticks} damage={damage_dealt} {state}"
+            # {hp}, {plan}
+            debug-state-alive: "alive hp={hp} plan={plan}"
+            # {ticks}
+            debug-state-dead: "dead respawnTicks={ticks}"
+            debug-state-unspawned: "unspawned"
+            # {color}, {plan}
+            debug-plan-assigned: "{color} plan = {plan}"
           test:
             carpet-missing: "Fabric Carpet /player command is unavailable."
             # {bot}
@@ -164,6 +206,12 @@ public final class LanguageConfigLoader {
             command-success: "{bot} command {type} activated."
             # {command}, {error}
             command-error: "Failed to execute '{command}': {error}"
+            fight-red-name: "Test RED"
+            fight-blue-name: "Test BLUE"
+            fight-success: "Spawned RED vs BLUE test fight."
+            robot-unknown-color: "Unknown robot color. Use red, blue, green, or yellow."
+            # {color}, {entity}
+            robot-spawned: "Spawned test robot {color} (entity {entity})."
 
         dialogs:
           doctrine-setup:

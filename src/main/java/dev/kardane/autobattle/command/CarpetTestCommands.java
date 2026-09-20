@@ -686,12 +686,36 @@ public final class CarpetTestCommands {
         MatchManager matchManager,
         LanguageService language
     ) {
+        String coreOwner = matchManager.session()
+            .core()
+            .state()
+            .ownerUuid()
+            .flatMap(matchManager::playerSlot)
+            .map(slot -> slot.color().name())
+            .orElse("none");
+
+        String status = language.format(
+            "commands.status",
+            "phase",
+            matchManager.session().phase().name(),
+            "round",
+            matchManager.session().currentRound(),
+            "players",
+            matchManager.playerCount(),
+            "ready",
+            matchManager.readyCount(),
+            "minimum",
+            matchManager.config().minimumPlayers(),
+            "core_owner",
+            coreOwner
+        );
+
         source.sendSuccess(
             () -> message(
                 language,
                 "commands.test.match-status",
                 "status",
-                matchManager.statusLine()
+                status
             ),
             false
         );

@@ -201,6 +201,26 @@ public final class AutoBattleCommands {
                                     )
                                 )
                         )
+                        .then(
+                            Commands.literal("view")
+                                .requires(source -> source.hasPermission(1))
+                                .then(
+                                    Commands.argument(
+                                        "player",
+                                        StringArgumentType.word()
+                                    )
+                                    .executes(context ->
+                                        viewDoctrine(
+                                            context.getSource(),
+                                            matchManager,
+                                            StringArgumentType.getString(
+                                                context,
+                                                "player"
+                                            )
+                                        )
+                                    )
+                                )
+                        )
                 )
                 .then(
                     Commands.literal("command")
@@ -263,6 +283,15 @@ public final class AutoBattleCommands {
                             Commands.literal("stopround")
                                 .executes(context ->
                                     stopPrototypeRound(
+                                        context.getSource(),
+                                        matchManager
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("end")
+                                .executes(context ->
+                                    endMatch(
                                         context.getSource(),
                                         matchManager
                                     )
@@ -407,7 +436,7 @@ public final class AutoBattleCommands {
             );
         } catch (IllegalArgumentException exception) {
             source.sendFailure(
-                Component.literal("Unknown robot color.")
+                message("commands.admin.debug-unknown-color")
             );
             return 0;
         }
@@ -421,8 +450,10 @@ public final class AutoBattleCommands {
 
         if (slot == null) {
             source.sendFailure(
-                Component.literal(
-                    "No participant owns " + color.name() + "."
+                message(
+                    "commands.admin.debug-no-owner",
+                    "color",
+                    color.name()
                 )
             );
             return 0;
@@ -436,7 +467,9 @@ public final class AutoBattleCommands {
         String robotState;
 
         if (controller == null) {
-            robotState = "unspawned";
+            robotState = language.text(
+                "commands.admin.debug-state-unspawned"
+            );
         } else if (controller.alive()) {
             float hp = controller.entity()
                 .map(RobotZombie::getHealth)
@@ -446,9 +479,13 @@ public final class AutoBattleCommands {
                 .map(TacticalPlan::externalId)
                 .orElse("none");
 
-            robotState = "alive hp="
-                + String.format(Locale.ROOT, "%.1f", hp)
-                + " plan=" + plan;
+            robotState = language.format(
+                "commands.admin.debug-state-alive",
+                "hp",
+                String.format(Locale.ROOT, "%.1f", hp),
+                "plan",
+                plan
+            );
         } else {
             long remaining = Math.max(
                 0L,
@@ -456,29 +493,44 @@ public final class AutoBattleCommands {
                     - matchManager.serverTick()
             );
 
-            robotState = "dead respawnTicks=" + remaining;
+            robotState = language.format(
+                "commands.admin.debug-state-dead",
+                "ticks",
+                remaining
+            );
         }
 
-        String message = color.name()
-            + " total=" + score.totalScore()
-            + " round=" + score.roundScore()
-            + " K/D/A="
-            + score.roundKills() + "/"
-            + score.roundDeaths() + "/"
-            + score.roundAssists()
-            + " coreCaptures=" + score.roundCoreCaptures()
-            + " coreTicks=" + score.roundCoreHoldTicks()
-            + " damage="
-            + String.format(
+        Component status = message(
+            "commands.admin.debug-status",
+            "color",
+            color.name(),
+            "total",
+            score.totalScore(),
+            "round",
+            score.roundScore(),
+            "kills",
+            score.roundKills(),
+            "deaths",
+            score.roundDeaths(),
+            "assists",
+            score.roundAssists(),
+            "core_captures",
+            score.roundCoreCaptures(),
+            "core_ticks",
+            score.roundCoreHoldTicks(),
+            "damage_dealt",
+            String.format(
                 Locale.ROOT,
                 "%.1f/%.1f",
                 score.roundDamageDealt(),
                 score.roundDamageTaken()
-            )
-            + " " + robotState;
+            ),
+            "state",
+            robotState
+        );
 
         source.sendSuccess(
-            () -> Component.literal(message),
+            () -> status,
             false
         );
 
@@ -501,9 +553,7 @@ public final class AutoBattleCommands {
             );
         } catch (IllegalArgumentException exception) {
             source.sendFailure(
-                Component.literal(
-                    "Unknown robot color."
-                )
+                message("commands.admin.debug-unknown-color")
             );
             return 0;
         }
@@ -517,8 +567,10 @@ public final class AutoBattleCommands {
 
         if (slot == null) {
             source.sendFailure(
-                Component.literal(
-                    "No participant owns " + color.name() + "."
+                message(
+                    "commands.admin.debug-no-owner",
+                    "color",
+                    color.name()
                 )
             );
             return 0;
@@ -530,8 +582,10 @@ public final class AutoBattleCommands {
 
         if (controller == null || !controller.alive()) {
             source.sendFailure(
-                Component.literal(
-                    color.name() + " robot is not alive."
+                message(
+                    "commands.admin.debug-robot-not-alive",
+                    "color",
+                    color.name()
                 )
             );
             return 0;
@@ -547,8 +601,10 @@ public final class AutoBattleCommands {
             case "ENGAGE", "CHASE" -> {
                 if (rawTargetColor == null) {
                     source.sendFailure(
-                        Component.literal(
-                            planName + " requires targetColor."
+                        message(
+                            "commands.admin.debug-plan-requires-target",
+                            "plan",
+                            planName
                         )
                     );
                     return 0;
@@ -562,8 +618,8 @@ public final class AutoBattleCommands {
                     );
                 } catch (IllegalArgumentException exception) {
                     source.sendFailure(
-                        Component.literal(
-                            "Unknown target robot color."
+                        message(
+                            "commands.admin.debug-unknown-target-color"
                         )
                     );
                     return 0;
@@ -582,8 +638,8 @@ public final class AutoBattleCommands {
                     || targetSlot.playerUuid()
                         .equals(slot.playerUuid())) {
                     source.sendFailure(
-                        Component.literal(
-                            "Target must be another participant."
+                        message(
+                            "commands.admin.debug-target-invalid"
                         )
                     );
                     return 0;
@@ -628,9 +684,7 @@ public final class AutoBattleCommands {
 
                 if (nodes.isEmpty()) {
                     source.sendFailure(
-                        Component.literal(
-                            "Arena has no reposition nodes."
-                        )
+                        message("commands.admin.debug-no-reposition-nodes")
                     );
                     return 0;
                 }
@@ -652,9 +706,7 @@ public final class AutoBattleCommands {
 
             default -> {
                 source.sendFailure(
-                    Component.literal(
-                        "Plan must be engage, chase, capture, defend, retreat, or reposition."
-                    )
+                    message("commands.admin.debug-plan-invalid")
                 );
                 return 0;
             }
@@ -666,16 +718,18 @@ public final class AutoBattleCommands {
             currentTick
         )) {
             source.sendFailure(
-                Component.literal(
-                    "Plan change rejected by decision lock."
-                )
+                message("commands.admin.debug-plan-locked")
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                color.name() + " plan = " + plan.externalId()
+            () -> message(
+                "commands.admin.debug-plan-assigned",
+                "color",
+                color.name(),
+                "plan",
+                plan.externalId()
             ),
             false
         );
@@ -702,7 +756,7 @@ public final class AutoBattleCommands {
         ConfigReloadService configReloadService
     ) {
         ConfigReloadResult result =
-            configReloadService.reload();
+            configReloadService.reload(source.getServer());
 
         if (!result.success()) {
             source.sendFailure(
@@ -763,6 +817,25 @@ public final class AutoBattleCommands {
 
         source.sendSuccess(
             () -> message("commands.stop-success"),
+            true
+        );
+
+        return 1;
+    }
+
+    private static int endMatch(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) {
+        if (!matchManager.endMatch(source.getServer())) {
+            source.sendFailure(
+                message("commands.end-failed")
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> message("commands.end-success"),
             true
         );
 
@@ -908,6 +981,85 @@ public final class AutoBattleCommands {
         );
 
         matchManager.markDoctrineEditDone(player);
+
+        return 1;
+    }
+
+    private static int viewDoctrine(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        String playerName
+    ) {
+        ServerPlayer target = source.getServer()
+            .getPlayerList()
+            .getPlayerByName(playerName);
+
+        if (target == null) {
+            source.sendFailure(
+                message(
+                    "commands.doctrine-view-player-not-found",
+                    "player",
+                    playerName
+                )
+            );
+            return 0;
+        }
+
+        PlayerSlot slot = matchManager.playerSlot(target.getUUID())
+            .orElse(null);
+
+        if (slot == null || slot.forfeited()) {
+            source.sendFailure(
+                message(
+                    "commands.doctrine-view-not-participant",
+                    "player",
+                    target.getName().getString()
+                )
+            );
+            return 0;
+        }
+
+        var doctrine = slot.doctrine().orElse(null);
+
+        if (doctrine == null) {
+            source.sendFailure(
+                message(
+                    "commands.doctrine-view-unavailable",
+                    "player",
+                    target.getName().getString()
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> message(
+                "commands.doctrine-view-title",
+                "player",
+                target.getName().getString(),
+                "color",
+                slot.color().name(),
+                "version",
+                doctrine.version()
+            ),
+            false
+        );
+
+        for (int index = 0; index < doctrine.lines().size(); index++) {
+            int line = index + 1;
+            String text = doctrine.line(index);
+
+            source.sendSuccess(
+                () -> message(
+                    "commands.doctrine-view-line",
+                    "line",
+                    line,
+                    "text",
+                    text
+                ),
+                false
+            );
+        }
 
         return 1;
     }
@@ -1178,8 +1330,30 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager
     ) {
+        String coreOwner = matchManager.session()
+            .core()
+            .state()
+            .ownerUuid()
+            .flatMap(matchManager::playerSlot)
+            .map(slot -> slot.color().name())
+            .orElse("none");
+
         source.sendSuccess(
-            () -> Component.literal(matchManager.statusLine()),
+            () -> message(
+                "commands.status",
+                "phase",
+                matchManager.session().phase().name(),
+                "round",
+                matchManager.session().currentRound(),
+                "players",
+                matchManager.playerCount(),
+                "ready",
+                matchManager.readyCount(),
+                "minimum",
+                matchManager.config().minimumPlayers(),
+                "core_owner",
+                coreOwner
+            ),
             false
         );
         return 1;
@@ -1219,7 +1393,7 @@ public final class AutoBattleCommands {
             level,
             testMatchId,
             UUID.randomUUID(),
-            Component.literal("Test RED"),
+            message("commands.test.fight-red-name"),
             RobotColor.RED,
             center.add(right.scale(3.0D)),
             player.getYRot()
@@ -1229,7 +1403,7 @@ public final class AutoBattleCommands {
             level,
             testMatchId,
             UUID.randomUUID(),
-            Component.literal("Test BLUE"),
+            message("commands.test.fight-blue-name"),
             RobotColor.BLUE,
             center.add(right.scale(-3.0D)),
             player.getYRot()
@@ -1264,9 +1438,7 @@ public final class AutoBattleCommands {
         );
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Spawned RED vs BLUE test fight."
-            ),
+            () -> message("commands.test.fight-success"),
             false
         );
 
@@ -1288,9 +1460,7 @@ public final class AutoBattleCommands {
             );
         } catch (IllegalArgumentException exception) {
             source.sendFailure(
-                Component.literal(
-                    "Unknown robot color. Use red, blue, green, or yellow."
-                )
+                message("commands.test.robot-unknown-color")
             );
             return 0;
         }
@@ -1300,13 +1470,13 @@ public final class AutoBattleCommands {
         planExecutor.register(robot, matchManager.serverTick());
 
         source.sendSuccess(
-            () -> Component.literal("Spawned test robot ")
-                .append(color.displayName())
-                .append(
-                    Component.literal(
-                        " (entity " + robot.getId() + ")"
-                    )
-                ),
+            () -> message(
+                "commands.test.robot-spawned",
+                "color",
+                color.name(),
+                "entity",
+                robot.getId()
+            ),
             false
         );
 

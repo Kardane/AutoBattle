@@ -27,12 +27,12 @@ public final class CoreController {
     private static final float BOUNDARY_PARTICLE_SCALE = 1.0F;
     private static final int NEUTRAL_CORE_COLOR = 0xFFFFFF;
 
-    private final ResourceKey<Level> dimension;
-    private final BlockPos corePos;
-    private final double radius;
-    private final int captureTicks;
-    private final int holdScoreIntervalTicks;
-    private final ScoringConfig scoring;
+    private ResourceKey<Level> dimension;
+    private BlockPos corePos;
+    private double radius;
+    private int captureTicks;
+    private int holdScoreIntervalTicks;
+    private ScoringConfig scoring;
     private final CoreState state = new CoreState();
 
     public CoreController(
@@ -53,6 +53,32 @@ public final class CoreController {
         this.captureTicks = rules.captureTicks();
         this.holdScoreIntervalTicks =
             rules.holdScoreIntervalTicks();
+    }
+
+    public void reloadConfig(
+        ArenaConfig arena,
+        CoreRulesConfig rules,
+        ScoringConfig scoring
+    ) {
+        Objects.requireNonNull(arena, "arena");
+        Objects.requireNonNull(rules, "rules");
+        Objects.requireNonNull(scoring, "scoring");
+
+        boolean coreLocationChanged =
+            !dimension.equals(arena.dimension())
+                || !corePos.equals(arena.corePos());
+
+        dimension = arena.dimension();
+        corePos = arena.corePos();
+        radius = arena.coreRadius();
+        captureTicks = rules.captureTicks();
+        holdScoreIntervalTicks =
+            rules.holdScoreIntervalTicks();
+        this.scoring = scoring;
+
+        if (coreLocationChanged) {
+            state.reset();
+        }
     }
 
     public void tick(

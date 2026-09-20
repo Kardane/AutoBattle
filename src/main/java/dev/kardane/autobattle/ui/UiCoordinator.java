@@ -67,6 +67,39 @@ public final class UiCoordinator {
         this.config = Objects.requireNonNull(config, "config");
     }
 
+    public void refreshAfterReload(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        syncBossBarPlayers(server);
+        long currentTick = server.getTickCount();
+
+        switch (match.phase()) {
+            case ROUND_ACTIVE -> {
+                bossBar.updateRound(
+                    match,
+                    currentTick,
+                    config.roundCount(),
+                    config.roundDurationTicks()
+                );
+                sidebar.update(server, match);
+            }
+            case COUNTDOWN, ROUND_REVIEW, DOCTRINE_EDIT -> {
+                bossBar.updateIntermission(
+                    match,
+                    currentTick,
+                    config.roundCount(),
+                    config.countdownTicks()
+                );
+                sidebar.create(server);
+                sidebar.update(server, match);
+            }
+            default -> {
+                // LOBBY and FINISHED have no active match UI to refresh.
+            }
+        }
+    }
+
     public void onDoctrineSetup(
         MinecraftServer server,
         MatchSession match

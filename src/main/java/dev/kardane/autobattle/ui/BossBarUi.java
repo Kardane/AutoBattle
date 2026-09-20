@@ -3,9 +3,7 @@ package dev.kardane.autobattle.ui;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
-import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.PlayerSlot;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
@@ -177,20 +175,31 @@ public final class BossBarUi {
         int totalRounds
     ) {
         String phase = switch (match.phase()) {
-            case ROUND_REVIEW -> "ROUND REVIEW";
-            case DOCTRINE_EDIT -> "DOCTRINE EDIT";
-            case COUNTDOWN -> "NEXT ROUND";
-            default -> match.phase().name();
+            case ROUND_REVIEW -> language.text(
+                "actionbar.status.review"
+            );
+            case DOCTRINE_EDIT -> language.text(
+                "actionbar.status.doctrine-edit"
+            );
+            case COUNTDOWN -> language.text(
+                "actionbar.status.countdown"
+            );
+            default -> language.format(
+                "actionbar.status.default",
+                "phase",
+                match.phase().name()
+            );
         };
 
         event.setName(
-            Component.literal(
-                "ROUND "
-                    + match.currentRound()
-                    + "/"
-                    + totalRounds
-                    + " | "
-                    + phase
+            language.component(
+                "bossbar.intermission",
+                "round",
+                match.currentRound(),
+                "total_rounds",
+                totalRounds,
+                "phase",
+                phase
             )
         );
         event.setProgress(1.0F);

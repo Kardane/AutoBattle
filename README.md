@@ -35,7 +35,7 @@ Edit this file and either restart the server or run:
 /autobattle admin reload
 ```
 
-The reload command is intentionally restricted to an empty `LOBBY` so an active match cannot change rules underneath running robots. It reloads both YAML files atomically: both files must parse successfully before the new values are applied.
+The reload command can be used during any phase. It reloads both YAML files atomically: both files must parse successfully before the new values are applied, and the current match/session is kept running while the new values are applied immediately.
 
 `config.yml` contains the TypeSafe API configuration and the main game tuning values:
 
@@ -170,6 +170,20 @@ Next Round
 Free-form Doctrine text is submitted with Minecraft's custom dialog action payload rather than being interpolated into a command string. Spaces, quotes, Korean text and other normal input therefore remain data.
 
 The existing `/autobattle doctrine ...` and `/autobattle review` commands remain available as debugging/fallback paths.
+
+Operators can immediately finish an active match and broadcast its final standings with:
+
+```text
+/autobattle admin end
+```
+
+Operators can inspect an online participant's submitted Doctrine with:
+
+```text
+/autobattle doctrine view <player>
+```
+
+The Doctrine view command requires permission level 2 because it reveals another participant's strategy.
 
 ## Stack
 
