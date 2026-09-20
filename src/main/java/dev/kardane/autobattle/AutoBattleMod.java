@@ -47,7 +47,9 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             robotRegistry,
             config.robot()
         );
-        DialogService dialogs = new DialogService();
+        DialogService dialogs = new DialogService(
+            config.doctrine().maxLineLength()
+        );
         PlayerCommandService commandService =
             new PlayerCommandService(
                 config,
@@ -74,7 +76,9 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 config
             );
         DoctrineService doctrineService = new DoctrineService(
-            new DoctrineValidator()
+            new DoctrineValidator(
+                config.doctrine().maxLineLength()
+            )
         );
         RoundReviewService reviewService =
             new RoundReviewService(decisionLogs);
