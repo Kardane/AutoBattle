@@ -1,6 +1,5 @@
 package dev.kardane.autobattle.match;
 
-import dev.kardane.autobattle.AutoBattleConstants;
 import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.combat.CombatTracker;
 import dev.kardane.autobattle.combat.DamageRules;
@@ -39,7 +38,7 @@ public final class MatchManager {
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
     private final DamageRules damageRules = new DamageRules();
-    private final CombatTracker combatTracker = new CombatTracker();
+    private final CombatTracker combatTracker;
     private final RobotRespawnManager respawnManager;
     private final PlayerCommandService commandService;
     private final JevDecisionService decisionService;
@@ -66,6 +65,9 @@ public final class MatchManager {
         this.commandService = commandService;
         this.decisionService = decisionService;
         this.ui = ui;
+        this.combatTracker = new CombatTracker(
+            config.scoring().assistWindowTicks()
+        );
         this.respawnManager = new RobotRespawnManager(
             config,
             robotFactory,
@@ -91,7 +93,7 @@ public final class MatchManager {
 
         if (session.phase() == MatchPhase.COUNTDOWN) {
             if (serverTick - session.phaseStartedTick()
-                >= AutoBattleConstants.COUNTDOWN_TICKS) {
+                >= config.countdownTicks()) {
                 startPrototypeRound(server);
             }
             return;
@@ -203,7 +205,7 @@ public final class MatchManager {
                 pending,
                 (float) Math.min(
                     pending.amount(),
-                    RobotFactory.MAX_HEALTH
+                    robotFactory.maxHealth()
                 )
             );
         }
@@ -230,7 +232,7 @@ public final class MatchManager {
 
         resolution.killerOwner().flatMap(session::player).ifPresent(
             slot -> slot.score().addKill(
-                AutoBattleConstants.KILL_SCORE
+                config.scoring().killScore()
             )
         );
 
@@ -256,7 +258,7 @@ public final class MatchManager {
         for (UUID assistOwner : resolution.assistOwnerUuids()) {
             session.player(assistOwner).ifPresent(
                 slot -> slot.score().addAssist(
-                    AutoBattleConstants.ASSIST_SCORE
+                    config.scoring().assistScore()
                 )
             );
         }
@@ -633,7 +635,11 @@ public final class MatchManager {
         return new MatchSession(
             UUID.randomUUID(),
             robotRegistry,
-            new CoreController(config.arena())
+            new CoreController(
+            config.arena(),
+            config.core(),
+            config.scoring()
+        )
         );
     }
 
@@ -771,7 +777,7 @@ public final class MatchManager {
 
             if (!runtime.regenEligible(
                 serverTick,
-                AutoBattleConstants.REGEN_DELAY_TICKS
+                config.robot().regenDelayTicks()
             )) {
                 continue;
             }
@@ -788,13 +794,13 @@ public final class MatchManager {
                 Math.min(
                     robot.getMaxHealth(),
                     robot.getHealth()
-                        + AutoBattleConstants.REGEN_AMOUNT
+                        + config.robot().regenAmount()
                 )
             );
 
             runtime.setNextRegenTick(
                 serverTick
-                    + AutoBattleConstants.REGEN_INTERVAL_TICKS
+                    + config.robot().regenIntervalTicks()
             );
         }
     }
