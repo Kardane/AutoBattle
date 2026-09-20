@@ -67,7 +67,7 @@ public final class RobotStateSerializer {
                     .orElseThrow();
 
                 hp = enemyEntity.getHealth();
-                distance = selfEntity.distanceTo(enemyEntity);
+                distance = (double) selfEntity.distanceTo(enemyEntity);
                 attackingSelf =
                     enemyEntity.getTarget() == selfEntity;
             }
