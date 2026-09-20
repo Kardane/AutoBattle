@@ -215,8 +215,16 @@ public final class TypeSafeJevClient implements JevClient {
             self.ownerUuid().toString()
         );
         json.addProperty("color", self.color().name());
-        json.addProperty("hp", self.hp());
-        json.addProperty("max_hp", self.maxHp());
+        addFiniteNumber(
+            json,
+            "hp",
+            self.hp()
+        );
+        addFiniteNumber(
+            json,
+            "max_hp",
+            self.maxHp()
+        );
         json.addProperty(
             "round_score",
             self.roundScore()
@@ -255,7 +263,8 @@ public final class TypeSafeJevClient implements JevClient {
             "contested",
             core.contested()
         );
-        json.addProperty(
+        addFiniteNumber(
+            json,
             "distance",
             core.distance()
         );
@@ -275,8 +284,13 @@ public final class TypeSafeJevClient implements JevClient {
             enemy.color().name()
         );
         json.addProperty("alive", enemy.alive());
-        json.addProperty("hp", enemy.hp());
-        json.addProperty(
+        addFiniteNumber(
+            json,
+            "hp",
+            enemy.hp()
+        );
+        addFiniteNumber(
+            json,
             "distance",
             enemy.distance()
         );
@@ -294,6 +308,20 @@ public final class TypeSafeJevClient implements JevClient {
             enemy.killsAgainstSelfThisRound()
         );
         return json;
+    }
+
+    private void addFiniteNumber(
+        JsonObject json,
+        String key,
+        Number value
+    ) {
+        if (value == null
+            || !Double.isFinite(value.doubleValue())) {
+            json.add(key, null);
+            return;
+        }
+
+        json.addProperty(key, value);
     }
 
     private JsonArray buildDoctrine(
