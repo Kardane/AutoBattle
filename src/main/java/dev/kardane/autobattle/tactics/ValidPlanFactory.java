@@ -1,6 +1,6 @@
 package dev.kardane.autobattle.tactics;
 
-import dev.kardane.autobattle.AutoBattleConstants;
+import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -9,9 +9,26 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 public final class ValidPlanFactory {
+    private AutoBattleConfig config;
+
+    public ValidPlanFactory(AutoBattleConfig config) {
+        this.config = Objects.requireNonNull(
+            config,
+            "config"
+        );
+    }
+
+    public void reload(AutoBattleConfig config) {
+        this.config = Objects.requireNonNull(
+            config,
+            "config"
+        );
+    }
+
     public List<TacticalPlan> create(
         MatchSession match,
         RobotController self,
@@ -23,7 +40,7 @@ public final class ValidPlanFactory {
         }
 
         List<TacticalPlan> plans = new ArrayList<>();
-        long lockTicks = AutoBattleConstants.DECISION_LOCK_TICKS;
+        long lockTicks = config.decisionLockTicks();
 
         for (RobotController enemy : match.robots().alive()) {
             if (enemy == self) {
@@ -121,12 +138,6 @@ public final class ValidPlanFactory {
         MatchSession match,
         RobotController self
     ) {
-        List<BlockPos> nodes = match.robots()
-            .all()
-            .isEmpty()
-            ? List.of()
-            : null;
-
         PlayerSlot slot = match.player(
             self.ownerUuid()
         ).orElse(null);
@@ -135,16 +146,24 @@ public final class ValidPlanFactory {
             return null;
         }
 
-        // Arena nodes are not owned by MatchSession yet. Until the planner
-        // receives ArenaConfig directly, use a simple offset around CORE.
-        Vec3 core = coreCenter(match);
-        double offset = 7.0D;
+        List<BlockPos> nodes = config.arena()
+            .repositionNodes();
 
-        return switch (slot.slotIndex() % 4) {
-            case 0 -> core.add(offset, 0.0D, offset);
-            case 1 -> core.add(-offset, 0.0D, offset);
-            case 2 -> core.add(-offset, 0.0D, -offset);
-            default -> core.add(offset, 0.0D, -offset);
-        };
+        if (nodes.isEmpty()) {
+            return null;
+        }
+
+        BlockPos node = nodes.get(
+            Math.floorMod(
+                slot.slotIndex(),
+                nodes.size()
+            )
+        );
+
+        return new Vec3(
+            node.getX() + 0.5D,
+            node.getY(),
+            node.getZ() + 0.5D
+        );
     }
 }
