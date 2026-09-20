@@ -24,6 +24,7 @@ public final class UiCoordinator {
     private final ActionBarUi actionBar = new ActionBarUi();
     private final ChatAnnouncer chat = new ChatAnnouncer();
     private final SidebarUi sidebar = new SidebarUi();
+    private final GameSoundService sounds = new GameSoundService();
 
     private UUID lastCoreOwner;
 
@@ -85,6 +86,7 @@ public final class UiCoordinator {
         sidebar.create(server);
         sidebar.update(server, match);
         chat.roundStarted(server, match);
+        sounds.roundStarted(server, match);
     }
 
     public void tickRound(
@@ -141,6 +143,7 @@ public final class UiCoordinator {
                         owner
                     )
                 );
+                sounds.coreCaptured(server, match);
             }
 
             lastCoreOwner = currentCoreOwner;
@@ -202,6 +205,7 @@ public final class UiCoordinator {
             killer,
             victim
         );
+        sounds.robotKilled(server, match);
     }
 
     public void onRoundEnd(
@@ -209,6 +213,7 @@ public final class UiCoordinator {
         MatchSession match
     ) {
         chat.roundEnded(server, match);
+        sounds.roundEnded(server, match);
         syncHudPlayers(server, match);
         bossBar.updateIntermission(
             match,
@@ -269,6 +274,8 @@ public final class UiCoordinator {
         MinecraftServer server,
         MatchSession match
     ) {
+        sounds.matchFinished(server, match);
+
         forEachActivePlayer(
             server,
             match,
