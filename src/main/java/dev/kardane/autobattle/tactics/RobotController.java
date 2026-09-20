@@ -39,6 +39,7 @@ public final class RobotController {
     private boolean redecisionRequested;
     private long decisionGeneration;
     private UUID localCombatTargetUuid;
+    private Vec3 retreatPlanDestination;
 
     public RobotController(
         UUID ownerUuid,
@@ -175,6 +176,11 @@ public final class RobotController {
         planStartedTick = currentTick;
         lastDecisionTick = currentTick;
         localCombatTargetUuid = plan.targetOwnerUuid();
+        retreatPlanDestination =
+            plan.type() == TacticalPlanType.RETREAT
+                ? calculateRetreatDestination()
+                    .orElse(null)
+                : null;
 
         renderPlanIntent(plan);
         return true;
@@ -184,6 +190,7 @@ public final class RobotController {
         currentPlan = null;
         planStartedTick = -1L;
         localCombatTargetUuid = null;
+        retreatPlanDestination = null;
 
         if (entity != null && !entity.isRemoved()) {
             entity.setTarget(null);
@@ -382,19 +389,20 @@ public final class RobotController {
     private void retreat() {
         entity.setTarget(null);
 
-        retreatDestination().ifPresentOrElse(
-            destination ->
-                entity.getNavigation().moveTo(
-                    destination.x,
-                    destination.y,
-                    destination.z,
-                    config.retreatSpeed()
-                ),
-            this::invalidateCurrentTarget
+        if (retreatPlanDestination == null) {
+            invalidateCurrentTarget();
+            return;
+        }
+
+        moveToPosition(
+            retreatPlanDestination,
+            config.retreatSpeed(),
+            square(config.positionReachedDistance()),
+            true
         );
     }
 
-    private Optional<Vec3> retreatDestination() {
+    private Optional<Vec3> calculateRetreatDestination() {
         return resolveNearestEnemy().map(threat -> {
             Vec3 away = entity.position()
                 .subtract(threat.position());
@@ -540,6 +548,79 @@ public final class RobotController {
         );
     }
 
+    public Optional<Vec3> positionSnapshot() {
+        if (entity == null || entity.isRemoved()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(entity.position());
+    }
+
+    public Optional<Vec3> targetPositionSnapshot() {
+        if (entity == null || entity.isRemoved()) {
+            return Optional.empty();
+        }
+
+        if (localCombatTargetUuid != null) {
+            Optional<Vec3> local = resolveTarget(
+                localCombatTargetUuid
+            ).map(RobotZombie::position);
+
+            if (local.isPresent()) {
+                return local;
+            }
+        }
+
+        if (currentPlan != null
+            && currentPlan.targetOwnerUuid() != null) {
+            return resolveTarget(
+                currentPlan.targetOwnerUuid()
+            ).map(RobotZombie::position);
+        }
+
+        return Optional.empty();
+    }
+
+    public Optional<Vec3> destinationSnapshot() {
+        if (currentPlan == null) {
+            return Optional.empty();
+        }
+
+        return switch (currentPlan.type()) {
+            case CAPTURE, DEFEND, REPOSITION ->
+                Optional.of(
+                    clampToArena(
+                        currentPlan.destination()
+                    )
+                );
+            case RETREAT ->
+                Optional.ofNullable(
+                    retreatPlanDestination
+                );
+            case ENGAGE, CHASE ->
+                Optional.empty();
+        };
+    }
+
+    public double distanceToCoreSnapshot() {
+        if (entity == null || entity.isRemoved()) {
+            return Double.NaN;
+        }
+
+        return entity.position()
+            .distanceTo(arenaCenter);
+    }
+
+    public double distanceToTargetSnapshot() {
+        if (entity == null || entity.isRemoved()) {
+            return Double.NaN;
+        }
+
+        return targetPositionSnapshot()
+            .map(entity.position()::distanceTo)
+            .orElse(Double.NaN);
+    }
+
     private void renderPlanIntent(TacticalPlan plan) {
         if (entity == null || entity.isRemoved()) {
             return;
@@ -553,7 +634,7 @@ public final class RobotController {
             case CAPTURE, DEFEND, REPOSITION ->
                 clampToArena(plan.destination());
             case RETREAT ->
-                retreatDestination().orElse(null);
+                retreatPlanDestination;
         };
 
         if (destination != null) {
