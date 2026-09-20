@@ -159,7 +159,7 @@ Doctrine text is state data, not executable game logic. The server validates eve
 
 When enabled, AutoBattle normalizes all player Doctrine text—regardless of whether it is Korean, English, or another language—into concise canonical English before TypeSafe Jev sees it. The UI continues to show and edit the player's original text.
 
-Normalization happens only when Doctrine is initially submitted or actually edited. `KEEP` does not call OpenAI. A SHA-256 cache reuses prior normalization results for identical three-line Doctrine text, including across different players during the same server process.
+Normalization happens only when Doctrine is initially submitted or actually edited. `KEEP` does not call OpenAI. The OpenAI request runs off the Minecraft server thread and only the completed Doctrine state update is marshalled back onto the server thread. A player can have at most one normalization pending at a time, and an initial Doctrine cannot be resubmitted once it has been accepted. A SHA-256 cache reuses prior normalization results for identical three-line Doctrine text, including across different players during the same server process.
 
 The normalizer uses the OpenAI Responses API with Structured Outputs. It is instructed to preserve player intent and explicit numeric thresholds, keep the three rules separate, avoid inventing new goals or conditions, and prefer AutoBattle terms such as `CORE`, `ENGAGE`, `CHASE`, `CAPTURE_CORE`, `DEFEND_CORE`, `RETREAT`, `REPOSITION`, and `HP` when they accurately match the source.
 
