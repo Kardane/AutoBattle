@@ -91,6 +91,15 @@ public final class AutoBattleCommands {
                                 reviewService
                             )
                         )
+                        .then(
+                            Commands.literal("ready")
+                                .executes(context ->
+                                    markReviewReady(
+                                        context.getSource(),
+                                        matchManager
+                                    )
+                                )
+                        )
                 )
                 .then(
                     Commands.literal("status")
@@ -137,6 +146,15 @@ public final class AutoBattleCommands {
                                                 )
                                             )
                                         )
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("keep")
+                                .executes(context ->
+                                    keepDoctrine(
+                                        context.getSource(),
+                                        matchManager
                                     )
                                 )
                         )
@@ -816,6 +834,8 @@ public final class AutoBattleCommands {
             false
         );
 
+        matchManager.markDoctrineEditDone(player);
+
         return 1;
     }
 
@@ -906,6 +926,57 @@ public final class AutoBattleCommands {
         return 1;
     }
 
+
+
+    private static int markReviewReady(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        if (!matchManager.markReviewReady(player)) {
+            source.sendFailure(
+                Component.literal(
+                    "Review ready is only available during ROUND_REVIEW."
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Round review marked ready."
+            ),
+            false
+        );
+
+        return 1;
+    }
+
+    private static int keepDoctrine(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        if (!matchManager.markDoctrineEditDone(player)) {
+            source.sendFailure(
+                Component.literal(
+                    "Doctrine keep is only available during DOCTRINE_EDIT."
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Doctrine kept unchanged for the next round."
+            ),
+            false
+        );
+
+        return 1;
+    }
 
     private static int review(
         CommandSourceStack source,
