@@ -65,6 +65,18 @@ public final class LanguageConfigLoader {
           robot-killed: "[AutoBattle] {killer_color} destroyed {victim_color}."
           # {color}
           core-captured: "[AutoBattle] {color} captured CORE."
+          # {error}
+          doctrine-rejected: "Doctrine rejected: {error}"
+          # {version}
+          doctrine-saved: "Doctrine v{version} saved."
+          review-ready-unavailable: "Review ready is unavailable in the current phase."
+          doctrine-selection-invalid: "Doctrine edit selection is invalid."
+          # {error}
+          doctrine-edit-rejected: "Doctrine edit rejected: {error}"
+          # {line}, {version}
+          doctrine-updated: "Doctrine {line} updated to version {version}."
+          doctrine-keep-unavailable: "Doctrine keep is unavailable in the current phase."
+          doctrine-kept: "Doctrine kept unchanged."
 
         dialogs:
           doctrine-setup:
