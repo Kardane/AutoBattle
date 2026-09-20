@@ -5,7 +5,8 @@ public record AiConfig(
     int decisionLockTicks,
     int decisionDebounceTicks,
     int requestTimeoutMs,
-    double minimumConfidence
+    double minimumConfidence,
+    double fallbackRetreatHpRatio
 ) {
     public AiConfig {
         if (decisionIntervalTicks < 1
@@ -18,9 +19,11 @@ public record AiConfig(
         }
 
         if (minimumConfidence < 0.0D
-            || minimumConfidence > 1.0D) {
+            || minimumConfidence > 1.0D
+            || fallbackRetreatHpRatio < 0.0D
+            || fallbackRetreatHpRatio > 1.0D) {
             throw new IllegalArgumentException(
-                "minimumConfidence must be between 0 and 1"
+                "AI ratios must be between 0 and 1"
             );
         }
     }
