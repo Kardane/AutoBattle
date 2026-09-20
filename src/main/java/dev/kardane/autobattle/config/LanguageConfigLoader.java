@@ -83,6 +83,9 @@ public final class LanguageConfigLoader {
             metrics: "CORE Capture {core_captures} • Hold {core_hold_seconds}s • Damage {damage_dealt} dealt / {damage_taken} taken"
             # {plans}
             tactical: "Tactical behavior: {plans}"
+            # {plan}, {percent}
+            plan-entry: "{plan} {percent}%"
+            plan-separator: " • "
             # {plan}, {confidence}, {result}
             critical: "Critical: {plan} • confidence {confidence} • {result}"
             done: "검토 완료"
