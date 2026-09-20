@@ -1,6 +1,7 @@
 package dev.kardane.autobattle;
 
 import dev.kardane.autobattle.command.AutoBattleCommands;
+import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
@@ -20,6 +21,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
 
     private static MatchManager matchManager;
     private static PlanExecutor planExecutor;
+    private static DoctrineService doctrineService;
 
     @Override
     public void onInitializeServer() {
@@ -27,11 +29,13 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         RobotFactory robotFactory = new RobotFactory();
         RobotRegistry robotRegistry = new RobotRegistry();
         planExecutor = new PlanExecutor(robotRegistry);
+        PlayerCommandService playerCommandService =
+            new PlayerCommandService(planExecutor);
         UiCoordinator ui = new UiCoordinator(
             config,
             planExecutor
         );
-        DoctrineService doctrineService = new DoctrineService(
+        doctrineService = new DoctrineService(
             new DoctrineValidator()
         );
 
@@ -47,7 +51,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             matchManager,
             robotFactory,
             planExecutor,
-            doctrineService
+            doctrineService,
+            playerCommandService
         );
 
         AutoBattleEvents.register(
@@ -70,6 +75,16 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         }
 
         return matchManager;
+    }
+
+    public static DoctrineService doctrineService() {
+        if (doctrineService == null) {
+            throw new IllegalStateException(
+                "AutoBattle has not been initialized yet."
+            );
+        }
+
+        return doctrineService;
     }
 
     public static PlanExecutor planExecutor() {
