@@ -1,0 +1,126 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    // GitHub Releases (DisguiseLib)
+    ivy {
+        name = 'DisguiseLibGitHubRelease'
+        url = 'https://github.com/Kardane/DisguiseLib/releases/download'
+        patternLayout {
+            artifact('[revision]/[artifact]-[classifier].[ext]')
+        }
+        metadataSources {
+            artifact()
+        }
+    }
+    // Nucleoid Maven (Polymer, SGUI, PlaceholderAPI 등 Patbox 라이브러리)
+    maven {
+        name = 'Nucleoid'
+        url = 'https://maven.nucleoid.xyz'
+    }
+    // Biryeong Maven (GCB-server, minigame-shader)
+    maven {
+        name = 'Biryeong'
+        url = 'https://repo.biryeong.kim/releases/'
+    }
+    mavenCentral()
+}
+
+// Loom 설정 - 서버사이드 전용이므로 클라이언트 소스셋 분리 불필요
+loom {
+    // 서버 전용 실행 설정
+    runs {
+        server {
+            ideConfigGenerated = true
+        }
+        // 클라이언트 런 비활성화 (서버사이드 모드)
+        remove client
+    }
+}
+
+dependencies {
+    // ─── 코어 의존성 ───
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // ─── Fabric API ───
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    modImplementation "github.kardane:disguiselib:${project.disguiselib_release_tag}:${project.disguiselib_version}@jar"
+
+    // ─── Biryeong 모드 ───
+    //modImplementation "kim.biryeong:GCB-server:${project.gcb_server_version}"
+    //modImplementation "kim.biryeong:danta-shader:${project.danta_shader_version}"
+
+    // ─── Polymer 라이브러리 (JiJ로 포함) ───
+    modImplementation include("eu.pb4:polymer-core:${project.polymer_version}")
+    modImplementation include("eu.pb4:polymer-blocks:${project.polymer_blocks_version}")
+    modImplementation include("eu.pb4:polymer-resource-pack:${project.polymer_resource_pack_version}")
+    modImplementation include("eu.pb4:polymer-virtual-entity:${project.polymer_virtual_entity_version}")
+    modImplementation include("eu.pb4:polymer-autohost:${project.polymer_autohost_version}")
+
+    // ─── Patbox 유틸리티 라이브러리 (JiJ로 포함) ───
+    modImplementation include("eu.pb4:sgui:${project.sgui_version}")
+    modImplementation include("eu.pb4:placeholder-api:${project.placeholder_api_version}")
+    modImplementation include("eu.pb4:map-canvas-api:${project.map_canvas_api_version}")
+    modImplementation include("eu.pb4:player-data-api:${project.player_data_api_version}")
+    modImplementation include("eu.pb4:predicate-api:${project.predicate_api_version}")
+
+    // ─── Server Translations API (JiJ로 포함) ───
+    modImplementation include("xyz.nucleoid:server-translations-api:${project.server_translations_api_version}")
+
+    // ─── Fabric Permissions API (JiJ로 포함) ───
+    modImplementation include("me.lucko:fabric-permissions-api:${project.fabric_permissions_api_version}")
+}
+
+processResources {
+    // fabric.mod.json에 버전 변수 주입
+    filesMatching("fabric.mod.json") {
+        expand(
+            "version": project.version,
+            "mod_id": project.mod_id,
+            "minecraft_version": project.minecraft_version,
+            "loader_version": project.loader_version,
+            "fabric_api_version": project.fabric_api_version,
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = Integer.parseInt(project.java_version)
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(project.java_version)
+    targetCompatibility = JavaVersion.toVersion(project.java_version)
+
+    withSourcesJar()
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}
+
+// Maven Publish 설정 (선택적)
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+        // 로컬 Maven 저장소
+    }
+}
