@@ -13,6 +13,7 @@ public record AutoBattleConfig(
     int decisionLockTicks,
     int decisionDebounceTicks,
     int commandDurationTicks,
+    int jevTimeoutMs,
     ArenaConfig arena
 ) {
     public AutoBattleConfig {
@@ -38,7 +39,8 @@ public record AutoBattleConfig(
             || decisionIntervalTicks < 1
             || decisionLockTicks < 0
             || decisionDebounceTicks < 0
-            || commandDurationTicks < 1) {
+            || commandDurationTicks < 1
+            || jevTimeoutMs < 1) {
             throw new IllegalArgumentException(
                 "AutoBattle tick configuration is invalid"
             );
@@ -57,6 +59,7 @@ public record AutoBattleConfig(
             AutoBattleConstants.DECISION_LOCK_TICKS,
             AutoBattleConstants.DECISION_DEBOUNCE_TICKS,
             AutoBattleConstants.COMMAND_DURATION_TICKS,
+            AutoBattleConstants.JEV_TIMEOUT_MS,
             ArenaConfig.defaults()
         );
     }
