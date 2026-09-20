@@ -78,6 +78,24 @@ public final class AutoBattleCommands {
                     Commands.literal("admin")
                         .requires(source -> source.hasPermission(2))
                         .then(
+                            Commands.literal("startround")
+                                .executes(context ->
+                                    startPrototypeRound(
+                                        context.getSource(),
+                                        matchManager
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("stopround")
+                                .executes(context ->
+                                    stopPrototypeRound(
+                                        context.getSource(),
+                                        matchManager
+                                    )
+                                )
+                        )
+                        .then(
                             Commands.literal("testrobot")
                                 .then(
                                     Commands.argument(
@@ -111,6 +129,55 @@ public final class AutoBattleCommands {
                         )
                 )
         );
+    }
+
+
+    private static int startPrototypeRound(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) {
+        if (!matchManager.startPrototypeRound(source.getServer())) {
+            source.sendFailure(
+                Component.literal(
+                    "Unable to start prototype round. Need at least two active participants and a valid arena dimension."
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Started AutoBattle prototype round "
+                    + matchManager.session().currentRound()
+                    + "."
+            ),
+            true
+        );
+
+        return 1;
+    }
+
+    private static int stopPrototypeRound(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) {
+        if (!matchManager.stopPrototypeRound()) {
+            source.sendFailure(
+                Component.literal(
+                    "No active AutoBattle round to stop."
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Stopped AutoBattle prototype round."
+            ),
+            true
+        );
+
+        return 1;
     }
 
     private static int join(
