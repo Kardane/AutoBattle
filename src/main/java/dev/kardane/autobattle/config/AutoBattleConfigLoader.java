@@ -29,7 +29,8 @@ public final class AutoBattleConfigLoader {
         # AutoBattle server configuration
         #
         # This file is created automatically on first launch.
-        # Restart the server after changing values.
+        # Apply changes with /autobattle admin reload in an empty lobby,
+        # or restart the server.
         #
         # API keys are stored as plain text in this file. Keep your server
         # config directory private and do not commit this file to Git.
