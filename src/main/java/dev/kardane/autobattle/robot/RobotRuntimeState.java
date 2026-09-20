@@ -21,8 +21,15 @@ public final class RobotRuntimeState {
         long currentTick,
         int delayTicks
     ) {
-        return alive
-            && currentTick - lastDamageTick >= delayTicks;
+        if (!alive) {
+            return false;
+        }
+
+        if (lastDamageTick == Long.MIN_VALUE) {
+            return true;
+        }
+
+        return currentTick - lastDamageTick >= delayTicks;
     }
 
     public long nextRegenTick() {
