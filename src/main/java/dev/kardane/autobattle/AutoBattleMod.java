@@ -3,6 +3,7 @@ package dev.kardane.autobattle;
 import dev.kardane.autobattle.command.AutoBattleCommands;
 import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.config.AutoBattleConfigLoader;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.event.AutoBattleEvents;
@@ -37,10 +38,15 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
 
     @Override
     public void onInitializeServer() {
-        AutoBattleConfig config = AutoBattleConfig.defaults();
-        RobotFactory robotFactory = new RobotFactory();
+        AutoBattleConfig config = AutoBattleConfigLoader.load();
+        RobotFactory robotFactory = new RobotFactory(
+            config.robot()
+        );
         RobotRegistry robotRegistry = new RobotRegistry();
-        planExecutor = new PlanExecutor(robotRegistry);
+        planExecutor = new PlanExecutor(
+            robotRegistry,
+            config.robot()
+        );
         DialogService dialogs = new DialogService();
         PlayerCommandService commandService =
             new PlayerCommandService(
@@ -113,7 +119,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         );
 
         LOGGER.info(
-            "AutoBattle initialized (minimumPlayers={}, rounds={})",
+            "AutoBattle initialized (config={}, minimumPlayers={}, rounds={})",
+            AutoBattleConfigLoader.configPath(),
             config.minimumPlayers(),
             config.roundCount()
         );
@@ -123,53 +130,40 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
     private JevClient createJevClient(
         AutoBattleConfig config
     ) {
-        String apiKey = System.getenv(
-            "TYPESAFE_API_KEY"
-        );
+        String apiKey = config.typesafe().apiKey();
 
-        if (apiKey == null || apiKey.isBlank()) {
+        if (apiKey.isBlank()) {
+            String environmentKey = System.getenv(
+                "TYPESAFE_API_KEY"
+            );
+
+            if (environmentKey != null
+                && !environmentKey.isBlank()) {
+                apiKey = environmentKey.trim();
+            }
+        }
+
+        if (apiKey.isBlank()) {
             LOGGER.warn(
-                "TYPESAFE_API_KEY is not configured. "
-                    + "AutoBattle will use ScriptedJevClient."
+                "typesafe.api-key is empty and TYPESAFE_API_KEY "
+                    + "is not configured. AutoBattle will use "
+                    + "ScriptedJevClient."
             );
             return new ScriptedJevClient();
         }
 
-        String baseUrl = environmentOrDefault(
-            "TYPESAFE_BASE_URL",
-            TypeSafeJevClient.DEFAULT_BASE_URL
-        );
-
-        String model = environmentOrDefault(
-            "TYPESAFE_DEFAULT_MODEL",
-            TypeSafeJevClient.DEFAULT_MODEL
-        );
-
         LOGGER.info(
             "Using TypeSafe Jev (model={}, baseUrl={})",
-            model,
-            baseUrl
+            config.typesafe().model(),
+            config.typesafe().baseUrl()
         );
 
         return new TypeSafeJevClient(
             apiKey,
-            baseUrl,
-            model,
+            config.typesafe().baseUrl(),
+            config.typesafe().model(),
             config.jevTimeoutMs()
         );
-    }
-
-    private String environmentOrDefault(
-        String name,
-        String fallback
-    ) {
-        String value = System.getenv(name);
-
-        if (value == null || value.isBlank()) {
-            return fallback;
-        }
-
-        return value.trim();
     }
 
     public static DialogActionRouter dialogActionRouter() {
