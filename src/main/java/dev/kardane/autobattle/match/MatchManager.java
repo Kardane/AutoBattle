@@ -1,7 +1,9 @@
 package dev.kardane.autobattle.match;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.core.CoreController;
 import dev.kardane.autobattle.robot.RobotColor;
+import dev.kardane.autobattle.robot.RobotRegistry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -12,12 +14,20 @@ import java.util.UUID;
 
 public final class MatchManager {
     private final AutoBattleConfig config;
-    private final MatchSession session = new MatchSession(UUID.randomUUID());
+    private final MatchSession session;
 
     private long serverTick;
 
-    public MatchManager(AutoBattleConfig config) {
+    public MatchManager(
+        AutoBattleConfig config,
+        RobotRegistry robotRegistry
+    ) {
         this.config = config;
+        this.session = new MatchSession(
+            UUID.randomUUID(),
+            robotRegistry,
+            new CoreController(config.arena())
+        );
     }
 
     public AutoBattleConfig config() {
@@ -34,6 +44,7 @@ public final class MatchManager {
 
     public void tick(MinecraftServer server) {
         serverTick++;
+        session.core().tick(session, serverTick);
     }
 
     public boolean join(ServerPlayer player) {
@@ -112,7 +123,11 @@ public final class MatchManager {
         return "phase=" + session.phase()
             + ", players=" + playerCount()
             + ", ready=" + readyCount()
-            + ", minimum=" + config.minimumPlayers();
+            + ", minimum=" + config.minimumPlayers()
+            + ", coreOwner="
+            + session.core().state().ownerUuid()
+                .map(UUID::toString)
+                .orElse("none");
     }
 
     public void handleDisconnect(ServerPlayer player) {
@@ -126,7 +141,9 @@ public final class MatchManager {
             used.add(slot.slotIndex());
         }
 
-        for (int index = 0; index < RobotColor.values().length; index++) {
+        for (int index = 0;
+             index < RobotColor.values().length;
+             index++) {
             if (!used.contains(index)) {
                 return index;
             }
