@@ -3,7 +3,6 @@ package dev.kardane.autobattle.ui;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
@@ -42,9 +41,7 @@ public final class SidebarUi {
             : scoreboard.addObjective(
                 OBJECTIVE_NAME,
                 ObjectiveCriteria.DUMMY,
-                Component.literal(
-                    language.text("sidebar.title")
-                ),
+                language.component("sidebar.title"),
                 ObjectiveCriteria.RenderType.INTEGER,
                 false,
                 null
@@ -101,17 +98,15 @@ public final class SidebarUi {
 
             score.set(slot.score().totalScore());
             score.display(
-                Component.literal(
-                    language.format(
-                        "sidebar.entry",
-                        "rank",
-                        index + 1,
-                        "color",
-                        slot.color().name(),
-                        "score",
-                        slot.score().totalScore()
-                    )
-                ).withStyle(
+                language.component(
+                    "sidebar.entry",
+                    "rank",
+                    index + 1,
+                    "color",
+                    slot.color().name(),
+                    "score",
+                    slot.score().totalScore()
+                ).copy().withStyle(
                     slot.color().chatColor()
                 )
             );
