@@ -1069,38 +1069,45 @@ public final class AutoBattleCommands {
         );
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Round "
-                    + summary.round()
-                    + " | Score "
-                    + summary.roundScore()
-                    + " | K/D/A "
-                    + summary.kills()
-                    + "/"
-                    + summary.deaths()
-                    + "/"
-                    + summary.assists()
+            () -> message(
+                "commands.review-summary",
+                "round",
+                summary.round(),
+                "score",
+                summary.roundScore(),
+                "kills",
+                summary.kills(),
+                "deaths",
+                summary.deaths(),
+                "assists",
+                summary.assists()
             ),
             false
         );
 
         source.sendSuccess(
-            () -> Component.literal(
-                "CORE captures "
-                    + summary.coreCaptures()
-                    + " | Hold "
-                    + String.format(
-                        Locale.ROOT,
-                        "%.1fs",
-                        summary.coreHoldTicks() / 20.0D
-                    )
-                    + " | Damage "
-                    + String.format(
-                        Locale.ROOT,
-                        "%.1f dealt / %.1f taken",
-                        summary.damageDealt(),
-                        summary.damageTaken()
-                    )
+            () -> message(
+                "commands.review-metrics",
+                "core_captures",
+                summary.coreCaptures(),
+                "core_hold_seconds",
+                String.format(
+                    Locale.ROOT,
+                    "%.1f",
+                    summary.coreHoldTicks() / 20.0D
+                ),
+                "damage_dealt",
+                String.format(
+                    Locale.ROOT,
+                    "%.1f",
+                    summary.damageDealt()
+                ),
+                "damage_taken",
+                String.format(
+                    Locale.ROOT,
+                    "%.1f",
+                    summary.damageTaken()
+                )
             ),
             false
         );
@@ -1123,7 +1130,11 @@ public final class AutoBattleCommands {
                 );
 
             source.sendSuccess(
-                () -> Component.literal("Plans: " + plans),
+                () -> message(
+                    "commands.review-plans",
+                    "plans",
+                    plans
+                ),
                 false
             );
         }
@@ -1134,23 +1145,24 @@ public final class AutoBattleCommands {
             var decision = critical.decision();
 
             source.sendSuccess(
-                () -> Component.literal(
-                    "Critical #"
-                        + critical.importanceScore()
-                        + " @ tick "
-                        + decision.serverTick()
-                        + ": "
-                        + String.valueOf(
-                            decision.selectedPlanId()
-                        )
-                        + " confidence="
-                        + String.format(
-                            Locale.ROOT,
-                            "%.2f",
-                            decision.confidence()
-                        )
-                        + " result="
-                        + decision.applyResult().name()
+                () -> message(
+                    "commands.review-critical",
+                    "importance",
+                    critical.importanceScore(),
+                    "tick",
+                    decision.serverTick(),
+                    "plan",
+                    String.valueOf(
+                        decision.selectedPlanId()
+                    ),
+                    "confidence",
+                    String.format(
+                        Locale.ROOT,
+                        "%.2f",
+                        decision.confidence()
+                    ),
+                    "result",
+                    decision.applyResult().name()
                 ),
                 false
             );
