@@ -14,6 +14,7 @@ import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.TacticalPlan;
+import dev.kardane.autobattle.ui.DialogService;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -34,7 +35,8 @@ public final class AutoBattleCommands {
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
         DoctrineService doctrineService,
-        PlayerCommandService playerCommandService
+        PlayerCommandService playerCommandService,
+        DialogService dialogService
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
@@ -44,7 +46,8 @@ public final class AutoBattleCommands {
                     robotFactory,
                     planExecutor,
                     doctrineService,
-                    playerCommandService
+                    playerCommandService,
+                    dialogService
                 )
         );
     }
@@ -55,7 +58,8 @@ public final class AutoBattleCommands {
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
         DoctrineService doctrineService,
-        PlayerCommandService playerCommandService
+        PlayerCommandService playerCommandService,
+        DialogService dialogService
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -121,6 +125,13 @@ public final class AutoBattleCommands {
                 )
                 .then(
                     Commands.literal("doctrine")
+                        .executes(context ->
+                            openDoctrineDialog(
+                                context.getSource(),
+                                matchManager,
+                                dialogService
+                            )
+                        )
                         .then(
                             Commands.literal("submit")
                                 .then(
@@ -728,6 +739,42 @@ public final class AutoBattleCommands {
     }
 
 
+    private static int openDoctrineDialog(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        DialogService dialogService
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        if (matchManager.playerSlot(player.getUUID()).isEmpty()) {
+            source.sendFailure(
+                Component.literal("Join AutoBattle first.")
+            );
+            return 0;
+        }
+
+        boolean opened = switch (
+            matchManager.session().phase()
+        ) {
+            case DOCTRINE_SETUP ->
+                dialogService.openDoctrineSetup(player);
+            case ROUND_REVIEW, DOCTRINE_EDIT ->
+                dialogService.openDoctrineReview(player);
+            default -> false;
+        };
+
+        if (!opened) {
+            source.sendFailure(
+                Component.literal(
+                    "No Doctrine dialog is available in the current phase."
+                )
+            );
+            return 0;
+        }
+
+        return 1;
+    }
+
     private static int submitDoctrine(
         CommandSourceStack source,
         MatchManager matchManager,
@@ -891,7 +938,9 @@ public final class AutoBattleCommands {
             false
         );
 
-        if (matchManager.beginDoctrineSetupIfReady()) {
+        if (matchManager.beginDoctrineSetupIfReady(
+            source.getServer()
+        )) {
             source.sendSuccess(
                 () -> Component.literal(
                     "All players are ready. Doctrine setup started."
