@@ -754,7 +754,7 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager
     ) {
-        if (!matchManager.stopPrototypeRound()) {
+        if (!matchManager.stopPrototypeRound(source.getServer())) {
             source.sendFailure(
                 message("commands.stop-failed")
             );
