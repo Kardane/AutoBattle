@@ -92,10 +92,26 @@ public final class MatchManager {
         serverTick = server.getTickCount();
 
         if (session.phase() == MatchPhase.COUNTDOWN) {
+            ui.tickBetweenRounds(
+                server,
+                session,
+                serverTick
+            );
+
             if (serverTick - session.phaseStartedTick()
                 >= config.countdownTicks()) {
                 startPrototypeRound(server);
             }
+            return;
+        }
+
+        if (session.phase() == MatchPhase.ROUND_REVIEW
+            || session.phase() == MatchPhase.DOCTRINE_EDIT) {
+            ui.tickBetweenRounds(
+                server,
+                session,
+                serverTick
+            );
             return;
         }
 
