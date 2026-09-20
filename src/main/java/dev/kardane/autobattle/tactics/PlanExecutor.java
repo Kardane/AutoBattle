@@ -51,6 +51,21 @@ public final class PlanExecutor {
         );
     }
 
+    public void removeOwner(UUID ownerUuid) {
+        registry.byOwner(ownerUuid).ifPresent(controller -> {
+            controller.entity().ifPresent(robot -> {
+                controller.clearPlan();
+
+                if (!robot.isRemoved()) {
+                    robot.discard();
+                }
+            });
+
+            controller.detachEntity();
+            registry.unregister(controller);
+        });
+    }
+
     public Optional<RobotController> byOwner(UUID ownerUuid) {
         return registry.byOwner(ownerUuid);
     }
