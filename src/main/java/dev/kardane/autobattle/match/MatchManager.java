@@ -14,6 +14,7 @@ import dev.kardane.autobattle.robot.RobotRespawnManager;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.jev.JevDecisionService;
+import dev.kardane.autobattle.log.MatchLogService;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.RobotController;
 import dev.kardane.autobattle.ui.UiCoordinator;
@@ -28,6 +29,8 @@ import net.minecraft.world.entity.LivingEntity;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -43,6 +46,7 @@ public final class MatchManager {
     private final PlayerCommandService commandService;
     private final JevDecisionService decisionService;
     private final UiCoordinator ui;
+    private final MatchLogService matchLogs;
     private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
@@ -56,7 +60,8 @@ public final class MatchManager {
         PlanExecutor planExecutor,
         PlayerCommandService commandService,
         JevDecisionService decisionService,
-        UiCoordinator ui
+        UiCoordinator ui,
+        MatchLogService matchLogs
     ) {
         this.config = config;
         this.robotRegistry = robotRegistry;
@@ -65,6 +70,10 @@ public final class MatchManager {
         this.commandService = commandService;
         this.decisionService = decisionService;
         this.ui = ui;
+        this.matchLogs = Objects.requireNonNull(
+            matchLogs,
+            "matchLogs"
+        );
         this.combatTracker = new CombatTracker(
             config.scoring().assistWindowTicks()
         );
@@ -154,7 +163,31 @@ public final class MatchManager {
         commandService.tick(session, serverTick);
         respawnManager.tick(server, session, serverTick);
         tickRegen();
+
+        UUID previousCoreOwner = session.core()
+            .state()
+            .ownerUuid()
+            .orElse(null);
+
         session.core().tick(session, serverTick);
+
+        UUID currentCoreOwner = session.core()
+            .state()
+            .ownerUuid()
+            .orElse(null);
+
+        if (currentCoreOwner != null
+            && !Objects.equals(
+                previousCoreOwner,
+                currentCoreOwner
+            )) {
+            matchLogs.coreCaptured(
+                session,
+                currentCoreOwner,
+                serverTick
+            );
+        }
+
         decisionService.tick(
             server,
             session,
@@ -311,6 +344,16 @@ public final class MatchManager {
             );
         }
 
+        matchLogs.robotKilled(
+            session,
+            victimRobot.ownerUuid(),
+            resolution.killerOwner().orElse(null),
+            List.copyOf(
+                resolution.assistOwnerUuids()
+            ),
+            serverTick
+        );
+
         RobotController deadController = planExecutor
             .byOwner(victimRobot.ownerUuid())
             .orElse(null);
@@ -386,6 +429,15 @@ public final class MatchManager {
         forfeitParticipant(uuid);
 
         if (activePlayerCount() == 0) {
+            if (session.currentRound() > 0) {
+                matchLogs.matchAborted(
+                    server,
+                    session,
+                    serverTick,
+                    "all_players_forfeited"
+                );
+            }
+
             resetToFreshLobby(server);
             return true;
         }
@@ -617,6 +669,21 @@ public final class MatchManager {
             serverTick
         );
 
+        if (nextRound == 1) {
+            matchLogs.matchStarted(
+                server,
+                session,
+                config,
+                serverTick
+            );
+        }
+
+        matchLogs.roundStarted(
+            server,
+            session,
+            serverTick
+        );
+
         ui.onRoundStart(
             server,
             session,
@@ -644,6 +711,14 @@ public final class MatchManager {
         pendingDamage.clear();
 
         resetReviewReady();
+
+        if (server != null) {
+            matchLogs.roundEnded(
+                server,
+                session,
+                serverTick
+            );
+        }
 
         session.setPhase(
             MatchPhase.ROUND_REVIEW,
@@ -679,6 +754,21 @@ public final class MatchManager {
         leave(player, server);
     }
 
+    public void handleServerStopped(
+        MinecraftServer server
+    ) {
+        if (session.currentRound() > 0
+            && session.phase() != MatchPhase.LOBBY
+            && session.phase() != MatchPhase.FINISHED) {
+            matchLogs.matchAborted(
+                server,
+                session,
+                serverTick,
+                "server_stopped"
+            );
+        }
+    }
+
     private MatchSession createSession() {
         return new MatchSession(
             UUID.randomUUID(),
@@ -692,7 +782,15 @@ public final class MatchManager {
     }
 
     private void forfeitParticipant(UUID ownerUuid) {
-        session.player(ownerUuid).ifPresent(PlayerSlot::forfeit);
+        session.player(ownerUuid).ifPresent(slot -> {
+            slot.forfeit();
+            matchLogs.playerForfeited(
+                session,
+                slot,
+                serverTick
+            );
+        });
+
         planExecutor.removeOwner(ownerUuid);
         combatTracker.clearFor(ownerUuid);
         session.core().removeParticipant(ownerUuid);
@@ -730,6 +828,13 @@ public final class MatchManager {
                 MatchPhase.FINISHED,
                 serverTick
             );
+
+            matchLogs.matchFinished(
+                server,
+                finished,
+                serverTick
+            );
+
             ui.onFinished(server, finished);
             resetToFreshLobby(server);
             return;
