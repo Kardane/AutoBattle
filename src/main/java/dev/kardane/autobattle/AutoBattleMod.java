@@ -18,6 +18,8 @@ import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.ValidPlanFactory;
+import dev.kardane.autobattle.ui.DialogActionRouter;
+import dev.kardane.autobattle.ui.DialogService;
 import dev.kardane.autobattle.ui.UiCoordinator;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import org.slf4j.Logger;
@@ -31,6 +33,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
 
     private static MatchManager matchManager;
     private static PlanExecutor planExecutor;
+    private static DialogActionRouter dialogActionRouter;
 
     @Override
     public void onInitializeServer() {
@@ -38,10 +41,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         RobotFactory robotFactory = new RobotFactory();
         RobotRegistry robotRegistry = new RobotRegistry();
         planExecutor = new PlanExecutor(robotRegistry);
-        UiCoordinator ui = new UiCoordinator(
-            config,
-            planExecutor
-        );
+        DialogService dialogs = new DialogService();
         PlayerCommandService commandService =
             new PlayerCommandService(
                 config,
@@ -73,6 +73,13 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         RoundReviewService reviewService =
             new RoundReviewService(decisionLogs);
 
+        UiCoordinator ui = new UiCoordinator(
+            config,
+            planExecutor,
+            dialogs,
+            reviewService
+        );
+
         matchManager = new MatchManager(
             config,
             robotRegistry,
@@ -81,6 +88,13 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             commandService,
             decisionService,
             ui
+        );
+
+        dialogActionRouter = new DialogActionRouter(
+            matchManager,
+            doctrineService,
+            reviewService,
+            dialogs
         );
 
         AutoBattleCommands.register(
@@ -156,6 +170,16 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         }
 
         return value.trim();
+    }
+
+    public static DialogActionRouter dialogActionRouter() {
+        if (dialogActionRouter == null) {
+            throw new IllegalStateException(
+                "AutoBattle dialog router has not been initialized yet."
+            );
+        }
+
+        return dialogActionRouter;
     }
 
     public static MatchManager matchManager() {
