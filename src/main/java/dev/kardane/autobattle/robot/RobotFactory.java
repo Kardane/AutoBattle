@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class RobotFactory {
-    private final RobotConfig config;
+    private RobotConfig config;
 
     public RobotFactory(RobotConfig config) {
         this.config = Objects.requireNonNull(config, "config");
@@ -54,12 +54,7 @@ public final class RobotFactory {
         robot.setPos(position.x, position.y, position.z);
         robot.setYRot(yaw);
         robot.setXRot(0.0F);
-        robot.setCustomName(
-            Component.literal("[" + color.name() + "] ")
-                .withStyle(color.chatColor())
-                .append(ownerName)
-        );
-        robot.setCustomNameVisible(true);
+        robot.setOwnerDisplayName(ownerName);
         robot.addTag(RobotZombie.ENTITY_TAG);
 
         if (!level.addFreshEntity(robot)) {
@@ -87,6 +82,10 @@ public final class RobotFactory {
             position,
             owner.getYRot()
         );
+    }
+
+    public void reloadConfig(RobotConfig config) {
+        this.config = Objects.requireNonNull(config, "config");
     }
 
     public double maxHealth() {

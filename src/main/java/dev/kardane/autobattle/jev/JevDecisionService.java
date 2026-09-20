@@ -18,12 +18,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public final class JevDecisionService {
-    private final JevClient client;
+    private JevClient client;
     private final RobotStateSerializer serializer;
     private final ValidPlanFactory validPlanFactory;
     private final PlanExecutor planExecutor;
     private final DecisionLogRepository logs;
-    private final AutoBattleConfig config;
+    private AutoBattleConfig config;
 
     public JevDecisionService(
         JevClient client,
@@ -47,6 +47,14 @@ public final class JevDecisionService {
             "planExecutor"
         );
         this.logs = Objects.requireNonNull(logs, "logs");
+        this.config = Objects.requireNonNull(config, "config");
+    }
+
+    public void reload(
+        JevClient client,
+        AutoBattleConfig config
+    ) {
+        this.client = Objects.requireNonNull(client, "client");
         this.config = Objects.requireNonNull(config, "config");
     }
 

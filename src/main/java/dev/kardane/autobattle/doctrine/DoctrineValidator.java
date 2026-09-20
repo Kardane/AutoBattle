@@ -1,9 +1,19 @@
 package dev.kardane.autobattle.doctrine;
 
 public final class DoctrineValidator {
-    private final int maxLineLength;
+    private int maxLineLength;
 
     public DoctrineValidator(int maxLineLength) {
+        if (maxLineLength < 1) {
+            throw new IllegalArgumentException(
+                "maxLineLength must be positive"
+            );
+        }
+
+        this.maxLineLength = maxLineLength;
+    }
+
+    public void reloadMaxLineLength(int maxLineLength) {
         if (maxLineLength < 1) {
             throw new IllegalArgumentException(
                 "maxLineLength must be positive"
