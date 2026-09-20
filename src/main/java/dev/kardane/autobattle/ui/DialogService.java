@@ -2,7 +2,6 @@ package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.doctrine.Doctrine;
-import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.review.CriticalDecision;
@@ -48,6 +47,18 @@ public final class DialogService {
 
     private static final int WIDTH = 360;
     private static final int BUTTON_WIDTH = 220;
+
+    private final int doctrineMaxLineLength;
+
+    public DialogService(int doctrineMaxLineLength) {
+        if (doctrineMaxLineLength < 1) {
+            throw new IllegalArgumentException(
+                "doctrineMaxLineLength must be positive"
+            );
+        }
+
+        this.doctrineMaxLineLength = doctrineMaxLineLength;
+    }
 
     public void openDoctrineSetup(ServerPlayer player) {
         List<DialogBody> body = List.of(
@@ -357,7 +368,7 @@ public final class DialogService {
                 Component.literal(label),
                 true,
                 initial,
-                DoctrineValidator.MAX_LINE_LENGTH,
+                doctrineMaxLineLength,
                 Optional.empty()
             )
         );
