@@ -1,6 +1,7 @@
 package dev.kardane.autobattle;
 
 import dev.kardane.autobattle.command.AutoBattleCommands;
+import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.event.AutoBattleEvents;
 import dev.kardane.autobattle.match.MatchManager;
@@ -25,6 +26,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         RobotFactory robotFactory = new RobotFactory();
         RobotRegistry robotRegistry = new RobotRegistry();
         planExecutor = new PlanExecutor(robotRegistry);
+        PlayerCommandService playerCommandService =
+            new PlayerCommandService(planExecutor);
         UiCoordinator ui = new UiCoordinator(
             config,
             planExecutor
@@ -41,7 +44,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         AutoBattleCommands.register(
             matchManager,
             robotFactory,
-            planExecutor
+            planExecutor,
+            playerCommandService
         );
 
         AutoBattleEvents.register(
