@@ -16,7 +16,7 @@ public final class UiCoordinator {
     private static final int ACTION_BAR_INTERVAL_TICKS = 5;
     private static final int BOSS_BAR_INTERVAL_TICKS = 20;
 
-    private final AutoBattleConfig config;
+    private AutoBattleConfig config;
     private final PlanExecutor planExecutor;
     private final DialogService dialogs;
     private final RoundReviewService reviewService;
@@ -46,6 +46,10 @@ public final class UiCoordinator {
             reviewService,
             "reviewService"
         );
+    }
+
+    public void reloadConfig(AutoBattleConfig config) {
+        this.config = Objects.requireNonNull(config, "config");
     }
 
     public void onDoctrineSetup(
