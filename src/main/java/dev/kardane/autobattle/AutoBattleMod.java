@@ -121,7 +121,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             matchManager,
             doctrineService,
             reviewService,
-            dialogs
+            dialogs,
+            language
         );
 
         ConfigReloadService configReloadService =
