@@ -16,26 +16,64 @@ Players do not directly control their fighters. Each player teaches one robot wi
 - TypeSafe Jev chooses high-level tactical plans; Minecraft server code executes them
 - Vanilla clients; no client-side mod required
 
+## Configuration
+
+On first server launch, AutoBattle creates:
+
+```text
+config/autobattle.yml
+```
+
+Edit this file and restart the server to apply changes. The YAML contains the TypeSafe API configuration and the main game tuning values:
+
+- TypeSafe API key, base URL, and model
+- minimum players, round count, round/countdown/respawn/command timing
+- AI decision interval, lock, debounce, timeout, and minimum confidence
+- robot HP, damage, movement/follow range, regeneration
+- tactical movement speeds and leash distances
+- kill/assist/CORE scoring and assist window
+- CORE capture/hold timings
+- dimension, CORE position/radius, robot/viewer spawns, reposition nodes
+
+Example:
+
+```yaml
+typesafe:
+  api-key: "ts_your_key_here"
+  base-url: "https://api.typesafe.ai"
+  model: "jev-latest"
+
+match:
+  minimum-players: 4
+  rounds: 5
+  round-duration-seconds: 90
+  countdown-seconds: 5
+  respawn-seconds: 7
+  command-duration-seconds: 10
+
+ai:
+  decision-interval-seconds: 3.0
+  decision-lock-seconds: 2.0
+  decision-debounce-seconds: 0.5
+  request-timeout-ms: 1500
+  minimum-confidence: 0.35
+
+arena:
+  dimension: "minecraft:overworld"
+  core:
+    x: 0
+    y: 80
+    z: 0
+    radius: 3.0
+```
+
+The full file is generated with comments and all available options.
+
+The API key is plain text in the server config directory, so keep that directory private and do not commit `config/autobattle.yml`. If `typesafe.api-key` is empty, AutoBattle falls back to the `TYPESAFE_API_KEY` environment variable. If neither is configured, it uses `ScriptedJevClient`.
+
 ## TypeSafe Jev
 
-Production AutoBattle uses the TypeSafe System One API with the `jev-latest` model.
-
-Configure the server process with:
-
-```text
-TYPESAFE_API_KEY=<your key>
-```
-
-Optional overrides:
-
-```text
-TYPESAFE_BASE_URL=https://api.typesafe.ai
-TYPESAFE_DEFAULT_MODEL=jev-latest
-```
-
-The API key is read only from the server environment and must not be committed to the repository or sent to clients.
-
-When `TYPESAFE_API_KEY` is absent, AutoBattle logs a warning and uses `ScriptedJevClient`. This keeps local development and offline gameplay testing available without changing the game pipeline.
+Production AutoBattle uses the TypeSafe System One API with the configured model (default: `jev-latest`).
 
 Jev only selects from server-generated tactical candidates:
 
@@ -95,7 +133,7 @@ The existing `/autobattle doctrine ...` and `/autobattle review` commands remain
 .\gradlew.bat runServer
 ```
 
-For production Jev testing, launch the server with `TYPESAFE_API_KEY` present in the server process environment.
+For production Jev testing, set `typesafe.api-key` in `config/autobattle.yml` (or use `TYPESAFE_API_KEY` as a fallback).
 
 ## License
 
