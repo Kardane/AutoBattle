@@ -9,6 +9,8 @@ import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.PlayerSlot;
+import dev.kardane.autobattle.review.RoundReviewService;
+import dev.kardane.autobattle.review.RoundReviewSummary;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotZombie;
@@ -34,7 +36,8 @@ public final class AutoBattleCommands {
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
         DoctrineService doctrineService,
-        PlayerCommandService commandService
+        PlayerCommandService commandService,
+        RoundReviewService reviewService
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
@@ -44,7 +47,8 @@ public final class AutoBattleCommands {
                     robotFactory,
                     planExecutor,
                     doctrineService,
-                    commandService
+                    commandService,
+                    reviewService
                 )
         );
     }
@@ -55,7 +59,8 @@ public final class AutoBattleCommands {
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
         DoctrineService doctrineService,
-        PlayerCommandService commandService
+        PlayerCommandService commandService,
+        RoundReviewService reviewService
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -75,6 +80,16 @@ public final class AutoBattleCommands {
                     Commands.literal("ready")
                         .executes(context ->
                             ready(context.getSource(), matchManager)
+                        )
+                )
+                .then(
+                    Commands.literal("review")
+                        .executes(context ->
+                            review(
+                                context.getSource(),
+                                matchManager,
+                                reviewService
+                            )
                         )
                 )
                 .then(
@@ -886,6 +901,123 @@ public final class AutoBattleCommands {
                 ),
                 true
             );
+        }
+
+        return 1;
+    }
+
+
+    private static int review(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        RoundReviewService reviewService
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        if (matchManager.session()
+            .player(player.getUUID())
+            .isEmpty()) {
+            source.sendFailure(
+                Component.literal(
+                    "You are not an AutoBattle participant."
+                )
+            );
+            return 0;
+        }
+
+        RoundReviewSummary summary = reviewService.build(
+            matchManager.session(),
+            player.getUUID()
+        );
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Round "
+                    + summary.round()
+                    + " | Score "
+                    + summary.roundScore()
+                    + " | K/D/A "
+                    + summary.kills()
+                    + "/"
+                    + summary.deaths()
+                    + "/"
+                    + summary.assists()
+            ),
+            false
+        );
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "CORE captures "
+                    + summary.coreCaptures()
+                    + " | Hold "
+                    + String.format(
+                        Locale.ROOT,
+                        "%.1fs",
+                        summary.coreHoldTicks() / 20.0D
+                    )
+                    + " | Damage "
+                    + String.format(
+                        Locale.ROOT,
+                        "%.1f dealt / %.1f taken",
+                        summary.damageDealt(),
+                        summary.damageTaken()
+                    )
+            ),
+            false
+        );
+
+        if (!summary.planPercentages().isEmpty()) {
+            String plans = summary.planPercentages()
+                .entrySet()
+                .stream()
+                .map(entry ->
+                    entry.getKey()
+                        + " "
+                        + String.format(
+                            Locale.ROOT,
+                            "%.0f%%",
+                            entry.getValue()
+                        )
+                )
+                .collect(
+                    java.util.stream.Collectors.joining(" | ")
+                );
+
+            source.sendSuccess(
+                () -> Component.literal("Plans: " + plans),
+                false
+            );
+        }
+
+        int index = 1;
+
+        for (var critical : summary.criticalDecisions()) {
+            var decision = critical.decision();
+
+            source.sendSuccess(
+                () -> Component.literal(
+                    "Critical #"
+                        + critical.importanceScore()
+                        + " @ tick "
+                        + decision.serverTick()
+                        + ": "
+                        + String.valueOf(
+                            decision.selectedPlanId()
+                        )
+                        + " confidence="
+                        + String.format(
+                            Locale.ROOT,
+                            "%.2f",
+                            decision.confidence()
+                        )
+                        + " result="
+                        + decision.applyResult().name()
+                ),
+                false
+            );
+
+            index++;
         }
 
         return 1;
