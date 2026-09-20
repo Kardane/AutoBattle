@@ -7,13 +7,20 @@ public final class AutoBattleConstants {
     public static final int ROUND_DURATION_TICKS = 20 * 90;
     public static final int COUNTDOWN_TICKS = 20 * 5;
     public static final int ROBOT_RESPAWN_TICKS = 20 * 7;
+    public static final int COMMAND_DURATION_TICKS = 20 * 10;
 
     public static final int DECISION_INTERVAL_TICKS = 20 * 3;
     public static final int DECISION_LOCK_TICKS = 20 * 2;
     public static final int DECISION_DEBOUNCE_TICKS = 10;
     public static final int JEV_TIMEOUT_MS = 1500;
+    public static final double JEV_MIN_CONFIDENCE = 0.35D;
+    public static final double JEV_FALLBACK_RETREAT_HP_RATIO = 0.25D;
+    public static final int DOCTRINE_MAX_LINE_LENGTH = 120;
 
-    public static final int COMMAND_DURATION_TICKS = 20 * 10;
+    public static final double ROBOT_MAX_HEALTH = 100.0D;
+    public static final double ROBOT_ATTACK_DAMAGE = 10.0D;
+    public static final double ROBOT_MOVEMENT_SPEED = 0.30D;
+    public static final double ROBOT_FOLLOW_RANGE = 32.0D;
 
     public static final int REGEN_DELAY_TICKS = 20 * 5;
     public static final int REGEN_INTERVAL_TICKS = 20;
@@ -21,6 +28,15 @@ public final class AutoBattleConstants {
 
     public static final double ENGAGE_LEASH_DISTANCE = 8.0D;
     public static final double CHASE_LEASH_DISTANCE = 20.0D;
+    public static final double ENGAGE_SPEED = 1.00D;
+    public static final double CHASE_SPEED = 1.20D;
+    public static final double CAPTURE_SPEED = 1.05D;
+    public static final double DEFEND_SPEED = 1.00D;
+    public static final double REPOSITION_SPEED = 1.10D;
+    public static final double RETREAT_SPEED = 1.20D;
+    public static final double POSITION_REACHED_DISTANCE = 1.5D;
+    public static final double DEFEND_RADIUS = 3.0D;
+    public static final double RETREAT_DISTANCE = 8.0D;
 
     public static final double CORE_RADIUS = 3.0D;
     public static final int CORE_CAPTURE_TICKS = 20 * 3;

@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.robot;
 
+import dev.kardane.autobattle.config.RobotConfig;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -17,10 +18,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class RobotFactory {
-    public static final double MAX_HEALTH = 100.0D;
-    public static final double ATTACK_DAMAGE = 10.0D;
-    public static final double MOVEMENT_SPEED = 0.30D;
-    public static final double FOLLOW_RANGE = 32.0D;
+    private final RobotConfig config;
+
+    public RobotFactory(RobotConfig config) {
+        this.config = Objects.requireNonNull(config, "config");
+    }
 
     public RobotZombie spawnRobot(
         ServerLevel level,
@@ -61,7 +63,9 @@ public final class RobotFactory {
         robot.addTag(RobotZombie.ENTITY_TAG);
 
         if (!level.addFreshEntity(robot)) {
-            throw new IllegalStateException("Failed to add AutoBattle robot to the level.");
+            throw new IllegalStateException(
+                "Failed to add AutoBattle robot to the level."
+            );
         }
 
         return robot;
@@ -85,6 +89,10 @@ public final class RobotFactory {
         );
     }
 
+    public double maxHealth() {
+        return config.maxHealth();
+    }
+
     private void applyBaseConfiguration(RobotZombie robot) {
         robot.setBaby(false);
         robot.setCanBreakDoors(false);
@@ -93,25 +101,42 @@ public final class RobotFactory {
     }
 
     private void applyBaseAttributes(RobotZombie robot) {
-        setBaseValue(robot.getAttribute(Attributes.MAX_HEALTH), MAX_HEALTH);
-        setBaseValue(robot.getAttribute(Attributes.ATTACK_DAMAGE), ATTACK_DAMAGE);
-        setBaseValue(robot.getAttribute(Attributes.MOVEMENT_SPEED), MOVEMENT_SPEED);
-        setBaseValue(robot.getAttribute(Attributes.FOLLOW_RANGE), FOLLOW_RANGE);
+        setBaseValue(
+            robot.getAttribute(Attributes.MAX_HEALTH),
+            config.maxHealth()
+        );
+        setBaseValue(
+            robot.getAttribute(Attributes.ATTACK_DAMAGE),
+            config.attackDamage()
+        );
+        setBaseValue(
+            robot.getAttribute(Attributes.MOVEMENT_SPEED),
+            config.movementSpeed()
+        );
+        setBaseValue(
+            robot.getAttribute(Attributes.FOLLOW_RANGE),
+            config.followRange()
+        );
         setBaseValue(robot.getAttribute(Attributes.ARMOR), 0.0D);
-        setBaseValue(robot.getAttribute(Attributes.ARMOR_TOUGHNESS), 0.0D);
+        setBaseValue(
+            robot.getAttribute(Attributes.ARMOR_TOUGHNESS),
+            0.0D
+        );
         setBaseValue(
             robot.getAttribute(Attributes.SPAWN_REINFORCEMENTS_CHANCE),
             0.0D
         );
 
-        robot.setHealth((float) MAX_HEALTH);
+        robot.setHealth((float) config.maxHealth());
     }
 
     private void equipIdentityChestplate(
         RobotZombie robot,
         RobotColor color
     ) {
-        ItemStack chestplate = new ItemStack(Items.LEATHER_CHESTPLATE);
+        ItemStack chestplate = new ItemStack(
+            Items.LEATHER_CHESTPLATE
+        );
 
         chestplate.set(
             DataComponents.DYED_COLOR,
@@ -132,7 +157,9 @@ public final class RobotFactory {
         double value
     ) {
         if (attribute == null) {
-            throw new IllegalStateException("Required robot attribute is missing.");
+            throw new IllegalStateException(
+                "Required robot attribute is missing."
+            );
         }
 
         attribute.setBaseValue(value);

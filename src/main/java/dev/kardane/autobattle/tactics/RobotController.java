@@ -1,6 +1,6 @@
 package dev.kardane.autobattle.tactics;
 
-import dev.kardane.autobattle.AutoBattleConstants;
+import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
@@ -12,20 +12,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 public final class RobotController {
-    private static final double ENGAGE_SPEED = 1.00D;
-    private static final double CHASE_SPEED = 1.20D;
-    private static final double CAPTURE_SPEED = 1.05D;
-    private static final double DEFEND_SPEED = 1.00D;
-    private static final double REPOSITION_SPEED = 1.10D;
-    private static final double RETREAT_SPEED = 1.20D;
-
-    private static final double POSITION_REACHED_DISTANCE_SQR = 2.25D;
-    private static final double DEFEND_RADIUS_SQR = 9.0D;
-    private static final double RETREAT_DISTANCE = 8.0D;
-
     private final UUID ownerUuid;
     private final RobotColor color;
     private final RobotRegistry registry;
+    private final RobotConfig config;
     private final RobotRuntimeState runtime =
         new RobotRuntimeState();
 
@@ -40,7 +30,8 @@ public final class RobotController {
     public RobotController(
         UUID ownerUuid,
         RobotColor color,
-        RobotRegistry registry
+        RobotRegistry registry,
+        RobotConfig config
     ) {
         this.ownerUuid = Objects.requireNonNull(
             ownerUuid,
@@ -48,6 +39,7 @@ public final class RobotController {
         );
         this.color = Objects.requireNonNull(color, "color");
         this.registry = Objects.requireNonNull(registry, "registry");
+        this.config = Objects.requireNonNull(config, "config");
     }
 
     public UUID ownerUuid() {
@@ -229,32 +221,32 @@ public final class RobotController {
 
         switch (currentPlan.type()) {
             case ENGAGE -> engage(
-                AutoBattleConstants.ENGAGE_LEASH_DISTANCE
+                config.engageLeashDistance()
             );
             case CHASE -> chase(
-                AutoBattleConstants.CHASE_LEASH_DISTANCE
+                config.chaseLeashDistance()
             );
             case CAPTURE -> moveToPosition(
                 currentPlan.destination(),
-                CAPTURE_SPEED,
-                POSITION_REACHED_DISTANCE_SQR
+                config.captureSpeed(),
+                square(config.positionReachedDistance())
             );
             case DEFEND -> defend(currentPlan.destination());
             case RETREAT -> retreat();
             case REPOSITION -> moveToPosition(
                 currentPlan.destination(),
-                REPOSITION_SPEED,
-                POSITION_REACHED_DISTANCE_SQR
+                config.repositionSpeed(),
+                square(config.positionReachedDistance())
             );
         }
     }
 
     private void engage(double leashDistance) {
-        followCombatTarget(leashDistance, ENGAGE_SPEED);
+        followCombatTarget(leashDistance, config.engageSpeed());
     }
 
     private void chase(double leashDistance) {
-        followCombatTarget(leashDistance, CHASE_SPEED);
+        followCombatTarget(leashDistance, config.chaseSpeed());
     }
 
     private void followCombatTarget(
@@ -281,12 +273,12 @@ public final class RobotController {
     private void defend(Vec3 destination) {
         entity.setTarget(null);
 
-        if (entity.position().distanceToSqr(destination) > DEFEND_RADIUS_SQR) {
+        if (entity.position().distanceToSqr(destination) > square(config.defendRadius())) {
             entity.getNavigation().moveTo(
                 destination.x,
                 destination.y,
                 destination.z,
-                DEFEND_SPEED
+                config.defendSpeed()
             );
         } else {
             entity.getNavigation().stop();
@@ -314,13 +306,13 @@ public final class RobotController {
                 }
 
                 Vec3 destination = entity.position()
-                    .add(horizontal.scale(RETREAT_DISTANCE));
+                    .add(horizontal.scale(config.retreatDistance()));
 
                 entity.getNavigation().moveTo(
                     destination.x,
                     destination.y,
                     destination.z,
-                    RETREAT_SPEED
+                    config.retreatSpeed()
                 );
             },
             this::invalidateCurrentTarget
@@ -381,6 +373,10 @@ public final class RobotController {
                 entity != null
                     && target.matchId().equals(entity.matchId())
             );
+    }
+
+    private double square(double value) {
+        return value * value;
     }
 
     private void invalidateCurrentTarget() {

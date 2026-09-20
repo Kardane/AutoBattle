@@ -18,8 +18,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public final class JevDecisionService {
-    private static final double MIN_CONFIDENCE = 0.35D;
-
     private final JevClient client;
     private final RobotStateSerializer serializer;
     private final ValidPlanFactory validPlanFactory;
@@ -346,7 +344,7 @@ public final class JevDecisionService {
             );
         }
 
-        if (response.confidence() < MIN_CONFIDENCE) {
+        if (response.confidence() < config.ai().minimumConfidence()) {
             DecisionApplyResult result = applyFallback(
                 controller,
                 byId,
@@ -440,7 +438,7 @@ public final class JevDecisionService {
             )
             .orElse(0.0D);
 
-        if (hpRatio <= 0.25D
+        if (hpRatio <= config.ai().fallbackRetreatHpRatio()
             && byId.containsKey("RETREAT")) {
             return byId.get("RETREAT");
         }

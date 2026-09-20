@@ -1,7 +1,21 @@
 package dev.kardane.autobattle.doctrine;
 
 public final class DoctrineValidator {
-    public static final int MAX_LINE_LENGTH = 120;
+    private final int maxLineLength;
+
+    public DoctrineValidator(int maxLineLength) {
+        if (maxLineLength < 1) {
+            throw new IllegalArgumentException(
+                "maxLineLength must be positive"
+            );
+        }
+
+        this.maxLineLength = maxLineLength;
+    }
+
+    public int maxLineLength() {
+        return maxLineLength;
+    }
 
     public DoctrineValidationResult validateLine(String text) {
         if (text == null) {
@@ -18,7 +32,7 @@ public final class DoctrineValidator {
             );
         }
 
-        if (normalized.length() > MAX_LINE_LENGTH) {
+        if (normalized.length() > maxLineLength) {
             return DoctrineValidationResult.error(
                 DoctrineEditError.TOO_LONG
             );

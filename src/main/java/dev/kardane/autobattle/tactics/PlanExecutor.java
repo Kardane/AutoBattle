@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.tactics;
 
+import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotZombie;
 
@@ -10,11 +11,19 @@ import java.util.UUID;
 
 public final class PlanExecutor {
     private final RobotRegistry registry;
+    private final RobotConfig robotConfig;
 
-    public PlanExecutor(RobotRegistry registry) {
+    public PlanExecutor(
+        RobotRegistry registry,
+        RobotConfig robotConfig
+    ) {
         this.registry = Objects.requireNonNull(
             registry,
             "registry"
+        );
+        this.robotConfig = Objects.requireNonNull(
+            robotConfig,
+            "robotConfig"
         );
     }
 
@@ -28,7 +37,8 @@ public final class PlanExecutor {
                 RobotController created = new RobotController(
                     robot.ownerUuid(),
                     robot.robotColor(),
-                    registry
+                    registry,
+                    robotConfig
                 );
 
                 registry.register(created);

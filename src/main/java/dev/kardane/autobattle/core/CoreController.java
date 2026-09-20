@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.core;
 
-import dev.kardane.autobattle.AutoBattleConstants;
+import dev.kardane.autobattle.config.CoreRulesConfig;
+import dev.kardane.autobattle.config.ScoringConfig;
 import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
@@ -22,19 +23,28 @@ public final class CoreController {
     private final double radiusSqr;
     private final int captureTicks;
     private final int holdScoreIntervalTicks;
+    private final ScoringConfig scoring;
     private final CoreState state = new CoreState();
 
-    public CoreController(ArenaConfig arena) {
+    public CoreController(
+        ArenaConfig arena,
+        CoreRulesConfig rules,
+        ScoringConfig scoring
+    ) {
         Objects.requireNonNull(arena, "arena");
+        Objects.requireNonNull(rules, "rules");
+        this.scoring = Objects.requireNonNull(
+            scoring,
+            "scoring"
+        );
 
         this.dimension = arena.dimension();
         this.corePos = arena.corePos();
         this.radius = arena.coreRadius();
         this.radiusSqr = radius * radius;
-        this.captureTicks =
-            AutoBattleConstants.CORE_CAPTURE_TICKS;
+        this.captureTicks = rules.captureTicks();
         this.holdScoreIntervalTicks =
-            AutoBattleConstants.CORE_HOLD_SCORE_INTERVAL;
+            rules.holdScoreIntervalTicks();
     }
 
     public void tick(
@@ -156,7 +166,7 @@ public final class CoreController {
 
         match.player(ownerUuid).ifPresent(
             slot -> slot.score().addCoreCapture(
-                AutoBattleConstants.CORE_CAPTURE_SCORE
+                scoring.coreCaptureScore()
             )
         );
     }
@@ -181,7 +191,7 @@ public final class CoreController {
                 }
 
                 slot.score().addCoreHoldPoint(
-                    AutoBattleConstants.CORE_HOLD_SCORE
+                    scoring.coreHoldScore()
                 );
 
                 state.setNextHoldScoreTick(
