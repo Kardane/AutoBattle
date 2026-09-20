@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.tactics;
 
+import dev.kardane.autobattle.AutoBattleConstants;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
@@ -137,6 +138,8 @@ public final class RobotController {
 
         currentPlan = plan;
         planStartedTick = currentTick;
+        lastDecisionTick = currentTick;
+        redecisionRequested = false;
         return true;
     }
 
@@ -200,7 +203,11 @@ public final class RobotController {
             currentPlan.lockUntilTick()
         );
 
-        if (redecisionRequested && currentTick >= lockEndTick) {
+        if (currentTick < lockEndTick) {
+            return false;
+        }
+
+        if (redecisionRequested) {
             return true;
         }
 
@@ -219,8 +226,12 @@ public final class RobotController {
         }
 
         switch (currentPlan.type()) {
-            case ENGAGE -> engage();
-            case CHASE -> chase();
+            case ENGAGE -> engage(
+                AutoBattleConstants.ENGAGE_LEASH_DISTANCE
+            );
+            case CHASE -> chase(
+                AutoBattleConstants.CHASE_LEASH_DISTANCE
+            );
             case CAPTURE -> moveToPosition(
                 currentPlan.destination(),
                 CAPTURE_SPEED,
@@ -236,27 +247,30 @@ public final class RobotController {
         }
     }
 
-    private void engage() {
-        resolvePlanTarget().ifPresentOrElse(
-            target -> {
-                entity.setTarget(target);
-                entity.getNavigation().moveTo(
-                    target,
-                    ENGAGE_SPEED
-                );
-            },
-            this::invalidateCurrentTarget
-        );
+    private void engage(double leashDistance) {
+        followCombatTarget(leashDistance, ENGAGE_SPEED);
     }
 
-    private void chase() {
+    private void chase(double leashDistance) {
+        followCombatTarget(leashDistance, CHASE_SPEED);
+    }
+
+    private void followCombatTarget(
+        double leashDistance,
+        double speed
+    ) {
         resolvePlanTarget().ifPresentOrElse(
             target -> {
+                double leashDistanceSqr =
+                    leashDistance * leashDistance;
+
+                if (entity.distanceToSqr(target) > leashDistanceSqr) {
+                    invalidateCurrentTarget();
+                    return;
+                }
+
                 entity.setTarget(target);
-                entity.getNavigation().moveTo(
-                    target,
-                    CHASE_SPEED
-                );
+                entity.getNavigation().moveTo(target, speed);
             },
             this::invalidateCurrentTarget
         );
