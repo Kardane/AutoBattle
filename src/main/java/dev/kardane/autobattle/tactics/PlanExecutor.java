@@ -4,50 +4,63 @@ import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotZombie;
 
 import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
 public final class PlanExecutor {
     private final RobotRegistry registry;
-    private final Map<UUID, RobotController> controllers =
-        new LinkedHashMap<>();
 
     public PlanExecutor(RobotRegistry registry) {
-        this.registry = registry;
+        this.registry = Objects.requireNonNull(
+            registry,
+            "registry"
+        );
     }
 
-    public RobotController register(RobotZombie robot) {
-        registry.register(robot);
+    public RobotController register(
+        RobotZombie robot,
+        long currentTick
+    ) {
+        RobotController controller = registry
+            .byOwner(robot.ownerUuid())
+            .orElseGet(() -> {
+                RobotController created = new RobotController(
+                    robot.ownerUuid(),
+                    robot.robotColor(),
+                    registry
+                );
 
-        RobotController controller = new RobotController(
-            robot,
-            registry
-        );
+                registry.register(created);
+                return created;
+            });
 
-        controllers.put(robot.getUUID(), controller);
+        controller.attachEntity(robot, currentTick);
         return controller;
     }
 
-    public void unregister(RobotZombie robot) {
-        RobotController controller = controllers.remove(robot.getUUID());
-
-        if (controller != null) {
-            controller.clearPlan();
-        }
-
-        registry.unregister(robot);
+    public void unregisterEntity(RobotZombie robot) {
+        registry.byOwner(robot.ownerUuid()).ifPresent(
+            controller -> {
+                if (controller.entityUuid()
+                    .filter(robot.getUUID()::equals)
+                    .isPresent()) {
+                    controller.detachEntity();
+                }
+            }
+        );
     }
 
-    public Optional<RobotController> controller(UUID entityUuid) {
-        return Optional.ofNullable(controllers.get(entityUuid));
+    public Optional<RobotController> byOwner(UUID ownerUuid) {
+        return registry.byOwner(ownerUuid);
+    }
+
+    public Optional<RobotController> byEntity(UUID entityUuid) {
+        return registry.byEntity(entityUuid);
     }
 
     public Collection<RobotController> controllers() {
-        return List.copyOf(controllers.values());
+        return registry.all();
     }
 
     public boolean assignPlan(
@@ -55,42 +68,38 @@ public final class PlanExecutor {
         TacticalPlan plan,
         long currentTick
     ) {
-        RobotController controller = controllers.get(robot.getUUID());
+        RobotController controller = registry
+            .byOwner(robot.ownerUuid())
+            .orElseGet(() -> register(robot, currentTick));
 
-        if (controller == null) {
-            controller = register(robot);
-        }
+        return controller.applyPlan(plan, currentTick);
+    }
 
-        return controller.assignPlan(plan, currentTick);
+    public boolean assignPlan(
+        RobotController controller,
+        TacticalPlan plan,
+        long currentTick
+    ) {
+        return controller.applyPlan(plan, currentTick);
     }
 
     public void tick(long currentTick) {
-        Iterator<Map.Entry<UUID, RobotController>> iterator =
-            controllers.entrySet().iterator();
-
-        while (iterator.hasNext()) {
-            RobotController controller = iterator.next().getValue();
-
-            if (!controller.isActive()) {
-                registry.unregister(controller.robot());
-                iterator.remove();
-                continue;
-            }
-
+        for (RobotController controller : registry.all()) {
             controller.tick(currentTick);
         }
     }
 
     public void clear() {
-        for (RobotController controller : controllers.values()) {
-            controller.clearPlan();
+        for (RobotController controller : registry.all()) {
+            controller.entity().ifPresent(robot -> {
+                controller.clearPlan();
 
-            if (!controller.robot().isRemoved()) {
-                controller.robot().discard();
-            }
+                if (!robot.isRemoved()) {
+                    robot.discard();
+                }
+            });
         }
 
-        controllers.clear();
-        registry.discardAll();
+        registry.clear();
     }
 }
