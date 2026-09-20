@@ -99,12 +99,14 @@ public final class ValidPlanFactory {
             );
         }
 
-        plans.add(
-            TacticalPlan.retreat(
-                currentTick,
-                lockTicks
-            )
-        );
+        if (retreatAvailable(self)) {
+            plans.add(
+                TacticalPlan.retreat(
+                    currentTick,
+                    lockTicks
+                )
+            );
+        }
 
         Vec3 reposition = repositionDestination(
             match,
@@ -122,6 +124,27 @@ public final class ValidPlanFactory {
         }
 
         return List.copyOf(plans);
+    }
+
+    private boolean retreatAvailable(
+        RobotController self
+    ) {
+        return self.entity()
+            .map(entity -> {
+                float maxHealth = entity.getMaxHealth();
+
+                if (maxHealth <= 0.0F) {
+                    return false;
+                }
+
+                double hpRatio =
+                    entity.getHealth() / maxHealth;
+
+                return hpRatio
+                    <= config.ai()
+                        .fallbackRetreatHpRatio();
+            })
+            .orElse(false);
     }
 
     private Vec3 coreCenter(MatchSession match) {
