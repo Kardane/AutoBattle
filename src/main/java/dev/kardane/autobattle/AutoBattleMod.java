@@ -59,7 +59,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         RobotRegistry robotRegistry = new RobotRegistry();
         planExecutor = new PlanExecutor(
             robotRegistry,
-            config.robot()
+            config
         );
         DialogService dialogs = new DialogService(
             config.doctrine().maxLineLength(),
