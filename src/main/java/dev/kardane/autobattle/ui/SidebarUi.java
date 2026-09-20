@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.ui;
 
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.network.chat.Component;
@@ -13,11 +14,21 @@ import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 public final class SidebarUi {
-    private static final String OBJECTIVE_NAME = "autobattle";
+    private static final String OBJECTIVE_NAME =
+        "autobattle";
 
+    private final LanguageService language;
     private Objective objective;
+
+    public SidebarUi(LanguageService language) {
+        this.language = Objects.requireNonNull(
+            language,
+            "language"
+        );
+    }
 
     public void create(MinecraftServer server) {
         Scoreboard scoreboard = server.getScoreboard();
@@ -31,7 +42,9 @@ public final class SidebarUi {
             : scoreboard.addObjective(
                 OBJECTIVE_NAME,
                 ObjectiveCriteria.DUMMY,
-                Component.literal("AUTO BATTLE"),
+                Component.literal(
+                    language.text("sidebar.title")
+                ),
                 ObjectiveCriteria.RenderType.INTEGER,
                 false,
                 null
@@ -62,7 +75,9 @@ public final class SidebarUi {
                             slot.score().totalScore()
                     )
                     .reversed()
-                    .thenComparingInt(PlayerSlot::slotIndex)
+                    .thenComparingInt(
+                        PlayerSlot::slotIndex
+                    )
             )
             .toList();
 
@@ -72,21 +87,33 @@ public final class SidebarUi {
             PlayerSlot slot = standings.get(index);
 
             ScoreHolder holder = ScoreHolder.forNameOnly(
-                "autobattle_" + slot.color().name().toLowerCase()
+                "autobattle_"
+                    + slot.color()
+                        .name()
+                        .toLowerCase()
             );
 
-            ScoreAccess score = scoreboard.getOrCreatePlayerScore(
-                holder,
-                objective
-            );
+            ScoreAccess score =
+                scoreboard.getOrCreatePlayerScore(
+                    holder,
+                    objective
+                );
 
             score.set(slot.score().totalScore());
             score.display(
                 Component.literal(
-                    (index + 1)
-                        + ". "
-                        + slot.color().name()
-                ).withStyle(slot.color().chatColor())
+                    language.format(
+                        "sidebar.entry",
+                        "rank",
+                        index + 1,
+                        "color",
+                        slot.color().name(),
+                        "score",
+                        slot.score().totalScore()
+                    )
+                ).withStyle(
+                    slot.color().chatColor()
+                )
             );
         }
     }

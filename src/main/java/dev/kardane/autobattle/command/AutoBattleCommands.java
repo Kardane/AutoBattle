@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.kardane.autobattle.config.ConfigReloadResult;
 import dev.kardane.autobattle.config.ConfigReloadService;
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
@@ -29,6 +30,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 public final class AutoBattleCommands {
+    private static LanguageService language;
+
     private AutoBattleCommands() {
     }
 
@@ -39,8 +42,14 @@ public final class AutoBattleCommands {
         DoctrineService doctrineService,
         PlayerCommandService commandService,
         RoundReviewService reviewService,
-        ConfigReloadService configReloadService
+        ConfigReloadService configReloadService,
+        LanguageService languageService
     ) {
+        language = java.util.Objects.requireNonNull(
+            languageService,
+            "languageService"
+        );
+
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
                 registerTree(
@@ -374,6 +383,15 @@ public final class AutoBattleCommands {
 
 
 
+    private static Component message(
+        String key,
+        Object... placeholders
+    ) {
+        return Component.literal(
+            language.format(key, placeholders)
+        );
+    }
+
     private static int debugRobot(
         CommandSourceStack source,
         MatchManager matchManager,
@@ -687,13 +705,21 @@ public final class AutoBattleCommands {
 
         if (!result.success()) {
             source.sendFailure(
-                Component.literal(result.message())
+                message(
+                    "commands.reload-failure",
+                    "message",
+                    result.message()
+                )
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(result.message()),
+            () -> message(
+                "commands.reload-success",
+                "message",
+                result.message()
+            ),
             true
         );
 
@@ -706,18 +732,16 @@ public final class AutoBattleCommands {
     ) {
         if (!matchManager.startPrototypeRound(source.getServer())) {
             source.sendFailure(
-                Component.literal(
-                    "Unable to start round. Need at least four active participants, submitted doctrines, and a valid arena dimension."
-                )
+                message("commands.start-failed")
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Started AutoBattle prototype round "
-                    + matchManager.session().currentRound()
-                    + "."
+            () -> message(
+                "commands.start-success",
+                "round",
+                matchManager.session().currentRound()
             ),
             true
         );
@@ -731,17 +755,13 @@ public final class AutoBattleCommands {
     ) {
         if (!matchManager.stopPrototypeRound()) {
             source.sendFailure(
-                Component.literal(
-                    "No active AutoBattle round to stop."
-                )
+                message("commands.stop-failed")
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Stopped AutoBattle prototype round."
-            ),
+            () -> message("commands.stop-success"),
             true
         );
 
@@ -767,16 +787,30 @@ public final class AutoBattleCommands {
 
         if (result != CommandUseResult.SUCCESS) {
             source.sendFailure(
-                Component.literal(
-                    "Command rejected: " + result.name()
+                message(
+                    "commands.player-command-rejected",
+                    "result",
+                    result.name()
                 )
             );
             return 0;
         }
 
+        String commandSeconds = String.format(
+            Locale.ROOT,
+            "%.1f",
+            matchManager.config()
+                .commandDurationTicks()
+                / 20.0D
+        );
+
         source.sendSuccess(
-            () -> Component.literal(
-                "Command " + type.name() + " activated for 10 seconds."
+            () -> message(
+                "commands.player-command-success",
+                "type",
+                type.name(),
+                "seconds",
+                commandSeconds
             ),
             false
         );
@@ -804,26 +838,28 @@ public final class AutoBattleCommands {
 
         if (!result.success()) {
             source.sendFailure(
-                Component.literal(
-                    "Doctrine rejected: " + result.error().name()
+                message(
+                    "commands.doctrine-rejected",
+                    "error",
+                    result.error().name()
                 )
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Doctrine v"
-                    + result.doctrine().version()
-                    + " saved."
+            () -> message(
+                "commands.doctrine-saved",
+                "version",
+                result.doctrine().version()
             ),
             false
         );
 
         if (matchManager.beginCountdownIfDoctrinesReady()) {
             source.sendSuccess(
-                () -> Component.literal(
-                    "All doctrines submitted. Match is ready to start."
+                () -> message(
+                    "commands.doctrines-ready"
                 ),
                 true
             );
@@ -850,21 +886,22 @@ public final class AutoBattleCommands {
 
         if (!result.success()) {
             source.sendFailure(
-                Component.literal(
-                    "Doctrine edit rejected: "
-                        + result.error().name()
+                message(
+                    "commands.doctrine-edit-rejected",
+                    "error",
+                    result.error().name()
                 )
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Doctrine line "
-                    + oneBasedLine
-                    + " updated. Version "
-                    + result.doctrine().version()
-                    + "."
+            () -> message(
+                "commands.doctrine-line-updated",
+                "line",
+                oneBasedLine,
+                "version",
+                result.doctrine().version()
             ),
             false
         );
@@ -882,9 +919,7 @@ public final class AutoBattleCommands {
 
         if (!matchManager.join(player)) {
             source.sendFailure(
-                Component.literal(
-                    "Unable to join AutoBattle. The lobby may be closed or full."
-                )
+                message("commands.join-failed")
             );
             return 0;
         }
@@ -894,8 +929,11 @@ public final class AutoBattleCommands {
             .orElseThrow();
 
         source.sendSuccess(
-            () -> Component.literal("Joined AutoBattle as ")
-                .append(slot.color().displayName()),
+            () -> message(
+                "commands.joined",
+                "color",
+                slot.color().name()
+            ),
             false
         );
 
@@ -910,15 +948,13 @@ public final class AutoBattleCommands {
 
         if (!matchManager.leave(player)) {
             source.sendFailure(
-                Component.literal(
-                    "You are not an active AutoBattle participant."
-                )
+                message("commands.leave-failed")
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal("Left AutoBattle. Active robots are forfeited immediately."),
+            () -> message("commands.left"),
             false
         );
 
@@ -935,24 +971,24 @@ public final class AutoBattleCommands {
 
         if (ready.isEmpty()) {
             source.sendFailure(
-                Component.literal("Join the AutoBattle lobby first.")
+                message("commands.join-first")
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
+            () -> message(
                 ready.get()
-                    ? "You are ready."
-                    : "You are no longer ready."
+                    ? "commands.ready"
+                    : "commands.not-ready"
             ),
             false
         );
 
         if (matchManager.beginDoctrineSetupIfReady(source.getServer())) {
             source.sendSuccess(
-                () -> Component.literal(
-                    "All players are ready. Doctrine setup started."
+                () -> message(
+                    "commands.doctrine-setup-started"
                 ),
                 true
             );
@@ -971,17 +1007,15 @@ public final class AutoBattleCommands {
 
         if (!matchManager.markReviewReady(player)) {
             source.sendFailure(
-                Component.literal(
-                    "Review ready is only available during ROUND_REVIEW."
+                message(
+                    "commands.review-ready-invalid"
                 )
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Round review marked ready."
-            ),
+            () -> message("commands.review-ready"),
             false
         );
 
@@ -996,17 +1030,15 @@ public final class AutoBattleCommands {
 
         if (!matchManager.markDoctrineEditDone(player)) {
             source.sendFailure(
-                Component.literal(
-                    "Doctrine keep is only available during DOCTRINE_EDIT."
+                message(
+                    "commands.doctrine-keep-invalid"
                 )
             );
             return 0;
         }
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Doctrine kept unchanged for the next round."
-            ),
+            () -> message("commands.doctrine-kept"),
             false
         );
 
@@ -1024,8 +1056,8 @@ public final class AutoBattleCommands {
             .player(player.getUUID())
             .isEmpty()) {
             source.sendFailure(
-                Component.literal(
-                    "You are not an AutoBattle participant."
+                message(
+                    "commands.review-not-participant"
                 )
             );
             return 0;
@@ -1037,38 +1069,45 @@ public final class AutoBattleCommands {
         );
 
         source.sendSuccess(
-            () -> Component.literal(
-                "Round "
-                    + summary.round()
-                    + " | Score "
-                    + summary.roundScore()
-                    + " | K/D/A "
-                    + summary.kills()
-                    + "/"
-                    + summary.deaths()
-                    + "/"
-                    + summary.assists()
+            () -> message(
+                "commands.review-summary",
+                "round",
+                summary.round(),
+                "score",
+                summary.roundScore(),
+                "kills",
+                summary.kills(),
+                "deaths",
+                summary.deaths(),
+                "assists",
+                summary.assists()
             ),
             false
         );
 
         source.sendSuccess(
-            () -> Component.literal(
-                "CORE captures "
-                    + summary.coreCaptures()
-                    + " | Hold "
-                    + String.format(
-                        Locale.ROOT,
-                        "%.1fs",
-                        summary.coreHoldTicks() / 20.0D
-                    )
-                    + " | Damage "
-                    + String.format(
-                        Locale.ROOT,
-                        "%.1f dealt / %.1f taken",
-                        summary.damageDealt(),
-                        summary.damageTaken()
-                    )
+            () -> message(
+                "commands.review-metrics",
+                "core_captures",
+                summary.coreCaptures(),
+                "core_hold_seconds",
+                String.format(
+                    Locale.ROOT,
+                    "%.1f",
+                    summary.coreHoldTicks() / 20.0D
+                ),
+                "damage_dealt",
+                String.format(
+                    Locale.ROOT,
+                    "%.1f",
+                    summary.damageDealt()
+                ),
+                "damage_taken",
+                String.format(
+                    Locale.ROOT,
+                    "%.1f",
+                    summary.damageTaken()
+                )
             ),
             false
         );
@@ -1091,7 +1130,11 @@ public final class AutoBattleCommands {
                 );
 
             source.sendSuccess(
-                () -> Component.literal("Plans: " + plans),
+                () -> message(
+                    "commands.review-plans",
+                    "plans",
+                    plans
+                ),
                 false
             );
         }
@@ -1102,23 +1145,24 @@ public final class AutoBattleCommands {
             var decision = critical.decision();
 
             source.sendSuccess(
-                () -> Component.literal(
-                    "Critical #"
-                        + critical.importanceScore()
-                        + " @ tick "
-                        + decision.serverTick()
-                        + ": "
-                        + String.valueOf(
-                            decision.selectedPlanId()
-                        )
-                        + " confidence="
-                        + String.format(
-                            Locale.ROOT,
-                            "%.2f",
-                            decision.confidence()
-                        )
-                        + " result="
-                        + decision.applyResult().name()
+                () -> message(
+                    "commands.review-critical",
+                    "importance",
+                    critical.importanceScore(),
+                    "tick",
+                    decision.serverTick(),
+                    "plan",
+                    String.valueOf(
+                        decision.selectedPlanId()
+                    ),
+                    "confidence",
+                    String.format(
+                        Locale.ROOT,
+                        "%.2f",
+                        decision.confidence()
+                    ),
+                    "result",
+                    decision.applyResult().name()
                 ),
                 false
             );

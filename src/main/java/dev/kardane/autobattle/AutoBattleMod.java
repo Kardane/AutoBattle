@@ -1,10 +1,14 @@
 package dev.kardane.autobattle;
 
 import dev.kardane.autobattle.command.AutoBattleCommands;
+import dev.kardane.autobattle.command.CarpetTestCommands;
 import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.AutoBattleConfigLoader;
 import dev.kardane.autobattle.config.ConfigReloadService;
+import dev.kardane.autobattle.config.LanguageConfig;
+import dev.kardane.autobattle.config.LanguageConfigLoader;
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.event.AutoBattleEvents;
@@ -39,7 +43,15 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
 
     @Override
     public void onInitializeServer() {
-        AutoBattleConfig config = AutoBattleConfigLoader.load();
+        AutoBattleConfig config =
+            AutoBattleConfigLoader.load();
+
+        LanguageConfig languageConfig =
+            LanguageConfigLoader.load();
+
+        LanguageService language =
+            new LanguageService(languageConfig);
+
         RobotFactory robotFactory = new RobotFactory(
             config.robot()
         );
@@ -49,7 +61,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             config.robot()
         );
         DialogService dialogs = new DialogService(
-            config.doctrine().maxLineLength()
+            config.doctrine().maxLineLength(),
+            language
         );
         PlayerCommandService commandService =
             new PlayerCommandService(
@@ -91,7 +104,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             config,
             planExecutor,
             dialogs,
-            reviewService
+            reviewService,
+            language
         );
 
         matchManager = new MatchManager(
@@ -108,7 +122,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             matchManager,
             doctrineService,
             reviewService,
-            dialogs
+            dialogs,
+            language
         );
 
         ConfigReloadService configReloadService =
@@ -121,6 +136,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 doctrineValidator,
                 dialogs,
                 ui,
+                language,
                 this::createJevClient
             );
 
@@ -131,7 +147,15 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             doctrineService,
             commandService,
             reviewService,
-            configReloadService
+            configReloadService,
+            language
+        );
+
+        CarpetTestCommands.register(
+            matchManager,
+            doctrineService,
+            commandService,
+            language
         );
 
         AutoBattleEvents.register(
@@ -141,8 +165,9 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         );
 
         LOGGER.info(
-            "AutoBattle initialized (config={}, minimumPlayers={}, rounds={})",
+            "AutoBattle initialized (config={}, messages={}, minimumPlayers={}, rounds={})",
             AutoBattleConfigLoader.configPath(),
+            LanguageConfigLoader.messagePath(),
             config.minimumPlayers(),
             config.roundCount()
         );

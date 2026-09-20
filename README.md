@@ -21,8 +21,13 @@ Players do not directly control their fighters. Each player teaches one robot wi
 On first server launch, AutoBattle creates:
 
 ```text
-config/autobattle.yml
+config/
+└─ autobattle/
+   ├─ config.yml
+   └─ messages.yml
 ```
+
+Existing `config/autobattle.yml` installations are automatically moved to `config/autobattle/config.yml` the first time the new loader runs.
 
 Edit this file and either restart the server or run:
 
@@ -30,7 +35,9 @@ Edit this file and either restart the server or run:
 /autobattle admin reload
 ```
 
-The reload command is intentionally restricted to an empty `LOBBY` so an active match cannot change rules underneath running robots. The YAML contains the TypeSafe API configuration and the main game tuning values:
+The reload command is intentionally restricted to an empty `LOBBY` so an active match cannot change rules underneath running robots. It reloads both YAML files atomically: both files must parse successfully before the new values are applied.
+
+`config.yml` contains the TypeSafe API configuration and the main game tuning values:
 
 - TypeSafe API key, base URL, and model
 - minimum players, round count, round/countdown/respawn/command timing
@@ -80,7 +87,22 @@ arena:
 
 The full file is generated with comments and all available options.
 
-The API key is plain text in the server config directory, so keep that directory private and do not commit `config/autobattle.yml`. If `typesafe.api-key` is empty, AutoBattle falls back to the `TYPESAFE_API_KEY` environment variable. If neither is configured, it uses `ScriptedJevClient`.
+`messages.yml` controls text shown through the Sidebar, BossBar, ActionBar, chat announcements, and native Dialogs. Dynamic values use placeholders such as `{round}`, `{total_rounds}`, `{seconds}`, `{score}`, `{hp}`, `{color}`, and `{plan}`.
+
+Example:
+
+```yaml
+bossbar:
+  round: "{round}/{total_rounds} 라운드 | {seconds}초 | CORE {core_owner}{contested_suffix}"
+
+actionbar:
+  alive: "체력 {hp}/{max_hp} | 행동 {plan} | 명령 {command} | 점수 {score}"
+
+chat:
+  core-captured: "[AutoBattle] {color} 로봇이 CORE를 점령했습니다."
+```
+
+The API key is plain text in the server config directory, so keep that directory private and do not commit `config/autobattle/`. If `typesafe.api-key` is empty, AutoBattle falls back to the `TYPESAFE_API_KEY` environment variable. If neither is configured, it uses `ScriptedJevClient`.
 
 ## TypeSafe Jev
 
@@ -136,6 +158,48 @@ The existing `/autobattle doctrine ...` and `/autobattle review` commands remain
 - Mojang official mappings
 - TypeSafe System One / Jev
 
+## Carpet bot test harness
+
+Fabric Carpet is optional at runtime. When it is installed, operators can drive a four-player smoke test without four real clients:
+
+```text
+/autobattle admin test spawn
+/autobattle admin test setup
+/autobattle admin test status
+```
+
+The harness uses Carpet fake players `ABot1` through `ABot4`. `setup` joins them, marks them ready, submits deterministic Doctrine presets, and advances the match to `COUNTDOWN`.
+
+During a round:
+
+```text
+/autobattle admin test command 1 attack
+/autobattle admin test command 2 capture
+/autobattle admin test command 3 survive
+```
+
+After a round, either advance the whole intermission at once:
+
+```text
+/autobattle admin test next
+```
+
+or split it to test Doctrine editing between phases:
+
+```text
+/autobattle admin test review
+/execute as ABot1 run autobattle doctrine replace 2 "Focus the weakest enemy"
+/autobattle admin test keep
+```
+
+Clean up fake players and reset their participation with:
+
+```text
+/autobattle admin test cleanup
+```
+
+The test commands detect Carpet through the registered `/player` command and do not add a compile-time Carpet dependency.
+
 ## Development
 
 ```powershell
@@ -144,7 +208,7 @@ The existing `/autobattle doctrine ...` and `/autobattle review` commands remain
 .\gradlew.bat runServer
 ```
 
-For production Jev testing, set `typesafe.api-key` in `config/autobattle.yml` (or use `TYPESAFE_API_KEY` as a fallback).
+For production Jev testing, set `typesafe.api-key` in `config/autobattle/config.yml` (or use `TYPESAFE_API_KEY` as a fallback).
 
 ## License
 
