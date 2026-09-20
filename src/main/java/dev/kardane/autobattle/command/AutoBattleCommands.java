@@ -29,7 +29,8 @@ public final class AutoBattleCommands {
     public static void register(
         MatchManager matchManager,
         RobotFactory robotFactory,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        PlayerCommandService playerCommandService
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
@@ -37,7 +38,8 @@ public final class AutoBattleCommands {
                     dispatcher,
                     matchManager,
                     robotFactory,
-                    planExecutor
+                    planExecutor,
+                    playerCommandService
                 )
         );
     }
@@ -46,7 +48,8 @@ public final class AutoBattleCommands {
         CommandDispatcher<CommandSourceStack> dispatcher,
         MatchManager matchManager,
         RobotFactory robotFactory,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        PlayerCommandService playerCommandService
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -72,6 +75,42 @@ public final class AutoBattleCommands {
                     Commands.literal("status")
                         .executes(context ->
                             status(context.getSource(), matchManager)
+                        )
+                )
+                .then(
+                    Commands.literal("command")
+                        .then(
+                            Commands.literal("attack")
+                                .executes(context ->
+                                    usePlayerCommand(
+                                        context.getSource(),
+                                        matchManager,
+                                        playerCommandService,
+                                        PlayerCommandType.ATTACK
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("capture")
+                                .executes(context ->
+                                    usePlayerCommand(
+                                        context.getSource(),
+                                        matchManager,
+                                        playerCommandService,
+                                        PlayerCommandType.CAPTURE
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("survive")
+                                .executes(context ->
+                                    usePlayerCommand(
+                                        context.getSource(),
+                                        matchManager,
+                                        playerCommandService,
+                                        PlayerCommandType.SURVIVE
+                                    )
+                                )
                         )
                 )
                 .then(
@@ -209,6 +248,54 @@ public final class AutoBattleCommands {
 
 
 
+
+
+    private static int usePlayerCommand(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        PlayerCommandService playerCommandService,
+        PlayerCommandType type
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        CommandUseResult result = playerCommandService.use(
+            matchManager.session(),
+            player,
+            type,
+            matchManager.serverTick()
+        );
+
+        if (result != CommandUseResult.SUCCESS) {
+            source.sendFailure(
+                Component.literal(
+                    switch (result) {
+                        case NOT_PARTICIPANT ->
+                            "Join AutoBattle first.";
+                        case INVALID_PHASE ->
+                            "Commands can only be used during an active round.";
+                        case ALREADY_USED ->
+                            "You already used your command this round.";
+                        case ROBOT_UNAVAILABLE ->
+                            "Your robot is not currently available.";
+                        case FORFEITED ->
+                            "You have forfeited this match.";
+                        case SUCCESS ->
+                            "Command accepted.";
+                    }
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Command activated: " + type.name()
+            ),
+            false
+        );
+
+        return 1;
+    }
 
     private static int debugRobot(
         CommandSourceStack source,
