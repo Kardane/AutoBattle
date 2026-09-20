@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -56,7 +57,7 @@ public final class AutoBattleCommands {
     private static int join(
         CommandSourceStack source,
         MatchManager matchManager
-    ) throws Exception {
+    ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
 
         if (!matchManager.join(player)) {
@@ -84,7 +85,7 @@ public final class AutoBattleCommands {
     private static int leave(
         CommandSourceStack source,
         MatchManager matchManager
-    ) throws Exception {
+    ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
 
         if (!matchManager.leave(player)) {
@@ -107,7 +108,7 @@ public final class AutoBattleCommands {
     private static int ready(
         CommandSourceStack source,
         MatchManager matchManager
-    ) throws Exception {
+    ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
 
         var ready = matchManager.toggleReady(player);
