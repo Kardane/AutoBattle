@@ -24,11 +24,18 @@ On first server launch, AutoBattle creates:
 config/autobattle.yml
 ```
 
-Edit this file and restart the server to apply changes. The YAML contains the TypeSafe API configuration and the main game tuning values:
+Edit this file and either restart the server or run:
+
+```text
+/autobattle admin reload
+```
+
+The reload command is intentionally restricted to an empty `LOBBY` so an active match cannot change rules underneath running robots. The YAML contains the TypeSafe API configuration and the main game tuning values:
 
 - TypeSafe API key, base URL, and model
 - minimum players, round count, round/countdown/respawn/command timing
-- AI decision interval, lock, debounce, timeout, and minimum confidence
+- AI decision interval, lock, debounce, timeout, minimum confidence, and fallback retreat threshold
+- Doctrine maximum line length
 - robot HP, damage, movement/follow range, regeneration
 - tactical movement speeds and leash distances
 - kill/assist/CORE scoring and assist window
@@ -57,6 +64,10 @@ ai:
   decision-debounce-seconds: 0.5
   request-timeout-ms: 1500
   minimum-confidence: 0.35
+  fallback-retreat-hp-ratio: 0.25
+
+doctrine:
+  max-line-length: 120
 
 arena:
   dimension: "minecraft:overworld"
