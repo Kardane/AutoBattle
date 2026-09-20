@@ -14,6 +14,8 @@ public final class AutoBattleConstants {
     public static final int DECISION_DEBOUNCE_TICKS = 10;
     public static final int JEV_TIMEOUT_MS = 1500;
     public static final double JEV_MIN_CONFIDENCE = 0.35D;
+    public static final double JEV_FALLBACK_RETREAT_HP_RATIO = 0.25D;
+    public static final int DOCTRINE_MAX_LINE_LENGTH = 120;
 
     public static final double ROBOT_MAX_HEALTH = 100.0D;
     public static final double ROBOT_ATTACK_DAMAGE = 10.0D;
