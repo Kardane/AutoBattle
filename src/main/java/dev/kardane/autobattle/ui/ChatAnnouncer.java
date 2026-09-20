@@ -26,7 +26,7 @@ public final class ChatAnnouncer {
         broadcastParticipants(
             server,
             match,
-            language.format(
+            language.component(
                 "chat.round-started",
                 "round",
                 match.currentRound()
@@ -41,7 +41,7 @@ public final class ChatAnnouncer {
         broadcastParticipants(
             server,
             match,
-            language.format(
+            language.component(
                 "chat.round-ended",
                 "round",
                 match.currentRound()
@@ -58,7 +58,7 @@ public final class ChatAnnouncer {
         broadcastParticipants(
             server,
             match,
-            language.format(
+            language.component(
                 "chat.robot-killed",
                 "killer_color",
                 killer.color().name(),
@@ -76,7 +76,7 @@ public final class ChatAnnouncer {
         broadcastParticipants(
             server,
             match,
-            language.format(
+            language.component(
                 "chat.core-captured",
                 "color",
                 owner.color().name()
@@ -87,10 +87,8 @@ public final class ChatAnnouncer {
     private void broadcastParticipants(
         MinecraftServer server,
         MatchSession match,
-        String message
+        Component component
     ) {
-        Component component =
-            Component.literal(message);
 
         for (PlayerSlot slot : match.players()) {
             ServerPlayer player = server.getPlayerList()
