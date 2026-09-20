@@ -35,6 +35,16 @@ public final class AutoBattleConfigLoader {
         # API keys are stored as plain text in this file. Keep your server
         # config directory private and do not commit this file to Git.
 
+        openai:
+          doctrine-normalizer:
+            enabled: true
+            # Leave empty to fall back to OPENAI_API_KEY.
+            # If no key is available, source Doctrine is used unchanged.
+            api-key: ""
+            base-url: "https://api.openai.com"
+            model: "gpt-5.6-luna"
+            request-timeout-ms: 2500
+
         typesafe:
           # Leave empty to fall back to TYPESAFE_API_KEY.
           # If both are empty, ScriptedJevClient is used.
@@ -218,6 +228,10 @@ public final class AutoBattleConfigLoader {
         AutoBattleConfig defaults =
             AutoBattleConfig.defaults();
 
+        Map<String, Object> openai =
+            section(root, "openai");
+        Map<String, Object> normalizer =
+            section(openai, "doctrine-normalizer");
         Map<String, Object> typesafe =
             section(root, "typesafe");
         Map<String, Object> match =
@@ -369,6 +383,36 @@ public final class AutoBattleConfigLoader {
                     doctrine,
                     "max-line-length",
                     defaults.doctrine().maxLineLength()
+                )
+            );
+
+        DoctrineNormalizerConfig doctrineNormalizerConfig =
+            new DoctrineNormalizerConfig(
+                booleanValue(
+                    normalizer,
+                    "enabled",
+                    defaults.doctrineNormalizer().enabled()
+                ),
+                stringValue(
+                    normalizer,
+                    "api-key",
+                    defaults.doctrineNormalizer().apiKey()
+                ),
+                stringValue(
+                    normalizer,
+                    "base-url",
+                    defaults.doctrineNormalizer().baseUrl()
+                ),
+                stringValue(
+                    normalizer,
+                    "model",
+                    defaults.doctrineNormalizer().model()
+                ),
+                intValue(
+                    normalizer,
+                    "request-timeout-ms",
+                    defaults.doctrineNormalizer()
+                        .requestTimeoutMs()
                 )
             );
 
@@ -549,6 +593,7 @@ public final class AutoBattleConfigLoader {
             matchConfig,
             aiConfig,
             doctrineConfig,
+            doctrineNormalizerConfig,
             robotConfig,
             scoringConfig,
             coreConfig,
@@ -772,6 +817,26 @@ public final class AutoBattleConfigLoader {
         }
 
         return String.valueOf(value);
+    }
+
+    private static boolean booleanValue(
+        Map<String, Object> map,
+        String key,
+        boolean fallback
+    ) {
+        Object value = map.get(key);
+
+        if (value == null) {
+            return fallback;
+        }
+
+        if (!(value instanceof Boolean booleanValue)) {
+            throw new IllegalArgumentException(
+                key + " must be a boolean"
+            );
+        }
+
+        return booleanValue;
     }
 
     private static int intValue(
