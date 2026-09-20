@@ -159,7 +159,8 @@ public final class JevDecisionService {
                         controller,
                         context,
                         response,
-                        error
+                        error,
+                        server.getTickCount()
                     )
                 )
             );
@@ -170,9 +171,9 @@ public final class JevDecisionService {
         RobotController controller,
         DecisionContext context,
         DecisionResponse response,
-        Throwable error
+        Throwable error,
+        long currentTick
     ) {
-        long currentTick = context.requestedTick();
 
         if (!match.matchId().equals(context.matchId())) {
             return DecisionApplyResult.STALE_MATCH;
