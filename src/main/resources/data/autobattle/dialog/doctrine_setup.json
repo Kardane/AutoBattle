@@ -1,0 +1,46 @@
+{
+  "type": "minecraft:notice",
+  "title": {"text": "Robot Doctrine"},
+  "body": [
+    {
+      "type": "minecraft:plain_message",
+      "contents": {
+        "text": "로봇이 따를 전투 원칙 3문장을 자유롭게 입력하세요. 각 문장은 최대 120자입니다."
+      },
+      "width": 420
+    }
+  ],
+  "inputs": [
+    {
+      "type": "minecraft:text",
+      "key": "d1",
+      "label": {"text": "Doctrine 1"},
+      "width": 420,
+      "max_length": 120
+    },
+    {
+      "type": "minecraft:text",
+      "key": "d2",
+      "label": {"text": "Doctrine 2"},
+      "width": 420,
+      "max_length": 120
+    },
+    {
+      "type": "minecraft:text",
+      "key": "d3",
+      "label": {"text": "Doctrine 3"},
+      "width": 420,
+      "max_length": 120
+    }
+  ],
+  "pause": false,
+  "after_action": "close",
+  "action": {
+    "label": {"text": "전략 저장"},
+    "width": 180,
+    "action": {
+      "type": "minecraft:dynamic/custom",
+      "id": "autobattle:doctrine_submit"
+    }
+  }
+}
