@@ -1,5 +1,7 @@
 package dev.kardane.autobattle.robot;
 
+import dev.kardane.autobattle.tactics.RobotController;
+
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,31 +10,55 @@ import java.util.Optional;
 import java.util.UUID;
 
 public final class RobotRegistry {
-    private final Map<UUID, RobotZombie> byEntityUuid = new LinkedHashMap<>();
+    private final Map<UUID, RobotController> byOwner =
+        new LinkedHashMap<>();
 
-    public void register(RobotZombie robot) {
-        byEntityUuid.put(robot.getUUID(), robot);
+    private final Map<UUID, RobotController> byEntity =
+        new LinkedHashMap<>();
+
+    public void register(RobotController controller) {
+        byOwner.put(controller.ownerUuid(), controller);
+        reindexEntity(controller);
     }
 
-    public void unregister(RobotZombie robot) {
-        byEntityUuid.remove(robot.getUUID());
+    public void reindexEntity(RobotController controller) {
+        byEntity.entrySet().removeIf(
+            entry -> entry.getValue() == controller
+        );
+
+        controller.entity().ifPresent(
+            entity -> byEntity.put(entity.getUUID(), controller)
+        );
     }
 
-    public Optional<RobotZombie> byEntityUuid(UUID entityUuid) {
-        return Optional.ofNullable(byEntityUuid.get(entityUuid));
+    public void unregister(RobotController controller) {
+        byOwner.remove(controller.ownerUuid(), controller);
+
+        byEntity.entrySet().removeIf(
+            entry -> entry.getValue() == controller
+        );
     }
 
-    public Collection<RobotZombie> all() {
-        return List.copyOf(byEntityUuid.values());
+    public Optional<RobotController> byOwner(UUID ownerUuid) {
+        return Optional.ofNullable(byOwner.get(ownerUuid));
     }
 
-    public void discardAll() {
-        for (RobotZombie robot : byEntityUuid.values()) {
-            if (!robot.isRemoved()) {
-                robot.discard();
-            }
-        }
+    public Optional<RobotController> byEntity(UUID entityUuid) {
+        return Optional.ofNullable(byEntity.get(entityUuid));
+    }
 
-        byEntityUuid.clear();
+    public Collection<RobotController> all() {
+        return List.copyOf(byOwner.values());
+    }
+
+    public Collection<RobotController> alive() {
+        return byOwner.values().stream()
+            .filter(RobotController::alive)
+            .toList();
+    }
+
+    public void clear() {
+        byOwner.clear();
+        byEntity.clear();
     }
 }
