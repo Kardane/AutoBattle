@@ -24,6 +24,7 @@ public final class JevDecisionService {
     private final RobotStateSerializer serializer;
     private final ValidPlanFactory validPlanFactory;
     private final PlanExecutor planExecutor;
+    private final DecisionLogRepository logs;
     private final AutoBattleConfig config;
 
     public JevDecisionService(
@@ -31,6 +32,7 @@ public final class JevDecisionService {
         RobotStateSerializer serializer,
         ValidPlanFactory validPlanFactory,
         PlanExecutor planExecutor,
+        DecisionLogRepository logs,
         AutoBattleConfig config
     ) {
         this.client = Objects.requireNonNull(client, "client");
@@ -46,7 +48,12 @@ public final class JevDecisionService {
             planExecutor,
             "planExecutor"
         );
+        this.logs = Objects.requireNonNull(logs, "logs");
         this.config = Objects.requireNonNull(config, "config");
+    }
+
+    public DecisionLogRepository logs() {
+        return logs;
     }
 
     public void tick(
@@ -157,7 +164,7 @@ public final class JevDecisionService {
                     applyResponse(
                         match,
                         controller,
-                        context,
+                        request,
                         response,
                         error,
                         server.getTickCount()
@@ -169,32 +176,61 @@ public final class JevDecisionService {
     private DecisionApplyResult applyResponse(
         MatchSession match,
         RobotController controller,
-        DecisionContext context,
+        DecisionRequest request,
         DecisionResponse response,
         Throwable error,
         long currentTick
     ) {
+        DecisionContext context = request.context();
 
         if (!match.matchId().equals(context.matchId())) {
-            return DecisionApplyResult.STALE_MATCH;
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_MATCH,
+                false,
+                currentTick
+            );
         }
 
         if (match.phase() != MatchPhase.ROUND_ACTIVE
             || match.currentRound() != context.round()) {
             finishDecision(controller, context, currentTick);
-            return DecisionApplyResult.STALE_ROUND;
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_ROUND,
+                false,
+                currentTick
+            );
         }
 
         if (!controller.ownerUuid().equals(
             context.ownerUuid()
         )) {
             finishDecision(controller, context, currentTick);
-            return DecisionApplyResult.STALE_ENTITY;
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_ENTITY,
+                false,
+                currentTick
+            );
         }
 
         if (controller.decisionGeneration()
             != context.generation()) {
-            return DecisionApplyResult.STALE_GENERATION;
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_GENERATION,
+                false,
+                currentTick
+            );
         }
 
         UUID currentEntityUuid = controller.entityUuid()
@@ -206,7 +242,15 @@ public final class JevDecisionService {
         )) {
             finishDecision(controller, context, currentTick);
             controller.requestRedecision();
-            return DecisionApplyResult.STALE_ENTITY;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_ENTITY,
+                false,
+                currentTick
+            );
         }
 
         PlayerSlot slot = match.player(
@@ -219,7 +263,15 @@ public final class JevDecisionService {
                 != context.doctrineVersion()) {
             finishDecision(controller, context, currentTick);
             controller.requestRedecision();
-            return DecisionApplyResult.STALE_DOCTRINE;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_DOCTRINE,
+                false,
+                currentTick
+            );
         }
 
         List<TacticalPlan> currentCandidates =
@@ -239,7 +291,15 @@ public final class JevDecisionService {
             != context.candidatesHash()) {
             finishDecision(controller, context, currentTick);
             controller.requestRedecision();
-            return DecisionApplyResult.STALE_CANDIDATES;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.STALE_CANDIDATES,
+                false,
+                currentTick
+            );
         }
 
         if (error != null || response == null) {
@@ -249,8 +309,17 @@ public final class JevDecisionService {
                 currentTick,
                 DecisionApplyResult.API_ERROR_FALLBACK
             );
+
             finishDecision(controller, context, currentTick);
-            return result;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                result,
+                true,
+                currentTick
+            );
         }
 
         TacticalPlan selected = byId.get(
@@ -264,8 +333,17 @@ public final class JevDecisionService {
                 currentTick,
                 DecisionApplyResult.INVALID_PLAN
             );
+
             finishDecision(controller, context, currentTick);
-            return result;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                result,
+                true,
+                currentTick
+            );
         }
 
         if (response.confidence() < MIN_CONFIDENCE) {
@@ -275,8 +353,17 @@ public final class JevDecisionService {
                 currentTick,
                 DecisionApplyResult.LOW_CONFIDENCE_FALLBACK
             );
+
             finishDecision(controller, context, currentTick);
-            return result;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                result,
+                true,
+                currentTick
+            );
         }
 
         boolean applied = planExecutor.assignPlan(
@@ -287,12 +374,23 @@ public final class JevDecisionService {
 
         finishDecision(controller, context, currentTick);
 
+        DecisionApplyResult result;
+
         if (!applied) {
             controller.requestRedecision();
-            return DecisionApplyResult.KEPT_CURRENT_PLAN;
+            result = DecisionApplyResult.KEPT_CURRENT_PLAN;
+        } else {
+            result = DecisionApplyResult.APPLIED;
         }
 
-        return DecisionApplyResult.APPLIED;
+        return logAndReturn(
+            controller,
+            request,
+            response,
+            result,
+            false,
+            currentTick
+        );
     }
 
     private DecisionApplyResult applyFallback(
@@ -370,6 +468,51 @@ public final class JevDecisionService {
         }
 
         return byId;
+    }
+
+    private DecisionApplyResult logAndReturn(
+        RobotController controller,
+        DecisionRequest request,
+        DecisionResponse response,
+        DecisionApplyResult result,
+        boolean fallback,
+        long currentTick
+    ) {
+        DecisionContext context = request.context();
+
+        long latencyMs = response != null
+            ? response.latencyMs()
+            : Math.max(
+                0L,
+                currentTick - context.requestedTick()
+            ) * 50L;
+
+        logs.append(
+            new DecisionLog(
+                context.matchId(),
+                context.round(),
+                context.requestedTick(),
+                context.ownerUuid(),
+                context.robotEntityUuid(),
+                controller.color(),
+                context.doctrineVersion(),
+                request.validPlanIds(),
+                response == null
+                    ? null
+                    : response.selectedPlanId(),
+                response == null
+                    ? 0.0D
+                    : response.confidence(),
+                response == null
+                    ? Map.of()
+                    : response.probabilities(),
+                latencyMs,
+                fallback,
+                result
+            )
+        );
+
+        return result;
     }
 
     private void finishDecision(
