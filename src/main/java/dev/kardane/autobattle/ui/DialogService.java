@@ -48,9 +48,19 @@ public final class DialogService {
     private static final int WIDTH = 360;
     private static final int BUTTON_WIDTH = 220;
 
-    private final int doctrineMaxLineLength;
+    private int doctrineMaxLineLength;
 
     public DialogService(int doctrineMaxLineLength) {
+        if (doctrineMaxLineLength < 1) {
+            throw new IllegalArgumentException(
+                "doctrineMaxLineLength must be positive"
+            );
+        }
+
+        this.doctrineMaxLineLength = doctrineMaxLineLength;
+    }
+
+    public void reloadMaxLineLength(int doctrineMaxLineLength) {
         if (doctrineMaxLineLength < 1) {
             throw new IllegalArgumentException(
                 "doctrineMaxLineLength must be positive"
