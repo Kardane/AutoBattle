@@ -1,11 +1,40 @@
 package dev.kardane.autobattle.ui;
 
+import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class ActionBarUi {
+    public void updateIntermission(
+        ServerPlayer player,
+        PlayerSlot slot,
+        MatchPhase phase,
+        int currentRound,
+        int totalRounds
+    ) {
+        String status = switch (phase) {
+            case ROUND_REVIEW -> "ROUND REVIEW";
+            case DOCTRINE_EDIT -> "DOCTRINE EDIT";
+            case COUNTDOWN -> "NEXT ROUND";
+            default -> phase.name();
+        };
+
+        player.displayClientMessage(
+            Component.literal(
+                status
+                    + " | ROUND "
+                    + currentRound
+                    + "/"
+                    + totalRounds
+                    + " | TOTAL SCORE "
+                    + slot.score().totalScore()
+            ),
+            true
+        );
+    }
+
     public void updatePlayer(
         ServerPlayer player,
         PlayerSlot slot,
