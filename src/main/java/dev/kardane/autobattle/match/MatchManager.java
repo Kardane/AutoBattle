@@ -33,13 +33,13 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class MatchManager {
-    private final AutoBattleConfig config;
+    private AutoBattleConfig config;
     private final RobotRegistry robotRegistry;
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
     private final DamageRules damageRules = new DamageRules();
-    private final CombatTracker combatTracker;
-    private final RobotRespawnManager respawnManager;
+    private CombatTracker combatTracker;
+    private RobotRespawnManager respawnManager;
     private final PlayerCommandService commandService;
     private final JevDecisionService decisionService;
     private final UiCoordinator ui;
@@ -79,6 +79,38 @@ public final class MatchManager {
     public AutoBattleConfig config() {
         return config;
     }
+
+    public boolean canReloadConfig() {
+        return session.phase() == MatchPhase.LOBBY
+            && playerCount() == 0;
+    }
+
+    public void reloadConfig(AutoBattleConfig config) {
+        if (!canReloadConfig()) {
+            throw new IllegalStateException(
+                "Config reload requires an empty LOBBY."
+            );
+        }
+
+        this.config = java.util.Objects.requireNonNull(
+            config,
+            "config"
+        );
+
+        this.combatTracker = new CombatTracker(
+            config.scoring().assistWindowTicks()
+        );
+
+        this.respawnManager = new RobotRespawnManager(
+            config,
+            robotFactory,
+            planExecutor
+        );
+
+        pendingDamage.clear();
+        session = createSession();
+    }
+
 
     public MatchSession session() {
         return session;
