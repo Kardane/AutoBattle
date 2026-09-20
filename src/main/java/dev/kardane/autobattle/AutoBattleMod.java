@@ -10,6 +10,7 @@ import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.tactics.PlanExecutor;
+import dev.kardane.autobattle.ui.DialogService;
 import dev.kardane.autobattle.ui.UiCoordinator;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import org.slf4j.Logger;
@@ -31,9 +32,11 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         planExecutor = new PlanExecutor(robotRegistry);
         PlayerCommandService playerCommandService =
             new PlayerCommandService(planExecutor);
+        DialogService dialogService = new DialogService();
         UiCoordinator ui = new UiCoordinator(
             config,
-            planExecutor
+            planExecutor,
+            dialogService
         );
         doctrineService = new DoctrineService(
             new DoctrineValidator()
@@ -52,7 +55,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             robotFactory,
             planExecutor,
             doctrineService,
-            playerCommandService
+            playerCommandService,
+            dialogService
         );
 
         AutoBattleEvents.register(
