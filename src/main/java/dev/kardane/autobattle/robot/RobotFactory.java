@@ -75,7 +75,7 @@ public final class RobotFactory {
             .add(owner.getLookAngle().scale(3.0D));
 
         return spawnRobot(
-            owner.serverLevel(),
+            (ServerLevel) owner.level(),
             UUID.randomUUID(),
             owner.getUUID(),
             owner.getName(),
