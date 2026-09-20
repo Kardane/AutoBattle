@@ -12,9 +12,12 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.Locale;
+import java.util.UUID;
 
 public final class AutoBattleCommands {
     private AutoBattleCommands() {
@@ -80,6 +83,15 @@ public final class AutoBattleCommands {
                                                 "color"
                                             )
                                         )
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("testfight")
+                                .executes(context ->
+                                    spawnTestFight(
+                                        context.getSource(),
+                                        robotFactory
                                     )
                                 )
                         )
@@ -182,6 +194,67 @@ public final class AutoBattleCommands {
             () -> Component.literal(matchManager.statusLine()),
             false
         );
+        return 1;
+    }
+
+
+    private static int spawnTestFight(
+        CommandSourceStack source,
+        RobotFactory robotFactory
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        ServerLevel level = (ServerLevel) player.level();
+
+        Vec3 forward = player.getLookAngle();
+        Vec3 horizontal = new Vec3(forward.x, 0.0D, forward.z);
+
+        if (horizontal.lengthSqr() < 1.0E-4D) {
+            horizontal = new Vec3(0.0D, 0.0D, 1.0D);
+        } else {
+            horizontal = horizontal.normalize();
+        }
+
+        Vec3 right = new Vec3(
+            -horizontal.z,
+            0.0D,
+            horizontal.x
+        );
+
+        Vec3 center = player.position()
+            .add(horizontal.scale(7.0D));
+
+        UUID testMatchId = UUID.randomUUID();
+
+        RobotZombie red = robotFactory.spawnRobot(
+            level,
+            testMatchId,
+            UUID.randomUUID(),
+            Component.literal("Test RED"),
+            RobotColor.RED,
+            center.add(right.scale(3.0D)),
+            player.getYRot()
+        );
+
+        RobotZombie blue = robotFactory.spawnRobot(
+            level,
+            testMatchId,
+            UUID.randomUUID(),
+            Component.literal("Test BLUE"),
+            RobotColor.BLUE,
+            center.add(right.scale(-3.0D)),
+            player.getYRot()
+        );
+
+        red.setTarget(blue);
+        blue.setTarget(red);
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Spawned RED vs BLUE test fight."
+            ),
+            false
+        );
+
         return 1;
     }
 
