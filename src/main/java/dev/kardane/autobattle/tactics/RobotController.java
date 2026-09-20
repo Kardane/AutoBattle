@@ -577,25 +577,18 @@ public final class RobotController {
             return;
         }
 
-        int steps = Math.max(
-            1,
-            (int) Math.ceil(
-                length / INTENT_PARTICLE_SPACING
-            )
-        );
-
-        Vec3 step = delta.scale(1.0D / steps);
+        Vec3 direction = delta.normalize();
         DustParticleOptions dust =
             new DustParticleOptions(
                 color.rgb(),
                 INTENT_PARTICLE_SCALE
             );
 
-        for (int index = 0;
-             index <= steps;
-             index++) {
+        for (double traveled = 0.0D;
+             traveled < length;
+             traveled += INTENT_PARTICLE_SPACING) {
             Vec3 point = start.add(
-                step.scale(index)
+                direction.scale(traveled)
             );
 
             level.sendParticles(
@@ -610,6 +603,18 @@ public final class RobotController {
                 0.0D
             );
         }
+
+        level.sendParticles(
+            dust,
+            destination.x,
+            destination.y,
+            destination.z,
+            1,
+            0.0D,
+            0.0D,
+            0.0D,
+            0.0D
+        );
     }
 
     private Vec3 entityAimPoint(RobotZombie robot) {
