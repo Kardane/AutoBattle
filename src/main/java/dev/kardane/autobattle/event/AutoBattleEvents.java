@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.event;
 
+import dev.kardane.autobattle.jev.JevDecisionService;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -12,7 +13,8 @@ public final class AutoBattleEvents {
 
     public static void register(
         MatchManager matchManager,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        JevDecisionService decisionService
     ) {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             matchManager.tick(server);
@@ -31,8 +33,9 @@ public final class AutoBattleEvents {
             matchManager::handleAfterDeath
         );
 
-        ServerLifecycleEvents.SERVER_STOPPED.register(
-            server -> planExecutor.clear()
-        );
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            planExecutor.clear();
+            decisionService.logs().close();
+        });
     }
 }
