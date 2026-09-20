@@ -59,7 +59,7 @@ public final class RobotStateSerializer {
 
             boolean alive = enemy != null && enemy.alive();
             float hp = 0.0F;
-            double distance = Double.POSITIVE_INFINITY;
+            Double distance = null;
             boolean attackingSelf = false;
 
             if (alive) {
@@ -67,7 +67,7 @@ public final class RobotStateSerializer {
                     .orElseThrow();
 
                 hp = enemyEntity.getHealth();
-                distance = selfEntity.distanceTo(enemyEntity);
+                distance = (double) selfEntity.distanceTo(enemyEntity);
                 attackingSelf =
                     enemyEntity.getTarget() == selfEntity;
             }

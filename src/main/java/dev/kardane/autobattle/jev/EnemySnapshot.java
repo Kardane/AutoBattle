@@ -9,7 +9,7 @@ public record EnemySnapshot(
     RobotColor color,
     boolean alive,
     float hp,
-    double distance,
+    Double distance,
     int rank,
     int roundScore,
     boolean attackingSelf,
