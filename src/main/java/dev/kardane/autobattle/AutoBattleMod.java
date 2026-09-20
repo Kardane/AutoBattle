@@ -146,7 +146,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             doctrineService,
             commandService,
             reviewService,
-            configReloadService
+            configReloadService,
+            language
         );
 
         AutoBattleEvents.register(
