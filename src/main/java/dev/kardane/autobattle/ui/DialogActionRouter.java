@@ -9,6 +9,7 @@ import dev.kardane.autobattle.review.RoundReviewService;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.common.ClientboundClearDialogPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -120,6 +121,7 @@ public final class DialogActionRouter {
             )
         );
 
+        clearDialog(player);
         matchManager.beginCountdownIfDoctrinesReady();
         return true;
     }
@@ -138,6 +140,7 @@ public final class DialogActionRouter {
             return true;
         }
 
+        clearDialog(player);
         return true;
     }
 
@@ -234,6 +237,7 @@ public final class DialogActionRouter {
             )
         );
 
+        clearDialog(player);
         matchManager.markDoctrineEditDone(player);
         return true;
     }
@@ -260,7 +264,14 @@ public final class DialogActionRouter {
             )
         );
 
+        clearDialog(player);
         return true;
+    }
+
+    private void clearDialog(ServerPlayer player) {
+        player.connection.send(
+            ClientboundClearDialogPacket.INSTANCE
+        );
     }
 
     private CompoundTag compound(
