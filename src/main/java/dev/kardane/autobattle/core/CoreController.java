@@ -57,7 +57,6 @@ public final class CoreController {
 
         if (inside.isEmpty()) {
             state.setContested(false);
-            state.setCaptureState(null);
         } else if (inside.size() > 1) {
             state.setContested(true);
         } else {
