@@ -356,7 +356,18 @@ public final class RobotController {
                 if (!insideArena(target.position())
                     || entity.distanceToSqr(target)
                         > square(leashDistance)) {
-                    invalidateCurrentTarget();
+                    Vec3 destination = clampToArena(
+                        target.position()
+                    );
+
+                    entity.setTarget(null);
+                    entity.getNavigation().moveTo(
+                        destination.x,
+                        destination.y,
+                        destination.z,
+                        speed
+                    );
+                    requestRedecision();
                     return;
                 }
 
