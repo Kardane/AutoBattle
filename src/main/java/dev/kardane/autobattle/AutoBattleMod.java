@@ -4,6 +4,7 @@ import dev.kardane.autobattle.command.AutoBattleCommands;
 import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.AutoBattleConfigLoader;
+import dev.kardane.autobattle.config.ConfigReloadService;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.event.AutoBattleEvents;
@@ -75,10 +76,13 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 decisionLogs,
                 config
             );
-        DoctrineService doctrineService = new DoctrineService(
+        DoctrineValidator doctrineValidator =
             new DoctrineValidator(
                 config.doctrine().maxLineLength()
-            )
+            );
+
+        DoctrineService doctrineService = new DoctrineService(
+            doctrineValidator
         );
         RoundReviewService reviewService =
             new RoundReviewService(decisionLogs);
@@ -107,13 +111,27 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             dialogs
         );
 
+        ConfigReloadService configReloadService =
+            new ConfigReloadService(
+                matchManager,
+                robotFactory,
+                planExecutor,
+                commandService,
+                decisionService,
+                doctrineValidator,
+                dialogs,
+                ui,
+                this::createJevClient
+            );
+
         AutoBattleCommands.register(
             matchManager,
             robotFactory,
             planExecutor,
             doctrineService,
             commandService,
-            reviewService
+            reviewService,
+            configReloadService
         );
 
         AutoBattleEvents.register(
