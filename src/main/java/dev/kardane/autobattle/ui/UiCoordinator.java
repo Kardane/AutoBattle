@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.review.RoundReviewService;
@@ -20,11 +21,12 @@ public final class UiCoordinator {
     private final PlanExecutor planExecutor;
     private final DialogService dialogs;
     private final RoundReviewService reviewService;
-    private final BossBarUi bossBar = new BossBarUi();
-    private final ActionBarUi actionBar = new ActionBarUi();
-    private final ChatAnnouncer chat = new ChatAnnouncer();
-    private final SidebarUi sidebar = new SidebarUi();
-    private final GameSoundService sounds = new GameSoundService();
+    private final BossBarUi bossBar;
+    private final ActionBarUi actionBar;
+    private final ChatAnnouncer chat;
+    private final SidebarUi sidebar;
+    private final GameSoundService sounds =
+        new GameSoundService();
 
     private UUID lastCoreOwner;
 
@@ -32,7 +34,8 @@ public final class UiCoordinator {
         AutoBattleConfig config,
         PlanExecutor planExecutor,
         DialogService dialogs,
-        RoundReviewService reviewService
+        RoundReviewService reviewService,
+        LanguageService language
     ) {
         this.config = Objects.requireNonNull(config, "config");
         this.planExecutor = Objects.requireNonNull(
@@ -47,6 +50,17 @@ public final class UiCoordinator {
             reviewService,
             "reviewService"
         );
+
+        LanguageService messages =
+            Objects.requireNonNull(
+                language,
+                "language"
+            );
+
+        this.bossBar = new BossBarUi(messages);
+        this.actionBar = new ActionBarUi(messages);
+        this.chat = new ChatAnnouncer(messages);
+        this.sidebar = new SidebarUi(messages);
     }
 
     public void reloadConfig(AutoBattleConfig config) {
