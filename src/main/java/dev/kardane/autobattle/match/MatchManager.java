@@ -85,7 +85,7 @@ public final class MatchManager {
     }
 
     public void tick(MinecraftServer server) {
-        serverTick++;
+        serverTick = server.getTickCount();
 
         if (session.phase() != MatchPhase.ROUND_ACTIVE) {
             return;
