@@ -4,7 +4,6 @@ import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.tactics.RobotController;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Locale;
@@ -49,18 +48,16 @@ public final class ActionBarUi {
         };
 
         player.displayClientMessage(
-            Component.literal(
-                language.format(
-                    "actionbar.intermission",
-                    "status",
-                    status,
-                    "round",
-                    currentRound,
-                    "total_rounds",
-                    totalRounds,
-                    "total_score",
-                    slot.score().totalScore()
-                )
+            language.component(
+                "actionbar.intermission",
+                "status",
+                status,
+                "round",
+                currentRound,
+                "total_rounds",
+                totalRounds,
+                "total_score",
+                slot.score().totalScore()
             ),
             true
         );
@@ -148,7 +145,7 @@ public final class ActionBarUi {
         }
 
         player.displayClientMessage(
-            Component.literal(text),
+            language.componentText(text),
             true
         );
     }
