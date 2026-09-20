@@ -438,7 +438,7 @@ public final class JevDecisionService {
             )
             .orElse(0.0D);
 
-        if (hpRatio <= 0.25D
+        if (hpRatio <= config.ai().fallbackRetreatHpRatio()
             && byId.containsKey("RETREAT")) {
             return byId.get("RETREAT");
         }
