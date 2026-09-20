@@ -328,7 +328,7 @@ public final class TypeSafeJevClient implements JevClient {
         Doctrine doctrine
     ) {
         JsonArray array = new JsonArray();
-        for (String line : doctrine.lines()) {
+        for (String line : doctrine.normalizedLines()) {
             array.add(line);
         }
         return array;
