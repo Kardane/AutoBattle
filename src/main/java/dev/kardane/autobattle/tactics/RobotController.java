@@ -261,7 +261,12 @@ public final class RobotController {
                     leashDistance * leashDistance;
 
                 if (entity.distanceToSqr(target) > leashDistanceSqr) {
-                    invalidateCurrentTarget();
+                    entity.setTarget(null);
+                    entity.getNavigation().moveTo(
+                        target,
+                        speed
+                    );
+                    requestRedecision();
                     return;
                 }
 
