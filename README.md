@@ -41,7 +41,7 @@ The reload command is intentionally restricted to an empty `LOBBY` so an active 
 
 - TypeSafe API key, base URL, and model
 - minimum players, round count, round/countdown/respawn/command timing
-- AI decision interval, lock, debounce, timeout, minimum confidence, and fallback retreat threshold
+- AI decision interval, lock, debounce, timeout, minimum confidence, and RETREAT availability/fallback HP threshold
 - Doctrine maximum line length
 - robot HP, damage, movement/follow range, regeneration
 - tactical movement speeds and leash distances
@@ -71,6 +71,8 @@ ai:
   decision-debounce-seconds: 0.5
   request-timeout-ms: 1500
   minimum-confidence: 0.35
+  # RETREAT is a valid Jev choice only at or below this ratio,
+  # and server fallback uses the same threshold.
   fallback-retreat-hp-ratio: 0.25
 
 doctrine:
@@ -122,7 +124,7 @@ Jev decisions remain in:
 logs/autobattle/decisions/<match-id>.jsonl
 ```
 
-The shared match ID makes the two files easy to join during later analysis. Decision rows also record the requested tick and observed tick, selected versus effective plan, robot/target/destination coordinates, distance to CORE, and distance to the active target.
+The shared match ID makes the two files easy to join during later analysis. Decision rows also record the requested tick and observed tick, selected versus effective plan, request-time HP/max HP/HP ratio, CORE owner/contested state, robot/target/destination coordinates, distance to CORE, distance to the active target, and API error class/message/HTTP status when a request fails.
 
 ## TypeSafe Jev
 
