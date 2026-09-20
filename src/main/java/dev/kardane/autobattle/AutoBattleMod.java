@@ -6,10 +6,12 @@ import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.event.AutoBattleEvents;
+import dev.kardane.autobattle.jev.JevClient;
 import dev.kardane.autobattle.jev.JevDecisionService;
 import dev.kardane.autobattle.jev.JsonlDecisionLogRepository;
 import dev.kardane.autobattle.jev.RobotStateSerializer;
 import dev.kardane.autobattle.jev.ScriptedJevClient;
+import dev.kardane.autobattle.jev.TypeSafeJevClient;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.review.RoundReviewService;
 import dev.kardane.autobattle.robot.RobotFactory;
@@ -54,9 +56,11 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 )
             );
 
+        JevClient jevClient = createJevClient(config);
+
         JevDecisionService decisionService =
             new JevDecisionService(
-                new ScriptedJevClient(),
+                jevClient,
                 new RobotStateSerializer(),
                 new ValidPlanFactory(),
                 planExecutor,
@@ -99,6 +103,59 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             config.minimumPlayers(),
             config.roundCount()
         );
+    }
+
+
+    private JevClient createJevClient(
+        AutoBattleConfig config
+    ) {
+        String apiKey = System.getenv(
+            "TYPESAFE_API_KEY"
+        );
+
+        if (apiKey == null || apiKey.isBlank()) {
+            LOGGER.warn(
+                "TYPESAFE_API_KEY is not configured. "
+                    + "AutoBattle will use ScriptedJevClient."
+            );
+            return new ScriptedJevClient();
+        }
+
+        String baseUrl = environmentOrDefault(
+            "TYPESAFE_BASE_URL",
+            TypeSafeJevClient.DEFAULT_BASE_URL
+        );
+
+        String model = environmentOrDefault(
+            "TYPESAFE_DEFAULT_MODEL",
+            TypeSafeJevClient.DEFAULT_MODEL
+        );
+
+        LOGGER.info(
+            "Using TypeSafe Jev (model={}, baseUrl={})",
+            model,
+            baseUrl
+        );
+
+        return new TypeSafeJevClient(
+            apiKey,
+            baseUrl,
+            model,
+            config.jevTimeoutMs()
+        );
+    }
+
+    private String environmentOrDefault(
+        String name,
+        String fallback
+    ) {
+        String value = System.getenv(name);
+
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+
+        return value.trim();
     }
 
     public static MatchManager matchManager() {
