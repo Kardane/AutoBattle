@@ -240,6 +240,12 @@ public final class UiCoordinator {
         lastCoreOwner = null;
     }
 
+    public void cleanup(MinecraftServer server) {
+        bossBar.clear();
+        sidebar.clear(server);
+        lastCoreOwner = null;
+    }
+
     private void forEachActivePlayer(
         MinecraftServer server,
         MatchSession match,
