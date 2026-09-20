@@ -16,7 +16,7 @@ public final class UiCoordinator {
     private static final int ACTION_BAR_INTERVAL_TICKS = 5;
     private static final int BOSS_BAR_INTERVAL_TICKS = 20;
 
-    private final AutoBattleConfig config;
+    private AutoBattleConfig config;
     private final PlanExecutor planExecutor;
     private final DialogService dialogs;
     private final RoundReviewService reviewService;
@@ -24,6 +24,7 @@ public final class UiCoordinator {
     private final ActionBarUi actionBar = new ActionBarUi();
     private final ChatAnnouncer chat = new ChatAnnouncer();
     private final SidebarUi sidebar = new SidebarUi();
+    private final GameSoundService sounds = new GameSoundService();
 
     private UUID lastCoreOwner;
 
@@ -48,6 +49,10 @@ public final class UiCoordinator {
         );
     }
 
+    public void reloadConfig(AutoBattleConfig config) {
+        this.config = Objects.requireNonNull(config, "config");
+    }
+
     public void onDoctrineSetup(
         MinecraftServer server,
         MatchSession match
@@ -64,16 +69,7 @@ public final class UiCoordinator {
         MatchSession match,
         long currentTick
     ) {
-        bossBar.clear();
-
-        for (PlayerSlot slot : match.players()) {
-            ServerPlayer player = server.getPlayerList()
-                .getPlayer(slot.playerUuid());
-
-            if (player != null) {
-                bossBar.addPlayer(player);
-            }
-        }
+        syncHudPlayers(server, match);
 
         lastCoreOwner = match.core()
             .state()
@@ -90,6 +86,7 @@ public final class UiCoordinator {
         sidebar.create(server);
         sidebar.update(server, match);
         chat.roundStarted(server, match);
+        sounds.roundStarted(server, match);
     }
 
     public void tickRound(
@@ -146,9 +143,53 @@ public final class UiCoordinator {
                         owner
                     )
                 );
+                sounds.coreCaptured(server, match);
             }
 
             lastCoreOwner = currentCoreOwner;
+        }
+    }
+
+    public void tickBetweenRounds(
+        MinecraftServer server,
+        MatchSession match,
+        long currentTick
+    ) {
+        if (currentTick % BOSS_BAR_INTERVAL_TICKS == 0L) {
+            syncHudPlayers(server, match);
+
+            bossBar.updateIntermission(
+                match,
+                currentTick,
+                config.roundCount(),
+                config.countdownTicks()
+            );
+
+            sidebar.create(server);
+            sidebar.update(server, match);
+        }
+
+        if (currentTick % ACTION_BAR_INTERVAL_TICKS == 0L) {
+            for (PlayerSlot slot : match.players()) {
+                if (slot.forfeited()) {
+                    continue;
+                }
+
+                ServerPlayer player = server.getPlayerList()
+                    .getPlayer(slot.playerUuid());
+
+                if (player == null) {
+                    continue;
+                }
+
+                actionBar.updateIntermission(
+                    player,
+                    slot,
+                    match.phase(),
+                    match.currentRound(),
+                    config.roundCount()
+                );
+            }
         }
     }
 
@@ -164,6 +205,7 @@ public final class UiCoordinator {
             killer,
             victim
         );
+        sounds.robotKilled(server, match);
     }
 
     public void onRoundEnd(
@@ -171,9 +213,16 @@ public final class UiCoordinator {
         MatchSession match
     ) {
         chat.roundEnded(server, match);
-        bossBar.clear();
-        sidebar.clear(server);
-        lastCoreOwner = null;
+        sounds.roundEnded(server, match);
+        syncHudPlayers(server, match);
+        bossBar.updateIntermission(
+            match,
+            match.phaseStartedTick(),
+            config.roundCount(),
+            config.countdownTicks()
+        );
+        sidebar.create(server);
+        sidebar.update(server, match);
 
         for (PlayerSlot slot : match.players()) {
             if (slot.forfeited()) {
@@ -225,6 +274,8 @@ public final class UiCoordinator {
         MinecraftServer server,
         MatchSession match
     ) {
+        sounds.matchFinished(server, match);
+
         forEachActivePlayer(
             server,
             match,
@@ -244,6 +295,24 @@ public final class UiCoordinator {
         bossBar.clear();
         sidebar.clear(server);
         lastCoreOwner = null;
+    }
+
+    private void syncHudPlayers(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        for (PlayerSlot slot : match.players()) {
+            if (slot.forfeited()) {
+                continue;
+            }
+
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null) {
+                bossBar.addPlayer(player);
+            }
+        }
     }
 
     private void forEachActivePlayer(
