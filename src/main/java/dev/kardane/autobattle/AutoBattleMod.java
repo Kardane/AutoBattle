@@ -1,6 +1,7 @@
 package dev.kardane.autobattle;
 
 import dev.kardane.autobattle.command.AutoBattleCommands;
+import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
@@ -31,6 +32,11 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             config,
             planExecutor
         );
+        PlayerCommandService commandService =
+            new PlayerCommandService(
+                config,
+                planExecutor
+            );
         DoctrineService doctrineService = new DoctrineService(
             new DoctrineValidator()
         );
@@ -40,6 +46,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             robotRegistry,
             robotFactory,
             planExecutor,
+            commandService,
             ui
         );
 
@@ -47,7 +54,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             matchManager,
             robotFactory,
             planExecutor,
-            doctrineService
+            doctrineService,
+            commandService
         );
 
         AutoBattleEvents.register(
