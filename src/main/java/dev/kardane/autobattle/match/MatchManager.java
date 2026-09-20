@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.match;
 
 import dev.kardane.autobattle.AutoBattleConstants;
+import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.combat.CombatTracker;
 import dev.kardane.autobattle.combat.DamageRules;
 import dev.kardane.autobattle.combat.KillResolution;
@@ -38,6 +39,7 @@ public final class MatchManager {
     private final DamageRules damageRules = new DamageRules();
     private final CombatTracker combatTracker = new CombatTracker();
     private final RobotRespawnManager respawnManager;
+    private final PlayerCommandService commandService;
     private final UiCoordinator ui;
     private final MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
@@ -50,11 +52,13 @@ public final class MatchManager {
         RobotRegistry robotRegistry,
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
+        PlayerCommandService commandService,
         UiCoordinator ui
     ) {
         this.config = config;
         this.robotFactory = robotFactory;
         this.planExecutor = planExecutor;
+        this.commandService = commandService;
         this.ui = ui;
         this.respawnManager = new RobotRespawnManager(
             config,
@@ -87,6 +91,7 @@ public final class MatchManager {
             return;
         }
 
+        commandService.tick(session, serverTick);
         respawnManager.tick(server, session, serverTick);
         tickRegen();
         session.core().tick(session, serverTick);
