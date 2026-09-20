@@ -77,7 +77,8 @@ public final class JevDecisionService {
             if (!controller.shouldRequestDecision(
                 currentTick,
                 config.decisionIntervalTicks(),
-                config.decisionLockTicks()
+                config.decisionLockTicks(),
+                config.decisionDebounceTicks()
             )) {
                 continue;
             }
@@ -325,6 +326,7 @@ public final class JevDecisionService {
                 response,
                 result,
                 true,
+                error,
                 currentTick
             );
         }
@@ -497,7 +499,29 @@ public final class JevDecisionService {
         boolean fallback,
         long currentTick
     ) {
+        return logAndReturn(
+            controller,
+            request,
+            response,
+            result,
+            fallback,
+            null,
+            currentTick
+        );
+    }
+
+    private DecisionApplyResult logAndReturn(
+        RobotController controller,
+        DecisionRequest request,
+        DecisionResponse response,
+        DecisionApplyResult result,
+        boolean fallback,
+        Throwable error,
+        long currentTick
+    ) {
         DecisionContext context = request.context();
+        RobotSnapshot self = request.snapshot().self();
+        CoreSnapshot core = request.snapshot().core();
 
         long latencyMs = response != null
             ? response.latencyMs()
@@ -505,6 +529,25 @@ public final class JevDecisionService {
                 0L,
                 currentTick - context.requestedTick()
             ) * 50L;
+
+        double hpRatio = self.maxHp() <= 0.0F
+            ? 0.0D
+            : self.hp() / self.maxHp();
+
+        Throwable rootError = unwrapError(error);
+        String errorClass = rootError == null
+            ? null
+            : rootError.getClass().getName();
+        String errorMessage = rootError == null
+            ? null
+            : truncate(
+                rootError.getMessage(),
+                1024
+            );
+        Integer httpStatus =
+            rootError instanceof JevRequestException requestError
+                ? requestError.httpStatus()
+                : null;
 
         logs.append(
             new DecisionLog(
@@ -532,6 +575,14 @@ public final class JevDecisionService {
                 latencyMs,
                 fallback,
                 result,
+                self.hp(),
+                self.maxHp(),
+                hpRatio,
+                core.ownerUuid(),
+                core.contested(),
+                errorClass,
+                errorMessage,
+                httpStatus,
                 controller.positionSnapshot()
                     .map(DecisionPosition::from)
                     .orElse(null),
@@ -551,6 +602,34 @@ public final class JevDecisionService {
         );
 
         return result;
+    }
+
+    private Throwable unwrapError(Throwable error) {
+        Throwable current = error;
+
+        while (current != null
+            && (current
+                instanceof java.util.concurrent.CompletionException
+                || current
+                instanceof java.util.concurrent.ExecutionException)
+            && current.getCause() != null) {
+            current = current.getCause();
+        }
+
+        return current;
+    }
+
+    private String truncate(
+        String value,
+        int maxLength
+    ) {
+        if (value == null
+            || value.length() <= maxLength) {
+            return value;
+        }
+
+        return value.substring(0, maxLength)
+            + "...";
     }
 
     private Double finiteOrNull(double value) {

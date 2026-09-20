@@ -86,18 +86,30 @@ public final class TypeSafeJevClient implements JevClient {
 
                 if (response.statusCode() < 200
                     || response.statusCode() >= 300) {
-                    throw new IllegalStateException(
+                    throw new JevRequestException(
                         "TypeSafe API returned HTTP "
                             + response.statusCode()
                             + ": "
-                            + truncate(response.body(), 512)
+                            + truncate(response.body(), 512),
+                        response.statusCode()
                     );
                 }
 
-                return parseResponse(
-                    response.body(),
-                    latencyMs
-                );
+                try {
+                    return parseResponse(
+                        response.body(),
+                        latencyMs
+                    );
+                } catch (JevRequestException exception) {
+                    throw exception;
+                } catch (RuntimeException exception) {
+                    throw new JevRequestException(
+                        "Failed to parse TypeSafe response: "
+                            + exception.getMessage(),
+                        response.statusCode(),
+                        exception
+                    );
+                }
             });
     }
 

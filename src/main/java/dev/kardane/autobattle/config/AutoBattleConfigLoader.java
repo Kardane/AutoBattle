@@ -56,6 +56,9 @@ public final class AutoBattleConfigLoader {
           decision-debounce-seconds: 0.5
           request-timeout-ms: 1500
           minimum-confidence: 0.35
+
+          # RETREAT is only offered to Jev at or below this HP ratio.
+          # The same threshold is used by server-side fallback logic.
           fallback-retreat-hp-ratio: 0.25
 
         doctrine:

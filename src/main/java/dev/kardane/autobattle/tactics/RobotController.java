@@ -233,9 +233,16 @@ public final class RobotController {
     public boolean shouldRequestDecision(
         long currentTick,
         int intervalTicks,
-        int lockTicks
+        int lockTicks,
+        int debounceTicks
     ) {
         if (!alive() || decisionPending) {
+            return false;
+        }
+
+        if (lastDecisionTick >= 0L
+            && currentTick - lastDecisionTick
+                < debounceTicks) {
             return false;
         }
 
