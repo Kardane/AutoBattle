@@ -20,6 +20,7 @@ public final class UiCoordinator {
     private final BossBarUi bossBar = new BossBarUi();
     private final ActionBarUi actionBar = new ActionBarUi();
     private final ChatAnnouncer chat = new ChatAnnouncer();
+    private final SidebarUi sidebar = new SidebarUi();
 
     private UUID lastCoreOwner;
 
@@ -62,6 +63,8 @@ public final class UiCoordinator {
             config.roundDurationTicks()
         );
 
+        sidebar.create(server);
+        sidebar.update(server, match);
         chat.roundStarted(server, match);
     }
 
@@ -77,6 +80,7 @@ public final class UiCoordinator {
                 config.roundCount(),
                 config.roundDurationTicks()
             );
+            sidebar.update(server, match);
         }
 
         if (currentTick % ACTION_BAR_INTERVAL_TICKS == 0L) {
@@ -144,6 +148,7 @@ public final class UiCoordinator {
     ) {
         chat.roundEnded(server, match);
         bossBar.clear();
+        sidebar.clear(server);
         lastCoreOwner = null;
     }
 
