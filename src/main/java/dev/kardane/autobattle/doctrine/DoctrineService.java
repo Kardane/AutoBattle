@@ -68,8 +68,7 @@ public final class DoctrineService {
             );
         }
 
-        if (match.phase() != MatchPhase.DOCTRINE_EDIT
-            && match.phase() != MatchPhase.ROUND_REVIEW) {
+        if (match.phase() != MatchPhase.DOCTRINE_EDIT) {
             return DoctrineEditResult.failure(
                 DoctrineEditError.INVALID_PHASE
             );
