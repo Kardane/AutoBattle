@@ -4,7 +4,6 @@ import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
@@ -22,9 +21,7 @@ public final class BossBarUi {
         );
 
         this.event = new ServerBossEvent(
-            Component.literal(
-                language.text("bossbar.phase")
-            ),
+            language.component("bossbar.phase"),
             BossEvent.BossBarColor.WHITE,
             BossEvent.BossBarOverlay.PROGRESS
         );
@@ -70,20 +67,18 @@ public final class BossBarUi {
             : "";
 
         event.setName(
-            Component.literal(
-                language.format(
-                    "bossbar.round",
-                    "round",
-                    match.currentRound(),
-                    "total_rounds",
-                    totalRounds,
-                    "seconds",
-                    seconds,
-                    "core_owner",
-                    coreOwner,
-                    "contested_suffix",
-                    contestedSuffix
-                )
+            language.component(
+                "bossbar.round",
+                "round",
+                match.currentRound(),
+                "total_rounds",
+                totalRounds,
+                "seconds",
+                seconds,
+                "core_owner",
+                coreOwner,
+                "contested_suffix",
+                contestedSuffix
             )
         );
 
@@ -167,7 +162,9 @@ public final class BossBarUi {
             );
         }
 
-        event.setName(Component.literal(label));
+        event.setName(
+            language.componentText(label)
+        );
         event.setProgress(
             Math.max(0.0F, Math.min(1.0F, progress))
         );

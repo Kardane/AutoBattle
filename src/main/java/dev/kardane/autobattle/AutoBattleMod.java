@@ -18,6 +18,7 @@ import dev.kardane.autobattle.jev.JsonlDecisionLogRepository;
 import dev.kardane.autobattle.jev.RobotStateSerializer;
 import dev.kardane.autobattle.jev.ScriptedJevClient;
 import dev.kardane.autobattle.jev.TypeSafeJevClient;
+import dev.kardane.autobattle.log.MatchLogService;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.review.RoundReviewService;
 import dev.kardane.autobattle.robot.RobotFactory;
@@ -64,11 +65,23 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             config.doctrine().maxLineLength(),
             language
         );
+
+        MatchLogService matchLogs =
+            new MatchLogService(
+                Path.of(
+                    "logs",
+                    "autobattle",
+                    "matches"
+                )
+            );
+
         PlayerCommandService commandService =
             new PlayerCommandService(
                 config,
-                planExecutor
+                planExecutor,
+                matchLogs
             );
+
         JsonlDecisionLogRepository decisionLogs =
             new JsonlDecisionLogRepository(
                 Path.of(
@@ -115,7 +128,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             planExecutor,
             commandService,
             decisionService,
-            ui
+            ui,
+            matchLogs
         );
 
         dialogActionRouter = new DialogActionRouter(
@@ -161,7 +175,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         AutoBattleEvents.register(
             matchManager,
             planExecutor,
-            decisionService
+            decisionService,
+            matchLogs
         );
 
         LOGGER.info(

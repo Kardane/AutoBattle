@@ -858,11 +858,9 @@ public final class CarpetTestCommands {
         String key,
         Object... placeholders
     ) {
-        return Component.literal(
-            language.format(
-                key,
-                placeholders
-            )
+        return language.component(
+            key,
+            placeholders
         );
     }
 }

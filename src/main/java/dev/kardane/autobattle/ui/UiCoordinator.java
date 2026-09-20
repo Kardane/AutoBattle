@@ -83,7 +83,7 @@ public final class UiCoordinator {
         MatchSession match,
         long currentTick
     ) {
-        syncHudPlayers(server, match);
+        syncBossBarPlayers(server);
 
         lastCoreOwner = match.core()
             .state()
@@ -109,6 +109,8 @@ public final class UiCoordinator {
         long currentTick
     ) {
         if (currentTick % BOSS_BAR_INTERVAL_TICKS == 0L) {
+            syncBossBarPlayers(server);
+
             bossBar.updateRound(
                 match,
                 currentTick,
@@ -170,7 +172,7 @@ public final class UiCoordinator {
         long currentTick
     ) {
         if (currentTick % BOSS_BAR_INTERVAL_TICKS == 0L) {
-            syncHudPlayers(server, match);
+            syncBossBarPlayers(server);
 
             bossBar.updateIntermission(
                 match,
@@ -228,7 +230,7 @@ public final class UiCoordinator {
     ) {
         chat.roundEnded(server, match);
         sounds.roundEnded(server, match);
-        syncHudPlayers(server, match);
+        syncBossBarPlayers(server);
         bossBar.updateIntermission(
             match,
             match.phaseStartedTick(),
@@ -311,21 +313,12 @@ public final class UiCoordinator {
         lastCoreOwner = null;
     }
 
-    private void syncHudPlayers(
-        MinecraftServer server,
-        MatchSession match
+    private void syncBossBarPlayers(
+        MinecraftServer server
     ) {
-        for (PlayerSlot slot : match.players()) {
-            if (slot.forfeited()) {
-                continue;
-            }
-
-            ServerPlayer player = server.getPlayerList()
-                .getPlayer(slot.playerUuid());
-
-            if (player != null) {
-                bossBar.addPlayer(player);
-            }
+        for (ServerPlayer player :
+            server.getPlayerList().getPlayers()) {
+            bossBar.addPlayer(player);
         }
     }
 

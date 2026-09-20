@@ -387,8 +387,9 @@ public final class AutoBattleCommands {
         String key,
         Object... placeholders
     ) {
-        return Component.literal(
-            language.format(key, placeholders)
+        return language.component(
+            key,
+            placeholders
         );
     }
 
@@ -753,7 +754,7 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager
     ) {
-        if (!matchManager.stopPrototypeRound()) {
+        if (!matchManager.stopPrototypeRound(source.getServer())) {
             source.sendFailure(
                 message("commands.stop-failed")
             );

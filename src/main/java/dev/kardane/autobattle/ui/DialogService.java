@@ -120,11 +120,7 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal(
-                    language.text(
-                        "dialogs.doctrine-setup.title"
-                    )
-                ),
+                language.component("dialogs.doctrine-setup.title"),
                 body,
                 inputs,
                 false,
@@ -264,11 +260,7 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal(
-                    language.text(
-                        "dialogs.round-review.title"
-                    )
-                ),
+                language.component("dialogs.round-review.title"),
                 body,
                 List.of(),
                 true,
@@ -360,11 +352,7 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal(
-                    language.text(
-                        "dialogs.doctrine-edit.title"
-                    )
-                ),
+                language.component("dialogs.doctrine-edit.title"),
                 body,
                 List.of(),
                 true,
@@ -392,13 +380,7 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal(
-                    language.format(
-                        "dialogs.doctrine-line.title",
-                        "line",
-                        oneBasedLine
-                    )
-                ),
+                language.component("dialogs.doctrine-line.title", "line", oneBasedLine),
                 List.of(
                     line(
                         language.text(
@@ -473,11 +455,7 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal(
-                    language.text(
-                        "dialogs.final-result.title"
-                    )
-                ),
+                language.component("dialogs.final-result.title"),
                 body,
                 List.of(),
                 true,
@@ -506,7 +484,7 @@ public final class DialogService {
             key,
             new TextInput(
                 WIDTH,
-                Component.literal(label),
+                language.componentText(label),
                 true,
                 initial,
                 doctrineMaxLineLength,
@@ -536,7 +514,7 @@ public final class DialogService {
     private ActionButton closeButton(String label) {
         return new ActionButton(
             new CommonButtonData(
-                Component.literal(label),
+                language.componentText(label),
                 BUTTON_WIDTH
             ),
             Optional.empty()
@@ -550,7 +528,7 @@ public final class DialogService {
     ) {
         return new ActionButton(
             new CommonButtonData(
-                Component.literal(label),
+                language.componentText(label),
                 BUTTON_WIDTH
             ),
             Optional.of(
@@ -564,7 +542,7 @@ public final class DialogService {
 
     private PlainMessage line(String text) {
         return new PlainMessage(
-            Component.literal(text),
+            language.componentText(text),
             WIDTH
         );
     }

@@ -89,6 +89,8 @@ The full file is generated with comments and all available options.
 
 `messages.yml` controls text shown through the Sidebar, BossBar, ActionBar, chat announcements, and native Dialogs. Dynamic values use placeholders such as `{round}`, `{total_rounds}`, `{seconds}`, `{score}`, `{hp}`, `{color}`, and `{plan}`.
 
+Legacy formatting codes are supported in `messages.yml`: colors `&0`-`&f`, styles `&k`-`&o`, and reset `&r`. Use `&&` to render a literal `&`.
+
 Example:
 
 ```yaml
@@ -103,6 +105,24 @@ chat:
 ```
 
 The API key is plain text in the server config directory, so keep that directory private and do not commit `config/autobattle/`. If `typesafe.api-key` is empty, AutoBattle falls back to the `TYPESAFE_API_KEY` environment variable. If neither is configured, it uses `ScriptedJevClient`.
+
+## Match logs
+
+Every started match writes an analysis-friendly JSONL file:
+
+```text
+logs/autobattle/matches/<match-id>.jsonl
+```
+
+Events include match/round start and end, player commands, robot kills, CORE captures, forfeits, final standings, and aborted matches. Participant snapshots include UUID/name, color, Doctrine version/text, and round/total score metrics.
+
+Jev decisions remain in:
+
+```text
+logs/autobattle/decisions/<match-id>.jsonl
+```
+
+The shared match ID makes the two files easy to join during later analysis.
 
 ## TypeSafe Jev
 
