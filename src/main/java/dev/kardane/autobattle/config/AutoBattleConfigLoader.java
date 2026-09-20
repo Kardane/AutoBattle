@@ -52,6 +52,10 @@ public final class AutoBattleConfigLoader {
           decision-debounce-seconds: 0.5
           request-timeout-ms: 1500
           minimum-confidence: 0.35
+          fallback-retreat-hp-ratio: 0.25
+
+        doctrine:
+          max-line-length: 120
 
         robot:
           max-health: 100.0
@@ -183,6 +187,8 @@ public final class AutoBattleConfigLoader {
             section(root, "match");
         Map<String, Object> ai =
             section(root, "ai");
+        Map<String, Object> doctrine =
+            section(root, "doctrine");
         Map<String, Object> robot =
             section(root, "robot");
         Map<String, Object> scoring =
@@ -312,8 +318,22 @@ public final class AutoBattleConfigLoader {
                 ai,
                 "minimum-confidence",
                 defaults.ai().minimumConfidence()
+            ),
+            doubleValue(
+                ai,
+                "fallback-retreat-hp-ratio",
+                defaults.ai().fallbackRetreatHpRatio()
             )
         );
+
+        DoctrineConfig doctrineConfig =
+            new DoctrineConfig(
+                intValue(
+                    doctrine,
+                    "max-line-length",
+                    defaults.doctrine().maxLineLength()
+                )
+            );
 
         RobotConfig robotConfig = new RobotConfig(
             doubleValue(
@@ -491,6 +511,7 @@ public final class AutoBattleConfigLoader {
             typeSafeConfig,
             matchConfig,
             aiConfig,
+            doctrineConfig,
             robotConfig,
             scoringConfig,
             coreConfig,
