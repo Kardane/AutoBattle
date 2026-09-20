@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.AutoBattleMod;
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.Doctrine;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -13,7 +14,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.dialog.ActionButton;
 import net.minecraft.server.dialog.CommonButtonData;
 import net.minecraft.server.dialog.CommonDialogData;
-import net.minecraft.server.dialog.Dialog;
 import net.minecraft.server.dialog.DialogAction;
 import net.minecraft.server.dialog.Input;
 import net.minecraft.server.dialog.MultiActionDialog;
@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public final class DialogService {
     public static final ResourceLocation DOCTRINE_SUBMIT =
@@ -48,60 +50,81 @@ public final class DialogService {
     private static final int WIDTH = 360;
     private static final int BUTTON_WIDTH = 220;
 
+    private final LanguageService language;
     private int doctrineMaxLineLength;
 
-    public DialogService(int doctrineMaxLineLength) {
+    public DialogService(
+        int doctrineMaxLineLength,
+        LanguageService language
+    ) {
         if (doctrineMaxLineLength < 1) {
             throw new IllegalArgumentException(
                 "doctrineMaxLineLength must be positive"
             );
         }
 
-        this.doctrineMaxLineLength = doctrineMaxLineLength;
+        this.doctrineMaxLineLength =
+            doctrineMaxLineLength;
+
+        this.language = Objects.requireNonNull(
+            language,
+            "language"
+        );
     }
 
-    public void reloadMaxLineLength(int doctrineMaxLineLength) {
+    public void reloadMaxLineLength(
+        int doctrineMaxLineLength
+    ) {
         if (doctrineMaxLineLength < 1) {
             throw new IllegalArgumentException(
                 "doctrineMaxLineLength must be positive"
             );
         }
 
-        this.doctrineMaxLineLength = doctrineMaxLineLength;
+        this.doctrineMaxLineLength =
+            doctrineMaxLineLength;
     }
 
     public void openDoctrineSetup(ServerPlayer player) {
         List<DialogBody> body = List.of(
-            new PlainMessage(
-                Component.literal(
-                    "로봇에게 적용할 전투 원칙을 정확히 3문장으로 작성하세요. "
-                        + "게임에 존재하지 않는 능력을 적어도 새로운 능력은 생성되지 않습니다."
-                ),
-                WIDTH
+            line(
+                language.text(
+                    "dialogs.doctrine-setup.body"
+                )
             )
         );
 
         List<Input> inputs = List.of(
             doctrineInput(
                 "d1",
-                "Doctrine 1",
+                language.text(
+                    "dialogs.doctrine-setup.input-1"
+                ),
                 ""
             ),
             doctrineInput(
                 "d2",
-                "Doctrine 2",
+                language.text(
+                    "dialogs.doctrine-setup.input-2"
+                ),
                 ""
             ),
             doctrineInput(
                 "d3",
-                "Doctrine 3",
+                language.text(
+                    "dialogs.doctrine-setup.input-3"
+                ),
                 ""
             )
         );
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal("Robot Doctrine"),
+                Component.literal(
+                    language.text(
+                        "dialogs.doctrine-setup.title"
+                    )
+                ),
                 body,
                 inputs,
                 false,
@@ -109,7 +132,9 @@ public final class DialogService {
             ),
             List.of(
                 actionButton(
-                    "3문장 저장",
+                    language.text(
+                        "dialogs.doctrine-setup.save"
+                    ),
                     DOCTRINE_SUBMIT,
                     null
                 )
@@ -129,50 +154,79 @@ public final class DialogService {
 
         body.add(
             line(
-                "Round "
-                    + summary.round()
-                    + " 결과 • Score "
-                    + summary.roundScore()
-                    + " • K/D/A "
-                    + summary.kills()
-                    + "/"
-                    + summary.deaths()
-                    + "/"
-                    + summary.assists()
+                language.format(
+                    "dialogs.round-review.summary",
+                    "round",
+                    summary.round(),
+                    "score",
+                    summary.roundScore(),
+                    "kills",
+                    summary.kills(),
+                    "deaths",
+                    summary.deaths(),
+                    "assists",
+                    summary.assists()
+                )
             )
         );
 
         body.add(
             line(
-                String.format(
-                    Locale.ROOT,
-                    "CORE Capture %d • Hold %.1fs • Damage %.1f dealt / %.1f taken",
+                language.format(
+                    "dialogs.round-review.metrics",
+                    "core_captures",
                     summary.coreCaptures(),
-                    summary.coreHoldTicks() / 20.0D,
-                    summary.damageDealt(),
-                    summary.damageTaken()
+                    "core_hold_seconds",
+                    formatOneDecimal(
+                        summary.coreHoldTicks()
+                            / 20.0D
+                    ),
+                    "damage_dealt",
+                    formatOneDecimal(
+                        summary.damageDealt()
+                    ),
+                    "damage_taken",
+                    formatOneDecimal(
+                        summary.damageTaken()
+                    )
                 )
             )
         );
 
         if (!summary.planPercentages().isEmpty()) {
+            String separator = language.text(
+                "dialogs.round-review.plan-separator"
+            );
+
             String plans = summary.planPercentages()
                 .entrySet()
                 .stream()
                 .map(entry ->
-                    entry.getKey()
-                        + " "
-                        + String.format(
+                    language.format(
+                        "dialogs.round-review.plan-entry",
+                        "plan",
+                        entry.getKey(),
+                        "percent",
+                        String.format(
                             Locale.ROOT,
-                            "%.0f%%",
+                            "%.0f",
                             entry.getValue()
                         )
+                    )
                 )
                 .collect(
-                    java.util.stream.Collectors.joining(" • ")
+                    Collectors.joining(separator)
                 );
 
-            body.add(line("Tactical behavior: " + plans));
+            body.add(
+                line(
+                    language.format(
+                        "dialogs.round-review.tactical",
+                        "plans",
+                        plans
+                    )
+                )
+            );
         }
 
         int shown = 0;
@@ -187,18 +241,21 @@ public final class DialogService {
 
             body.add(
                 line(
-                    "Critical: "
-                        + String.valueOf(
+                    language.format(
+                        "dialogs.round-review.critical",
+                        "plan",
+                        String.valueOf(
                             decision.selectedPlanId()
-                        )
-                        + " • confidence "
-                        + String.format(
+                        ),
+                        "confidence",
+                        String.format(
                             Locale.ROOT,
                             "%.2f",
                             decision.confidence()
-                        )
-                        + " • "
-                        + decision.applyResult().name()
+                        ),
+                        "result",
+                        decision.applyResult().name()
+                    )
                 )
             );
 
@@ -207,7 +264,11 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal("Round Review"),
+                Component.literal(
+                    language.text(
+                        "dialogs.round-review.title"
+                    )
+                ),
                 body,
                 List.of(),
                 true,
@@ -215,7 +276,9 @@ public final class DialogService {
             ),
             List.of(
                 actionButton(
-                    "검토 완료",
+                    language.text(
+                        "dialogs.round-review.done"
+                    ),
                     REVIEW_READY,
                     null
                 )
@@ -232,11 +295,37 @@ public final class DialogService {
         Doctrine doctrine
     ) {
         List<DialogBody> body = List.of(
-            line("1. " + doctrine.line1()),
-            line("2. " + doctrine.line2()),
-            line("3. " + doctrine.line3()),
             line(
-                "이번 라운드에서는 최대 한 문장만 수정할 수 있습니다."
+                language.format(
+                    "dialogs.doctrine-edit.line",
+                    "line",
+                    1,
+                    "text",
+                    doctrine.line1()
+                )
+            ),
+            line(
+                language.format(
+                    "dialogs.doctrine-edit.line",
+                    "line",
+                    2,
+                    "text",
+                    doctrine.line2()
+                )
+            ),
+            line(
+                language.format(
+                    "dialogs.doctrine-edit.line",
+                    "line",
+                    3,
+                    "text",
+                    doctrine.line3()
+                )
+            ),
+            line(
+                language.text(
+                    "dialogs.doctrine-edit.hint"
+                )
             )
         );
 
@@ -248,7 +337,11 @@ public final class DialogService {
 
             buttons.add(
                 actionButton(
-                    "Doctrine " + line + " 수정",
+                    language.format(
+                        "dialogs.doctrine-edit.edit-button",
+                        "line",
+                        line
+                    ),
                     DOCTRINE_EDIT_SELECT,
                     additions
                 )
@@ -257,7 +350,9 @@ public final class DialogService {
 
         buttons.add(
             actionButton(
-                "전략 유지",
+                language.text(
+                    "dialogs.doctrine-edit.keep-button"
+                ),
                 DOCTRINE_KEEP,
                 null
             )
@@ -265,7 +360,11 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal("Doctrine 수정"),
+                Component.literal(
+                    language.text(
+                        "dialogs.doctrine-edit.title"
+                    )
+                ),
                 body,
                 List.of(),
                 true,
@@ -284,7 +383,9 @@ public final class DialogService {
         int oneBasedLine,
         Doctrine doctrine
     ) {
-        String current = doctrine.line(oneBasedLine - 1);
+        String current = doctrine.line(
+            oneBasedLine - 1
+        );
 
         CompoundTag additions = new CompoundTag();
         additions.putInt("line", oneBasedLine);
@@ -292,17 +393,27 @@ public final class DialogService {
         MultiActionDialog dialog = new MultiActionDialog(
             common(
                 Component.literal(
-                    "Doctrine " + oneBasedLine + " 수정"
+                    language.format(
+                        "dialogs.doctrine-line.title",
+                        "line",
+                        oneBasedLine
+                    )
                 ),
                 List.of(
                     line(
-                        "기존 문장을 수정하세요. 다른 두 문장은 이번 라운드에 변경할 수 없습니다."
+                        language.text(
+                            "dialogs.doctrine-line.body"
+                        )
                     )
                 ),
                 List.of(
                     doctrineInput(
                         "text",
-                        "Doctrine " + oneBasedLine,
+                        language.format(
+                            "dialogs.doctrine-line.input-label",
+                            "line",
+                            oneBasedLine
+                        ),
                         current
                     )
                 ),
@@ -311,7 +422,9 @@ public final class DialogService {
             ),
             List.of(
                 actionButton(
-                    "수정 저장",
+                    language.text(
+                        "dialogs.doctrine-line.save"
+                    ),
                     DOCTRINE_REPLACE,
                     additions
                 )
@@ -344,12 +457,15 @@ public final class DialogService {
         for (PlayerSlot slot : standings) {
             body.add(
                 line(
-                    rank
-                        + ". "
-                        + slot.color().name()
-                        + " • "
-                        + slot.score().totalScore()
-                        + " pts"
+                    language.format(
+                        "dialogs.final-result.entry",
+                        "rank",
+                        rank,
+                        "color",
+                        slot.color().name(),
+                        "score",
+                        slot.score().totalScore()
+                    )
                 )
             );
             rank++;
@@ -357,14 +473,22 @@ public final class DialogService {
 
         MultiActionDialog dialog = new MultiActionDialog(
             common(
-                Component.literal("AutoBattle Final Result"),
+                Component.literal(
+                    language.text(
+                        "dialogs.final-result.title"
+                    )
+                ),
                 body,
                 List.of(),
                 true,
                 DialogAction.CLOSE
             ),
             List.of(
-                closeButton("결과 닫기")
+                closeButton(
+                    language.text(
+                        "dialogs.final-result.close"
+                    )
+                )
             ),
             Optional.empty(),
             1
@@ -442,6 +566,14 @@ public final class DialogService {
         return new PlainMessage(
             Component.literal(text),
             WIDTH
+        );
+    }
+
+    private String formatOneDecimal(double value) {
+        return String.format(
+            Locale.ROOT,
+            "%.1f",
+            value
         );
     }
 
