@@ -8,7 +8,8 @@ import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -23,11 +24,12 @@ public final class CoreController {
     private static final int BOUNDARY_PARTICLE_INTERVAL_TICKS = 10;
     private static final int BOUNDARY_PARTICLE_POINTS = 48;
     private static final double BOUNDARY_PARTICLE_Y_OFFSET = 0.15D;
+    private static final float BOUNDARY_PARTICLE_SCALE = 1.0F;
+    private static final int NEUTRAL_CORE_COLOR = 0xFFFFFF;
 
     private final ResourceKey<Level> dimension;
     private final BlockPos corePos;
     private final double radius;
-    private final double radiusSqr;
     private final int captureTicks;
     private final int holdScoreIntervalTicks;
     private final ScoringConfig scoring;
@@ -48,7 +50,6 @@ public final class CoreController {
         this.dimension = arena.dimension();
         this.corePos = arena.corePos();
         this.radius = arena.coreRadius();
-        this.radiusSqr = radius * radius;
         this.captureTicks = rules.captureTicks();
         this.holdScoreIntervalTicks =
             rules.holdScoreIntervalTicks();
@@ -90,6 +91,7 @@ public final class CoreController {
 
     public void renderBoundary(
         MinecraftServer server,
+        MatchSession match,
         long currentTick
     ) {
         if (currentTick % BOUNDARY_PARTICLE_INTERVAL_TICKS != 0L) {
@@ -106,28 +108,48 @@ public final class CoreController {
         double centerY =
             corePos.getY() + BOUNDARY_PARTICLE_Y_OFFSET;
         double centerZ = corePos.getZ() + 0.5D;
+        double minX = centerX - radius;
+        double maxX = centerX + radius;
+        double minZ = centerZ - radius;
+        double maxZ = centerZ + radius;
+        int pointsPerSide = BOUNDARY_PARTICLE_POINTS / 4;
+        ParticleOptions particle = boundaryParticle(match);
 
-        for (int index = 0;
-             index < BOUNDARY_PARTICLE_POINTS;
-             index++) {
-            double angle = Math.PI * 2.0D
-                * index
-                / BOUNDARY_PARTICLE_POINTS;
+        for (int side = 0; side < 4; side++) {
+            for (int index = 0;
+                 index < pointsPerSide;
+                 index++) {
+                double progress = (double) index
+                    / pointsPerSide;
+                double x;
+                double z;
 
-            double x = centerX + Math.cos(angle) * radius;
-            double z = centerZ + Math.sin(angle) * radius;
+                if (side == 0) {
+                    x = minX + (maxX - minX) * progress;
+                    z = minZ;
+                } else if (side == 1) {
+                    x = maxX;
+                    z = minZ + (maxZ - minZ) * progress;
+                } else if (side == 2) {
+                    x = maxX - (maxX - minX) * progress;
+                    z = maxZ;
+                } else {
+                    x = minX;
+                    z = maxZ - (maxZ - minZ) * progress;
+                }
 
-            level.sendParticles(
-                ParticleTypes.END_ROD,
-                x,
-                centerY,
-                z,
-                1,
-                0.0D,
-                0.0D,
-                0.0D,
-                0.0D
-            );
+                level.sendParticles(
+                    particle,
+                    x,
+                    centerY,
+                    z,
+                    1,
+                    0.0D,
+                    0.0D,
+                    0.0D,
+                    0.0D
+                );
+            }
         }
     }
 
@@ -148,7 +170,15 @@ public final class CoreController {
             return false;
         }
 
-        return robot.position().distanceToSqr(center()) <= radiusSqr;
+        Vec3 center = center();
+        double deltaX = Math.abs(
+            robot.position().x - center.x
+        );
+        double deltaZ = Math.abs(
+            robot.position().z - center.z
+        );
+
+        return deltaX <= radius && deltaZ <= radius;
     }
 
     public double distanceTo(RobotZombie robot) {
@@ -256,6 +286,20 @@ public final class CoreController {
             corePos.getX() + 0.5D,
             corePos.getY() + 0.5D,
             corePos.getZ() + 0.5D
+        );
+    }
+
+    private ParticleOptions boundaryParticle(
+        MatchSession match
+    ) {
+        int color = state.ownerUuid()
+            .flatMap(match::player)
+            .map(slot -> slot.color().rgb())
+            .orElse(NEUTRAL_CORE_COLOR);
+
+        return new DustParticleOptions(
+            color,
+            BOUNDARY_PARTICLE_SCALE
         );
     }
 }

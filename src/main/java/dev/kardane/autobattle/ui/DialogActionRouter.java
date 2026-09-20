@@ -184,6 +184,7 @@ public final class DialogActionRouter {
             doctrine
         );
 
+
         return true;
     }
 
@@ -216,7 +217,8 @@ public final class DialogActionRouter {
                 )
             );
 
-            if (line >= 1
+            if (retryableDoctrineError(result)
+                && line >= 1
                 && line <= 3
                 && matchManager.session()
                     .player(player.getUUID())
@@ -230,6 +232,8 @@ public final class DialogActionRouter {
                         .flatMap(slot -> slot.doctrine())
                         .orElseThrow()
                 );
+            } else {
+                clearDialog(player);
             }
 
             return true;
@@ -276,6 +280,15 @@ public final class DialogActionRouter {
 
         clearDialog(player);
         return true;
+    }
+
+    private boolean retryableDoctrineError(
+        DoctrineEditResult result
+    ) {
+        return switch (result.error()) {
+            case EMPTY_LINE, TOO_LONG, INVALID_TEXT -> true;
+            default -> false;
+        };
     }
 
     private void clearDialog(ServerPlayer player) {

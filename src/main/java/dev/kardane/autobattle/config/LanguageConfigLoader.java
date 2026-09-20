@@ -65,6 +65,13 @@ public final class LanguageConfigLoader {
           robot-killed: "[AutoBattle] {killer_color} destroyed {victim_color}."
           # {color}
           core-captured: "[AutoBattle] {color} captured CORE."
+          # {player}, {round}
+          review-completed: "[AutoBattle] {player} completed the review for round {round}."
+          # {player}, {round}
+          doctrine-edit-completed: "[AutoBattle] {player} completed doctrine editing for round {round}."
+          final-standings-title: "[AutoBattle] Final standings"
+          # {rank}, {color}, {score}
+          final-standing: "{rank}. {color} - {score} points"
           # {error}
           doctrine-rejected: "Doctrine rejected: {error}"
           # {version}

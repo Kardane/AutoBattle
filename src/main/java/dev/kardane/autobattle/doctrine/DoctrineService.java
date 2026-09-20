@@ -3,13 +3,20 @@ package dev.kardane.autobattle.doctrine;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
+import dev.kardane.autobattle.config.DoctrineConfig;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class DoctrineService {
-    private final DoctrineValidator validator;
+    private DoctrineValidator validator;
 
     public DoctrineService(DoctrineValidator validator) {
         this.validator = validator;
+    }
+
+    public void reloadConfig(DoctrineConfig config) {
+        this.validator = new DoctrineValidator(
+            config.maxLineLength()
+        );
     }
 
     public DoctrineEditResult submitInitial(

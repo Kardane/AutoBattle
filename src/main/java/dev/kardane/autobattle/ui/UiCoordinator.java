@@ -262,6 +262,22 @@ public final class UiCoordinator {
         }
     }
 
+    public void onReviewCompleted(
+        MinecraftServer server,
+        MatchSession match,
+        ServerPlayer player
+    ) {
+        chat.reviewCompleted(server, match, player);
+    }
+
+    public void onDoctrineEditCompleted(
+        MinecraftServer server,
+        MatchSession match,
+        ServerPlayer player
+    ) {
+        chat.doctrineEditCompleted(server, match, player);
+    }
+
     public void onDoctrineEdit(
         MinecraftServer server,
         MatchSession match
@@ -291,6 +307,7 @@ public final class UiCoordinator {
         MatchSession match
     ) {
         sounds.matchFinished(server, match);
+        chat.finalStandings(server, match);
 
         forEachActivePlayer(
             server,

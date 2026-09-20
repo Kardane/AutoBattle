@@ -7,6 +7,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 public final class ChatAnnouncer {
@@ -23,9 +25,8 @@ public final class ChatAnnouncer {
         MinecraftServer server,
         MatchSession match
     ) {
-        broadcastParticipants(
+        broadcastAll(
             server,
-            match,
             language.component(
                 "chat.round-started",
                 "round",
@@ -38,11 +39,44 @@ public final class ChatAnnouncer {
         MinecraftServer server,
         MatchSession match
     ) {
-        broadcastParticipants(
+        broadcastAll(
             server,
-            match,
             language.component(
                 "chat.round-ended",
+                "round",
+                match.currentRound()
+            )
+        );
+    }
+
+    public void reviewCompleted(
+        MinecraftServer server,
+        MatchSession match,
+        ServerPlayer player
+    ) {
+        broadcastAll(
+            server,
+            language.component(
+                "chat.review-completed",
+                "player",
+                player.getName().getString(),
+                "round",
+                match.currentRound()
+            )
+        );
+    }
+
+    public void doctrineEditCompleted(
+        MinecraftServer server,
+        MatchSession match,
+        ServerPlayer player
+    ) {
+        broadcastAll(
+            server,
+            language.component(
+                "chat.doctrine-edit-completed",
+                "player",
+                player.getName().getString(),
                 "round",
                 match.currentRound()
             )
@@ -55,9 +89,8 @@ public final class ChatAnnouncer {
         PlayerSlot killer,
         PlayerSlot victim
     ) {
-        broadcastParticipants(
+        broadcastAll(
             server,
-            match,
             language.component(
                 "chat.robot-killed",
                 "killer_color",
@@ -73,9 +106,8 @@ public final class ChatAnnouncer {
         MatchSession match,
         PlayerSlot owner
     ) {
-        broadcastParticipants(
+        broadcastAll(
             server,
-            match,
             language.component(
                 "chat.core-captured",
                 "color",
@@ -84,22 +116,60 @@ public final class ChatAnnouncer {
         );
     }
 
-    private void broadcastParticipants(
+    public void finalStandings(
         MinecraftServer server,
-        MatchSession match,
+        MatchSession match
+    ) {
+        broadcastAll(
+            server,
+            language.component(
+                "chat.final-standings-title"
+            )
+        );
+
+        List<PlayerSlot> standings = match.players()
+            .stream()
+            .sorted(
+                Comparator
+                    .comparingInt(
+                        (PlayerSlot slot) ->
+                            slot.score().totalScore()
+                    )
+                    .reversed()
+                    .thenComparingInt(
+                        PlayerSlot::slotIndex
+                    )
+            )
+            .toList();
+
+        for (int index = 0;
+             index < standings.size();
+             index++) {
+            PlayerSlot slot = standings.get(index);
+            Component entry = language.component(
+                "chat.final-standing",
+                "rank",
+                index + 1,
+                "color",
+                slot.color().name(),
+                "score",
+                slot.score().totalScore()
+            ).copy().withStyle(slot.color().chatColor());
+
+            broadcastAll(server, entry);
+        }
+    }
+
+    private void broadcastAll(
+        MinecraftServer server,
         Component component
     ) {
-
-        for (PlayerSlot slot : match.players()) {
-            ServerPlayer player = server.getPlayerList()
-                .getPlayer(slot.playerUuid());
-
-            if (player != null) {
-                player.displayClientMessage(
-                    component,
-                    false
-                );
-            }
+        for (ServerPlayer player :
+            server.getPlayerList().getPlayers()) {
+            player.displayClientMessage(
+                component,
+                false
+            );
         }
     }
 }

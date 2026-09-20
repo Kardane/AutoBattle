@@ -13,7 +13,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ServerCommonPacketListenerImplMixin {
     @Inject(
         method = "handleCustomClickAction",
-        at = @At("HEAD")
+        // The vanilla handler performs its server-thread handoff first.
+        // Injecting at HEAD handles the same packet once on the network
+        // thread and again on the server thread.
+        at = @At("TAIL")
     )
     private void autobattle$handleCustomClickAction(
         ServerboundCustomClickActionPacket packet,

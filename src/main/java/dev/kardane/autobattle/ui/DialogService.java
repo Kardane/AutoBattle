@@ -430,9 +430,12 @@ public final class DialogService {
                 Comparator.comparingInt(
                     (PlayerSlot slot) ->
                         slot.score().totalScore()
-                ).reversed()
-            )
-            .toList();
+                    ).reversed()
+                    .thenComparingInt(
+                        PlayerSlot::slotIndex
+                    )
+                )
+                .toList();
 
         int rank = 1;
 

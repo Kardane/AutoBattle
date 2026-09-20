@@ -172,6 +172,7 @@ public final class MatchManager {
         session.core().tick(session, serverTick);
         session.core().renderBoundary(
             server,
+            session,
             serverTick
         );
 
@@ -539,14 +540,18 @@ public final class MatchManager {
             return false;
         }
 
+        MinecraftServer server =
+            ((ServerLevel) player.level()).getServer();
+        boolean wasReady = slot.runtime().reviewReady();
         slot.runtime().setReviewReady(true);
+
+        if (!wasReady) {
+            ui.onReviewCompleted(server, session, player);
+        }
 
         if (!allActivePlayersReadyForReview()) {
             return true;
         }
-
-        MinecraftServer server =
-            ((ServerLevel) player.level()).getServer();
 
         advanceFromReview(server);
         return true;
@@ -565,7 +570,14 @@ public final class MatchManager {
             return false;
         }
 
+        MinecraftServer server =
+            ((ServerLevel) player.level()).getServer();
+        boolean wasReady = slot.runtime().reviewReady();
         slot.runtime().setReviewReady(true);
+
+        if (!wasReady) {
+            ui.onDoctrineEditCompleted(server, session, player);
+        }
 
         if (allActivePlayersReadyForReview()) {
             session.setPhase(
