@@ -1,6 +1,8 @@
 package dev.kardane.autobattle.config;
 
 import dev.kardane.autobattle.command.PlayerCommandService;
+import dev.kardane.autobattle.doctrine.DoctrineNormalizer;
+import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.jev.JevClient;
 import dev.kardane.autobattle.jev.JevDecisionService;
@@ -19,12 +21,15 @@ public final class ConfigReloadService {
     private final PlanExecutor planExecutor;
     private final PlayerCommandService commandService;
     private final JevDecisionService decisionService;
+    private final DoctrineService doctrineService;
     private final DoctrineValidator doctrineValidator;
     private final DialogService dialogs;
     private final UiCoordinator ui;
     private final LanguageService language;
     private final Function<AutoBattleConfig, JevClient>
         jevClientFactory;
+    private final Function<AutoBattleConfig, DoctrineNormalizer>
+        doctrineNormalizerFactory;
 
     public ConfigReloadService(
         MatchManager matchManager,
@@ -32,11 +37,14 @@ public final class ConfigReloadService {
         PlanExecutor planExecutor,
         PlayerCommandService commandService,
         JevDecisionService decisionService,
+        DoctrineService doctrineService,
         DoctrineValidator doctrineValidator,
         DialogService dialogs,
         UiCoordinator ui,
         LanguageService language,
-        Function<AutoBattleConfig, JevClient> jevClientFactory
+        Function<AutoBattleConfig, JevClient> jevClientFactory,
+        Function<AutoBattleConfig, DoctrineNormalizer>
+            doctrineNormalizerFactory
     ) {
         this.matchManager = Objects.requireNonNull(
             matchManager,
@@ -58,6 +66,10 @@ public final class ConfigReloadService {
             decisionService,
             "decisionService"
         );
+        this.doctrineService = Objects.requireNonNull(
+            doctrineService,
+            "doctrineService"
+        );
         this.doctrineValidator = Objects.requireNonNull(
             doctrineValidator,
             "doctrineValidator"
@@ -75,6 +87,11 @@ public final class ConfigReloadService {
             jevClientFactory,
             "jevClientFactory"
         );
+        this.doctrineNormalizerFactory =
+            Objects.requireNonNull(
+                doctrineNormalizerFactory,
+                "doctrineNormalizerFactory"
+            );
     }
 
     public ConfigReloadResult reload() {
@@ -93,12 +110,17 @@ public final class ConfigReloadService {
 
             JevClient nextClient =
                 jevClientFactory.apply(next);
+            DoctrineNormalizer nextNormalizer =
+                doctrineNormalizerFactory.apply(next);
 
             planExecutor.clear();
             robotFactory.reloadConfig(next.robot());
             planExecutor.reloadConfig(next);
             commandService.reloadConfig(next);
             decisionService.reload(nextClient, next);
+            doctrineService.reloadNormalizer(
+                nextNormalizer
+            );
             doctrineValidator.reloadMaxLineLength(
                 next.doctrine().maxLineLength()
             );
