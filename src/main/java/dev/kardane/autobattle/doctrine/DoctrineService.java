@@ -29,8 +29,7 @@ public final class DoctrineService {
             );
         }
 
-        if (match.phase() != MatchPhase.DOCTRINE_SETUP
-            && match.phase() != MatchPhase.LOBBY) {
+        if (match.phase() != MatchPhase.DOCTRINE_SETUP) {
             return DoctrineEditResult.failure(
                 DoctrineEditError.INVALID_PHASE
             );
