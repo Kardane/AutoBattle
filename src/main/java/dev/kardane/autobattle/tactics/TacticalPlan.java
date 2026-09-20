@@ -31,7 +31,7 @@ public record TacticalPlan(
         }
 
         switch (type) {
-            case ENGAGE, CHASE, RETREAT ->
+            case ENGAGE, CHASE ->
                 Objects.requireNonNull(
                     targetOwnerUuid,
                     type + " requires targetOwnerUuid"
@@ -41,6 +41,9 @@ public record TacticalPlan(
                     destination,
                     type + " requires destination"
                 );
+            case RETREAT -> {
+                // RETREAT chooses the nearest threat at execution time.
+            }
         }
     }
 
@@ -75,17 +78,18 @@ public record TacticalPlan(
     }
 
     public static TacticalPlan retreat(
-        UUID threatOwnerUuid,
-        String externalId,
         long currentTick,
         long lockTicks
     ) {
-        return targeted(
+        validateLockTicks(lockTicks);
+
+        return new TacticalPlan(
             TacticalPlanType.RETREAT,
-            threatOwnerUuid,
-            externalId,
+            null,
+            null,
+            "RETREAT",
             currentTick,
-            lockTicks
+            currentTick + lockTicks
         );
     }
 
