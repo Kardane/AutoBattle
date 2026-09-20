@@ -14,6 +14,7 @@ import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRespawnManager;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
 import dev.kardane.autobattle.robot.RobotZombie;
+import dev.kardane.autobattle.jev.JevDecisionService;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.RobotController;
 import dev.kardane.autobattle.ui.UiCoordinator;
@@ -40,6 +41,7 @@ public final class MatchManager {
     private final CombatTracker combatTracker = new CombatTracker();
     private final RobotRespawnManager respawnManager;
     private final PlayerCommandService commandService;
+    private final JevDecisionService decisionService;
     private final UiCoordinator ui;
     private final MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
@@ -53,12 +55,14 @@ public final class MatchManager {
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
         PlayerCommandService commandService,
+        JevDecisionService decisionService,
         UiCoordinator ui
     ) {
         this.config = config;
         this.robotFactory = robotFactory;
         this.planExecutor = planExecutor;
         this.commandService = commandService;
+        this.decisionService = decisionService;
         this.ui = ui;
         this.respawnManager = new RobotRespawnManager(
             config,
@@ -95,6 +99,11 @@ public final class MatchManager {
         respawnManager.tick(server, session, serverTick);
         tickRegen();
         session.core().tick(session, serverTick);
+        decisionService.tick(
+            server,
+            session,
+            serverTick
+        );
         ui.tickRound(server, session, serverTick);
 
         if (session.roundState().expired(serverTick)) {
