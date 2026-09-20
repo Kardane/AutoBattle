@@ -1,11 +1,14 @@
 package dev.kardane.autobattle.tactics;
 
+import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotRegistry;
+import dev.kardane.autobattle.robot.RobotRuntimeState;
 import dev.kardane.autobattle.robot.RobotZombie;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 public final class RobotController {
     private static final double ENGAGE_SPEED = 1.00D;
@@ -19,33 +22,110 @@ public final class RobotController {
     private static final double DEFEND_RADIUS_SQR = 9.0D;
     private static final double RETREAT_DISTANCE = 8.0D;
 
-    private final RobotZombie robot;
+    private final UUID ownerUuid;
+    private final RobotColor color;
     private final RobotRegistry registry;
+    private final RobotRuntimeState runtime =
+        new RobotRuntimeState();
 
+    private RobotZombie entity;
     private TacticalPlan currentPlan;
-    private long lastAppliedTick = -1L;
+    private long planStartedTick = -1L;
+    private long lastDecisionTick = -1L;
+    private boolean decisionPending;
+    private boolean redecisionRequested;
+    private long decisionGeneration;
 
     public RobotController(
-        RobotZombie robot,
+        UUID ownerUuid,
+        RobotColor color,
         RobotRegistry registry
     ) {
-        this.robot = Objects.requireNonNull(robot, "robot");
+        this.ownerUuid = Objects.requireNonNull(
+            ownerUuid,
+            "ownerUuid"
+        );
+        this.color = Objects.requireNonNull(color, "color");
         this.registry = Objects.requireNonNull(registry, "registry");
     }
 
-    public RobotZombie robot() {
-        return robot;
+    public UUID ownerUuid() {
+        return ownerUuid;
+    }
+
+    public RobotColor color() {
+        return color;
+    }
+
+    public Optional<RobotZombie> entity() {
+        return Optional.ofNullable(entity);
+    }
+
+    public Optional<UUID> entityUuid() {
+        return entity().map(RobotZombie::getUUID);
+    }
+
+    public boolean alive() {
+        return runtime.alive()
+            && entity != null
+            && !entity.isRemoved()
+            && entity.isAlive();
+    }
+
+    public RobotRuntimeState runtime() {
+        return runtime;
     }
 
     public Optional<TacticalPlan> currentPlan() {
         return Optional.ofNullable(currentPlan);
     }
 
-    public long lastAppliedTick() {
-        return lastAppliedTick;
+    public long planStartedTick() {
+        return planStartedTick;
     }
 
-    public boolean assignPlan(
+    public long lastDecisionTick() {
+        return lastDecisionTick;
+    }
+
+    public boolean hasPendingDecision() {
+        return decisionPending;
+    }
+
+    public long decisionGeneration() {
+        return decisionGeneration;
+    }
+
+    public void attachEntity(
+        RobotZombie entity,
+        long currentTick
+    ) {
+        Objects.requireNonNull(entity, "entity");
+
+        if (!entity.ownerUuid().equals(ownerUuid)) {
+            throw new IllegalArgumentException(
+                "Robot entity owner does not match controller owner."
+            );
+        }
+
+        if (entity.robotColor() != color) {
+            throw new IllegalArgumentException(
+                "Robot entity color does not match controller color."
+            );
+        }
+
+        this.entity = entity;
+        runtime.markSpawned(currentTick);
+        registry.reindexEntity(this);
+    }
+
+    public void detachEntity() {
+        clearPlan();
+        entity = null;
+        registry.reindexEntity(this);
+    }
+
+    public boolean applyPlan(
         TacticalPlan plan,
         long currentTick
     ) {
@@ -56,22 +136,85 @@ public final class RobotController {
         }
 
         currentPlan = plan;
+        planStartedTick = currentTick;
         return true;
     }
 
     public void clearPlan() {
         currentPlan = null;
-        robot.setTarget(null);
-        robot.getNavigation().stop();
+        planStartedTick = -1L;
+
+        if (entity != null && !entity.isRemoved()) {
+            entity.setTarget(null);
+            entity.getNavigation().stop();
+        }
+    }
+
+    public void markDecisionRequested(long generation) {
+        decisionPending = true;
+        decisionGeneration = generation;
+    }
+
+    public void markDecisionCompleted(
+        long generation,
+        long currentTick
+    ) {
+        if (generation != decisionGeneration) {
+            return;
+        }
+
+        decisionPending = false;
+        lastDecisionTick = currentTick;
+        redecisionRequested = false;
+    }
+
+    public void requestRedecision() {
+        redecisionRequested = true;
+    }
+
+    public boolean consumeRedecisionFlag() {
+        boolean value = redecisionRequested;
+        redecisionRequested = false;
+        return value;
+    }
+
+    public long nextDecisionGeneration() {
+        return ++decisionGeneration;
+    }
+
+    public boolean shouldRequestDecision(
+        long currentTick,
+        int intervalTicks,
+        int lockTicks
+    ) {
+        if (!alive() || decisionPending) {
+            return false;
+        }
+
+        if (currentPlan == null) {
+            return true;
+        }
+
+        long lockEndTick = Math.max(
+            planStartedTick + lockTicks,
+            currentPlan.lockUntilTick()
+        );
+
+        if (redecisionRequested && currentTick >= lockEndTick) {
+            return true;
+        }
+
+        return lastDecisionTick < 0L
+            || currentTick - lastDecisionTick >= intervalTicks;
     }
 
     public void tick(long currentTick) {
-        if (!isActive()) {
+        if (!alive() || runtime.frozen()) {
             return;
         }
 
         if (currentPlan == null) {
-            robot.setTarget(null);
+            entity.setTarget(null);
             return;
         }
 
@@ -91,61 +234,55 @@ public final class RobotController {
                 POSITION_REACHED_DISTANCE_SQR
             );
         }
-
-        lastAppliedTick = currentTick;
-    }
-
-    public boolean isActive() {
-        return !robot.isRemoved() && robot.isAlive();
     }
 
     private void engage() {
         resolvePlanTarget().ifPresentOrElse(
             target -> {
-                robot.setTarget(target);
-                robot.getNavigation().moveTo(
+                entity.setTarget(target);
+                entity.getNavigation().moveTo(
                     target,
                     ENGAGE_SPEED
                 );
             },
-            this::clearCombatIntent
+            this::invalidateCurrentTarget
         );
     }
 
     private void chase() {
         resolvePlanTarget().ifPresentOrElse(
             target -> {
-                robot.setTarget(target);
-                robot.getNavigation().moveTo(
+                entity.setTarget(target);
+                entity.getNavigation().moveTo(
                     target,
                     CHASE_SPEED
                 );
             },
-            this::clearCombatIntent
+            this::invalidateCurrentTarget
         );
     }
 
     private void defend(Vec3 destination) {
-        robot.setTarget(null);
+        entity.setTarget(null);
 
-        if (robot.position().distanceToSqr(destination) > DEFEND_RADIUS_SQR) {
-            robot.getNavigation().moveTo(
+        if (entity.position().distanceToSqr(destination) > DEFEND_RADIUS_SQR) {
+            entity.getNavigation().moveTo(
                 destination.x,
                 destination.y,
                 destination.z,
                 DEFEND_SPEED
             );
         } else {
-            robot.getNavigation().stop();
+            entity.getNavigation().stop();
         }
     }
 
     private void retreat() {
-        robot.setTarget(null);
+        entity.setTarget(null);
 
         resolvePlanTarget().ifPresentOrElse(
             threat -> {
-                Vec3 away = robot.position()
+                Vec3 away = entity.position()
                     .subtract(threat.position());
 
                 Vec3 horizontal = new Vec3(
@@ -160,17 +297,17 @@ public final class RobotController {
                     horizontal = horizontal.normalize();
                 }
 
-                Vec3 destination = robot.position()
+                Vec3 destination = entity.position()
                     .add(horizontal.scale(RETREAT_DISTANCE));
 
-                robot.getNavigation().moveTo(
+                entity.getNavigation().moveTo(
                     destination.x,
                     destination.y,
                     destination.z,
                     RETREAT_SPEED
                 );
             },
-            () -> robot.getNavigation().stop()
+            this::invalidateCurrentTarget
         );
     }
 
@@ -179,14 +316,15 @@ public final class RobotController {
         double speed,
         double reachedDistanceSqr
     ) {
-        robot.setTarget(null);
+        entity.setTarget(null);
 
-        if (robot.position().distanceToSqr(destination) <= reachedDistanceSqr) {
-            robot.getNavigation().stop();
+        if (entity.position().distanceToSqr(destination)
+            <= reachedDistanceSqr) {
+            entity.getNavigation().stop();
             return;
         }
 
-        robot.getNavigation().moveTo(
+        entity.getNavigation().moveTo(
             destination.x,
             destination.y,
             destination.z,
@@ -195,20 +333,28 @@ public final class RobotController {
     }
 
     private Optional<RobotZombie> resolvePlanTarget() {
-        if (currentPlan == null || currentPlan.targetEntityUuid() == null) {
+        if (currentPlan == null
+            || currentPlan.targetOwnerUuid() == null) {
             return Optional.empty();
         }
 
         return registry
-            .byEntityUuid(currentPlan.targetEntityUuid())
-            .filter(target -> target != robot)
-            .filter(RobotZombie::isAlive)
-            .filter(target -> !target.isRemoved())
-            .filter(target -> target.matchId().equals(robot.matchId()));
+            .byOwner(currentPlan.targetOwnerUuid())
+            .filter(target -> target != this)
+            .filter(RobotController::alive)
+            .flatMap(RobotController::entity)
+            .filter(target ->
+                entity != null
+                    && target.matchId().equals(entity.matchId())
+            );
     }
 
-    private void clearCombatIntent() {
-        robot.setTarget(null);
-        robot.getNavigation().stop();
+    private void invalidateCurrentTarget() {
+        if (entity != null && !entity.isRemoved()) {
+            entity.setTarget(null);
+            entity.getNavigation().stop();
+        }
+
+        requestRedecision();
     }
 }
