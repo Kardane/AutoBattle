@@ -54,12 +54,7 @@ public final class RobotFactory {
         robot.setPos(position.x, position.y, position.z);
         robot.setYRot(yaw);
         robot.setXRot(0.0F);
-        robot.setCustomName(
-            Component.literal("[" + color.name() + "] ")
-                .withStyle(color.chatColor())
-                .append(ownerName)
-        );
-        robot.setCustomNameVisible(true);
+        robot.setOwnerDisplayName(ownerName);
         robot.addTag(RobotZombie.ENTITY_TAG);
 
         if (!level.addFreshEntity(robot)) {
