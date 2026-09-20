@@ -33,7 +33,8 @@ public final class AutoBattleCommands {
         MatchManager matchManager,
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
-        DoctrineService doctrineService
+        DoctrineService doctrineService,
+        PlayerCommandService commandService
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
@@ -42,7 +43,8 @@ public final class AutoBattleCommands {
                     matchManager,
                     robotFactory,
                     planExecutor,
-                    doctrineService
+                    doctrineService,
+                    commandService
                 )
         );
     }
@@ -52,7 +54,8 @@ public final class AutoBattleCommands {
         MatchManager matchManager,
         RobotFactory robotFactory,
         PlanExecutor planExecutor,
-        DoctrineService doctrineService
+        DoctrineService doctrineService,
+        PlayerCommandService commandService
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -149,6 +152,42 @@ public final class AutoBattleCommands {
                                                 )
                                             )
                                         )
+                                    )
+                                )
+                        )
+                )
+                .then(
+                    Commands.literal("command")
+                        .then(
+                            Commands.literal("attack")
+                                .executes(context ->
+                                    usePlayerCommand(
+                                        context.getSource(),
+                                        matchManager,
+                                        commandService,
+                                        PlayerCommandType.ATTACK
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("capture")
+                                .executes(context ->
+                                    usePlayerCommand(
+                                        context.getSource(),
+                                        matchManager,
+                                        commandService,
+                                        PlayerCommandType.CAPTURE
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("survive")
+                                .executes(context ->
+                                    usePlayerCommand(
+                                        context.getSource(),
+                                        matchManager,
+                                        commandService,
+                                        PlayerCommandType.SURVIVE
                                     )
                                 )
                         )
@@ -641,6 +680,41 @@ public final class AutoBattleCommands {
         return 1;
     }
 
+
+
+    private static int usePlayerCommand(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        PlayerCommandService commandService,
+        PlayerCommandType type
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        CommandUseResult result = commandService.use(
+            matchManager.session(),
+            player,
+            type,
+            matchManager.serverTick()
+        );
+
+        if (result != CommandUseResult.SUCCESS) {
+            source.sendFailure(
+                Component.literal(
+                    "Command rejected: " + result.name()
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Command " + type.name() + " activated for 10 seconds."
+            ),
+            false
+        );
+
+        return 1;
+    }
 
     private static int submitDoctrine(
         CommandSourceStack source,
