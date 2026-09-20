@@ -129,7 +129,14 @@ public final class DialogActionRouter {
     private boolean markReviewReady(
         ServerPlayer player
     ) {
-        if (!matchManager.markReviewReady(player)) {
+        var slot = matchManager.session()
+            .player(player.getUUID())
+            .orElse(null);
+
+        if (slot == null
+            || slot.forfeited()
+            || matchManager.session().phase()
+                != dev.kardane.autobattle.match.MatchPhase.ROUND_REVIEW) {
             player.sendSystemMessage(
                 Component.literal(
                     language.text(
@@ -140,7 +147,10 @@ public final class DialogActionRouter {
             return true;
         }
 
+        // Clear the completed review before MatchManager can
+        // synchronously open the next doctrine/final dialog.
         clearDialog(player);
+        matchManager.markReviewReady(player);
         return true;
     }
 
