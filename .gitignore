@@ -34,4 +34,4 @@ run/
 .vendor-build/
 
 # AutoBattle runtime secrets/config
-/config/autobattle.yml
+/config/autobattle/
