@@ -1,12 +1,25 @@
 package dev.kardane.autobattle.ui;
 
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.Locale;
+import java.util.Objects;
+
 public final class ActionBarUi {
+    private final LanguageService language;
+
+    public ActionBarUi(LanguageService language) {
+        this.language = Objects.requireNonNull(
+            language,
+            "language"
+        );
+    }
+
     public void updateIntermission(
         ServerPlayer player,
         PlayerSlot slot,
@@ -15,21 +28,39 @@ public final class ActionBarUi {
         int totalRounds
     ) {
         String status = switch (phase) {
-            case ROUND_REVIEW -> "ROUND REVIEW";
-            case DOCTRINE_EDIT -> "DOCTRINE EDIT";
-            case COUNTDOWN -> "NEXT ROUND";
-            default -> phase.name();
+            case ROUND_REVIEW ->
+                language.text(
+                    "actionbar.status.review"
+                );
+            case DOCTRINE_EDIT ->
+                language.text(
+                    "actionbar.status.doctrine-edit"
+                );
+            case COUNTDOWN ->
+                language.text(
+                    "actionbar.status.countdown"
+                );
+            default ->
+                language.format(
+                    "actionbar.status.default",
+                    "phase",
+                    phase.name()
+                );
         };
 
         player.displayClientMessage(
             Component.literal(
-                status
-                    + " | ROUND "
-                    + currentRound
-                    + "/"
-                    + totalRounds
-                    + " | TOTAL SCORE "
-                    + slot.score().totalScore()
+                language.format(
+                    "actionbar.intermission",
+                    "status",
+                    status,
+                    "round",
+                    currentRound,
+                    "total_rounds",
+                    totalRounds,
+                    "total_score",
+                    slot.score().totalScore()
+                )
             ),
             true
         );
@@ -44,7 +75,9 @@ public final class ActionBarUi {
         String text;
 
         if (controller == null) {
-            text = "ROBOT UNAVAILABLE";
+            text = language.text(
+                "actionbar.unavailable"
+            );
         } else if (controller.alive()) {
             float hp = controller.entity()
                 .map(entity -> entity.getHealth())
@@ -55,28 +88,43 @@ public final class ActionBarUi {
                 .orElse(100.0F);
 
             String plan = controller.currentPlan()
-                .map(tacticalPlan -> tacticalPlan.externalId())
-                .orElse("WAITING");
+                .map(tacticalPlan ->
+                    tacticalPlan.externalId()
+                )
+                .orElseGet(() ->
+                    language.text(
+                        "actionbar.waiting-plan"
+                    )
+                );
 
             String commandState = slot.runtime()
                 .activeCommand()
-                .map(active -> active.type().name())
+                .map(active ->
+                    active.type().name()
+                )
                 .orElseGet(() ->
                     slot.runtime().commandUsed()
-                        ? "USED"
-                        : "READY"
+                        ? language.text(
+                            "actionbar.command.used"
+                        )
+                        : language.text(
+                            "actionbar.command.ready"
+                        )
                 );
 
-            text = "HP "
-                + Math.round(hp)
-                + "/"
-                + Math.round(maxHp)
-                + " | "
-                + plan
-                + " | COMMAND "
-                + commandState
-                + " | SCORE "
-                + slot.score().roundScore();
+            text = language.format(
+                "actionbar.alive",
+                "hp",
+                Math.round(hp),
+                "max_hp",
+                Math.round(maxHp),
+                "plan",
+                plan,
+                "command",
+                commandState,
+                "score",
+                slot.score().roundScore()
+            );
         } else {
             long remainingTicks = Math.max(
                 0L,
@@ -84,13 +132,17 @@ public final class ActionBarUi {
                     - currentTick
             );
 
-            double remainingSeconds =
-                remainingTicks / 20.0D;
+            String remainingSeconds = String.format(
+                Locale.ROOT,
+                "%.1f",
+                remainingTicks / 20.0D
+            );
 
-            text = String.format(
-                java.util.Locale.ROOT,
-                "ROBOT DESTROYED | RESPAWN %.1fs | SCORE %d",
+            text = language.format(
+                "actionbar.dead",
+                "respawn_seconds",
                 remainingSeconds,
+                "score",
                 slot.score().roundScore()
             );
         }
