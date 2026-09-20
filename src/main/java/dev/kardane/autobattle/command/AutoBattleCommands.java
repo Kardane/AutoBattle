@@ -1,9 +1,12 @@
 package dev.kardane.autobattle.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.kardane.autobattle.AutoBattleConstants;
+import dev.kardane.autobattle.doctrine.DoctrineEditResult;
+import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.robot.RobotColor;
@@ -29,7 +32,8 @@ public final class AutoBattleCommands {
     public static void register(
         MatchManager matchManager,
         RobotFactory robotFactory,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        DoctrineService doctrineService
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
@@ -37,7 +41,8 @@ public final class AutoBattleCommands {
                     dispatcher,
                     matchManager,
                     robotFactory,
-                    planExecutor
+                    planExecutor,
+                    doctrineService
                 )
         );
     }
@@ -46,7 +51,8 @@ public final class AutoBattleCommands {
         CommandDispatcher<CommandSourceStack> dispatcher,
         MatchManager matchManager,
         RobotFactory robotFactory,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        DoctrineService doctrineService
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -72,6 +78,79 @@ public final class AutoBattleCommands {
                     Commands.literal("status")
                         .executes(context ->
                             status(context.getSource(), matchManager)
+                        )
+                )
+                .then(
+                    Commands.literal("doctrine")
+                        .then(
+                            Commands.literal("submit")
+                                .then(
+                                    Commands.argument(
+                                        "line1",
+                                        StringArgumentType.string()
+                                    )
+                                    .then(
+                                        Commands.argument(
+                                            "line2",
+                                            StringArgumentType.string()
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "line3",
+                                                StringArgumentType.string()
+                                            )
+                                            .executes(context ->
+                                                submitDoctrine(
+                                                    context.getSource(),
+                                                    matchManager,
+                                                    doctrineService,
+                                                    StringArgumentType.getString(
+                                                        context,
+                                                        "line1"
+                                                    ),
+                                                    StringArgumentType.getString(
+                                                        context,
+                                                        "line2"
+                                                    ),
+                                                    StringArgumentType.getString(
+                                                        context,
+                                                        "line3"
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                        )
+                        .then(
+                            Commands.literal("replace")
+                                .then(
+                                    Commands.argument(
+                                        "line",
+                                        IntegerArgumentType.integer(1, 3)
+                                    )
+                                    .then(
+                                        Commands.argument(
+                                            "text",
+                                            StringArgumentType.greedyString()
+                                        )
+                                        .executes(context ->
+                                            replaceDoctrineLine(
+                                                context.getSource(),
+                                                matchManager,
+                                                doctrineService,
+                                                IntegerArgumentType.getInteger(
+                                                    context,
+                                                    "line"
+                                                ),
+                                                StringArgumentType.getString(
+                                                    context,
+                                                    "text"
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
                         )
                 )
                 .then(
@@ -557,6 +636,86 @@ public final class AutoBattleCommands {
                 "Stopped AutoBattle prototype round."
             ),
             true
+        );
+
+        return 1;
+    }
+
+
+    private static int submitDoctrine(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        DoctrineService doctrineService,
+        String line1,
+        String line2,
+        String line3
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        DoctrineEditResult result = doctrineService.submitInitial(
+            matchManager.session(),
+            player,
+            line1,
+            line2,
+            line3
+        );
+
+        if (!result.success()) {
+            source.sendFailure(
+                Component.literal(
+                    "Doctrine rejected: " + result.error().name()
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Doctrine v"
+                    + result.doctrine().version()
+                    + " saved."
+            ),
+            false
+        );
+
+        return 1;
+    }
+
+    private static int replaceDoctrineLine(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        DoctrineService doctrineService,
+        int oneBasedLine,
+        String text
+    ) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+
+        DoctrineEditResult result = doctrineService.replaceLine(
+            matchManager.session(),
+            player,
+            oneBasedLine - 1,
+            text
+        );
+
+        if (!result.success()) {
+            source.sendFailure(
+                Component.literal(
+                    "Doctrine edit rejected: "
+                        + result.error().name()
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Doctrine line "
+                    + oneBasedLine
+                    + " updated. Version "
+                    + result.doctrine().version()
+                    + "."
+            ),
+            false
         );
 
         return 1;
