@@ -95,6 +95,27 @@ public final class CoreController {
         return robot.position().distanceTo(center());
     }
 
+    public void removeParticipant(UUID ownerUuid) {
+        Objects.requireNonNull(ownerUuid, "ownerUuid");
+
+        if (state.ownerUuid()
+            .filter(ownerUuid::equals)
+            .isPresent()) {
+            state.setOwner(null);
+            state.setNextHoldScoreTick(-1L);
+        }
+
+        if (state.captureState()
+            .filter(capture ->
+                capture.capturingOwnerUuid().equals(ownerUuid)
+            )
+            .isPresent()) {
+            state.setCaptureState(null);
+        }
+
+        state.setContested(false);
+    }
+
     public void reset() {
         state.reset();
     }
