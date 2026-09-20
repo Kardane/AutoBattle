@@ -151,6 +151,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 planExecutor,
                 commandService,
                 decisionService,
+                doctrineService,
                 doctrineValidator,
                 dialogs,
                 ui,
