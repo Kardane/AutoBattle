@@ -4,7 +4,6 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import dev.kardane.autobattle.AutoBattleConstants;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
@@ -506,7 +505,7 @@ public final class AutoBattleCommands {
         }
 
         long currentTick = matchManager.serverTick();
-        long lockTicks = AutoBattleConstants.DECISION_LOCK_TICKS;
+        long lockTicks = matchManager.config().decisionLockTicks();
         String planName = rawPlan.toUpperCase(Locale.ROOT);
 
         TacticalPlan plan;
@@ -1159,7 +1158,7 @@ public final class AutoBattleCommands {
 
         planExecutor.register(red, currentTick);
         planExecutor.register(blue, currentTick);
-        long lockTicks = AutoBattleConstants.DECISION_LOCK_TICKS;
+        long lockTicks = matchManager.config().decisionLockTicks();
 
         planExecutor.assignPlan(
             red,
