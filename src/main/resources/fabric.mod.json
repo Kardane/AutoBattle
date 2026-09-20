@@ -2,36 +2,23 @@
   "schemaVersion": 1,
   "id": "${mod_id}",
   "version": "${version}",
-  "name": "Fabric Minigame Template",
-  "description": "서버사이드 미니게임 모드 템플릿 (Polymer 기반)",
-  "authors": [
-    "Your Name"
-  ],
+  "name": "AutoBattle",
+  "description": "JEV-powered multiplayer AI autobattler for Minecraft Java Edition.",
+  "authors": ["Kardane"],
   "contact": {
-    "homepage": "",
-    "sources": ""
+    "sources": "https://github.com/Kardane/AutoBattle"
   },
   "license": "MIT",
-  "icon": "assets/fabricminigametemplate/icon.png",
-  "environment": "*",
+  "environment": "server",
   "entrypoints": {
     "server": [
-      "com.example.minigame.FabricMinigameTemplate"
+      "dev.kardane.autobattle.AutoBattleMod"
     ]
   },
-  "mixins": [
-    "fabricminigametemplate.mixins.json"
-  ],
   "depends": {
     "fabricloader": ">=${loader_version}",
     "minecraft": ">=${minecraft_version}",
     "java": ">=21",
     "fabric-api": ">=${fabric_api_version}"
-  },
-  "suggests": {
-    "polymer-core": "*",
-    "sgui": "*",
-    "placeholder-api": "*",
-    "fabric-permissions-api-v0": "*"
   }
 }
