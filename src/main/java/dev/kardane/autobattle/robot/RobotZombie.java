@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.robot;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
@@ -16,6 +17,12 @@ public final class RobotZombie extends Zombie {
     private final UUID ownerUuid;
     private final RobotColor robotColor;
     private final UUID matchId;
+
+    private Component ownerDisplayName =
+        Component.literal("Robot");
+
+    private int lastDisplayedHealth = Integer.MIN_VALUE;
+    private int lastDisplayedMaxHealth = Integer.MIN_VALUE;
 
     public RobotZombie(
         Level level,
@@ -37,6 +44,12 @@ public final class RobotZombie extends Zombie {
     }
 
     @Override
+    public void tick() {
+        super.tick();
+        refreshNameplate();
+    }
+
+    @Override
     protected boolean convertsInWater() {
         return false;
     }
@@ -49,6 +62,16 @@ public final class RobotZombie extends Zombie {
     @Override
     public boolean shouldBeSaved() {
         return false;
+    }
+
+    public void setOwnerDisplayName(Component ownerDisplayName) {
+        this.ownerDisplayName = Objects.requireNonNull(
+            ownerDisplayName,
+            "ownerDisplayName"
+        );
+        lastDisplayedHealth = Integer.MIN_VALUE;
+        lastDisplayedMaxHealth = Integer.MIN_VALUE;
+        refreshNameplate();
     }
 
     public UUID ownerUuid() {
@@ -65,5 +88,40 @@ public final class RobotZombie extends Zombie {
 
     public boolean isAutoBattleRobot() {
         return true;
+    }
+
+    private void refreshNameplate() {
+        int health = Math.max(
+            0,
+            Math.round(getHealth())
+        );
+
+        int maxHealth = Math.max(
+            1,
+            Math.round(getMaxHealth())
+        );
+
+        if (health == lastDisplayedHealth
+            && maxHealth == lastDisplayedMaxHealth) {
+            return;
+        }
+
+        lastDisplayedHealth = health;
+        lastDisplayedMaxHealth = maxHealth;
+
+        setCustomName(
+            Component.literal(
+                "[" + robotColor.name() + "] "
+            )
+            .withStyle(robotColor.chatColor())
+            .append(ownerDisplayName.copy())
+            .append(
+                Component.literal(
+                    " | ♥ " + health + "/" + maxHealth
+                )
+            )
+        );
+
+        setCustomNameVisible(true);
     }
 }
