@@ -97,6 +97,8 @@ public final class RobotFactory {
         setBaseValue(robot.getAttribute(Attributes.ATTACK_DAMAGE), ATTACK_DAMAGE);
         setBaseValue(robot.getAttribute(Attributes.MOVEMENT_SPEED), MOVEMENT_SPEED);
         setBaseValue(robot.getAttribute(Attributes.FOLLOW_RANGE), FOLLOW_RANGE);
+        setBaseValue(robot.getAttribute(Attributes.ARMOR), 0.0D);
+        setBaseValue(robot.getAttribute(Attributes.ARMOR_TOUGHNESS), 0.0D);
         setBaseValue(
             robot.getAttribute(Attributes.SPAWN_REINFORCEMENTS_CHANCE),
             0.0D
