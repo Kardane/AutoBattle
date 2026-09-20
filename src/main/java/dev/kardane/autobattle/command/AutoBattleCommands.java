@@ -914,7 +914,7 @@ public final class AutoBattleCommands {
             false
         );
 
-        if (matchManager.beginDoctrineSetupIfReady()) {
+        if (matchManager.beginDoctrineSetupIfReady(source.getServer())) {
             source.sendSuccess(
                 () -> Component.literal(
                     "All players are ready. Doctrine setup started."
