@@ -5,6 +5,7 @@ public final class AutoBattleConstants {
     public static final int DEFAULT_ROUNDS = 5;
 
     public static final int ROUND_DURATION_TICKS = 20 * 90;
+    public static final int COUNTDOWN_TICKS = 20 * 5;
     public static final int ROBOT_RESPAWN_TICKS = 20 * 7;
 
     public static final int DECISION_INTERVAL_TICKS = 20 * 3;
