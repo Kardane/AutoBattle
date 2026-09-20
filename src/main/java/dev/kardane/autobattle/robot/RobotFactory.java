@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class RobotFactory {
-    private final RobotConfig config;
+    private RobotConfig config;
 
     public RobotFactory(RobotConfig config) {
         this.config = Objects.requireNonNull(config, "config");
@@ -82,6 +82,10 @@ public final class RobotFactory {
             position,
             owner.getYRot()
         );
+    }
+
+    public void reloadConfig(RobotConfig config) {
+        this.config = Objects.requireNonNull(config, "config");
     }
 
     public double maxHealth() {
