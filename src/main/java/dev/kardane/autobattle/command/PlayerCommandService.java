@@ -11,7 +11,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.Objects;
 
 public final class PlayerCommandService {
-    private final AutoBattleConfig config;
+    private AutoBattleConfig config;
     private final PlanExecutor planExecutor;
 
     public PlayerCommandService(
@@ -23,6 +23,10 @@ public final class PlayerCommandService {
             planExecutor,
             "planExecutor"
         );
+    }
+
+    public void reloadConfig(AutoBattleConfig config) {
+        this.config = Objects.requireNonNull(config, "config");
     }
 
     public CommandUseResult use(
