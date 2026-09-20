@@ -170,6 +170,10 @@ public final class MatchManager {
             .orElse(null);
 
         session.core().tick(session, serverTick);
+        session.core().renderBoundary(
+            server,
+            serverTick
+        );
 
         UUID currentCoreOwner = session.core()
             .state()
