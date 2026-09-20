@@ -56,6 +56,7 @@ public final class JevDecisionService {
     ) {
         this.client = Objects.requireNonNull(client, "client");
         this.config = Objects.requireNonNull(config, "config");
+        this.validPlanFactory.reload(config);
     }
 
     public DecisionLogRepository logs() {
@@ -449,6 +450,18 @@ public final class JevDecisionService {
         if (hpRatio <= config.ai().fallbackRetreatHpRatio()
             && byId.containsKey("RETREAT")) {
             return byId.get("RETREAT");
+        }
+
+        TacticalPlan objective = byId.get(
+            "CAPTURE_CORE"
+        );
+
+        if (objective == null) {
+            objective = byId.get("DEFEND_CORE");
+        }
+
+        if (objective != null) {
+            return objective;
         }
 
         TacticalPlan reposition = byId.get("REPOSITION");

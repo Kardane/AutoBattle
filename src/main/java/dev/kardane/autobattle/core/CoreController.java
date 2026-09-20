@@ -8,7 +8,10 @@ import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -17,6 +20,10 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class CoreController {
+    private static final int BOUNDARY_PARTICLE_INTERVAL_TICKS = 10;
+    private static final int BOUNDARY_PARTICLE_POINTS = 48;
+    private static final double BOUNDARY_PARTICLE_Y_OFFSET = 0.15D;
+
     private final ResourceKey<Level> dimension;
     private final BlockPos corePos;
     private final double radius;
@@ -79,6 +86,49 @@ public final class CoreController {
         }
 
         tickOwnerHoldScore(match, currentTick);
+    }
+
+    public void renderBoundary(
+        MinecraftServer server,
+        long currentTick
+    ) {
+        if (currentTick % BOUNDARY_PARTICLE_INTERVAL_TICKS != 0L) {
+            return;
+        }
+
+        ServerLevel level = server.getLevel(dimension);
+
+        if (level == null) {
+            return;
+        }
+
+        double centerX = corePos.getX() + 0.5D;
+        double centerY =
+            corePos.getY() + BOUNDARY_PARTICLE_Y_OFFSET;
+        double centerZ = corePos.getZ() + 0.5D;
+
+        for (int index = 0;
+             index < BOUNDARY_PARTICLE_POINTS;
+             index++) {
+            double angle = Math.PI * 2.0D
+                * index
+                / BOUNDARY_PARTICLE_POINTS;
+
+            double x = centerX + Math.cos(angle) * radius;
+            double z = centerZ + Math.sin(angle) * radius;
+
+            level.sendParticles(
+                ParticleTypes.END_ROD,
+                x,
+                centerY,
+                z,
+                1,
+                0.0D,
+                0.0D,
+                0.0D,
+                0.0D
+            );
+        }
     }
 
     public CoreState state() {

@@ -229,14 +229,16 @@ public final class RobotController {
             case CAPTURE -> moveToPosition(
                 currentPlan.destination(),
                 config.captureSpeed(),
-                square(config.positionReachedDistance())
+                square(config.positionReachedDistance()),
+                false
             );
             case DEFEND -> defend(currentPlan.destination());
             case RETREAT -> retreat();
             case REPOSITION -> moveToPosition(
                 currentPlan.destination(),
                 config.repositionSpeed(),
-                square(config.positionReachedDistance())
+                square(config.positionReachedDistance()),
+                true
             );
         }
     }
@@ -259,7 +261,12 @@ public final class RobotController {
                     leashDistance * leashDistance;
 
                 if (entity.distanceToSqr(target) > leashDistanceSqr) {
-                    invalidateCurrentTarget();
+                    entity.setTarget(null);
+                    entity.getNavigation().moveTo(
+                        target,
+                        speed
+                    );
+                    requestRedecision();
                     return;
                 }
 
@@ -322,13 +329,20 @@ public final class RobotController {
     private void moveToPosition(
         Vec3 destination,
         double speed,
-        double reachedDistanceSqr
+        double reachedDistanceSqr,
+        boolean completeOnArrival
     ) {
         entity.setTarget(null);
 
         if (entity.position().distanceToSqr(destination)
             <= reachedDistanceSqr) {
             entity.getNavigation().stop();
+
+            if (completeOnArrival) {
+                clearPlan();
+                requestRedecision();
+            }
+
             return;
         }
 

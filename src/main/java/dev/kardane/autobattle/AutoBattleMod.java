@@ -97,7 +97,7 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             new JevDecisionService(
                 jevClient,
                 new RobotStateSerializer(),
-                new ValidPlanFactory(),
+                new ValidPlanFactory(config),
                 planExecutor,
                 decisionLogs,
                 config
