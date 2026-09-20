@@ -6,6 +6,7 @@ import dev.kardane.autobattle.tactics.PlanExecutor;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
 public final class AutoBattleEvents {
     private AutoBattleEvents() {
@@ -20,6 +21,14 @@ public final class AutoBattleEvents {
             matchManager.tick(server);
             planExecutor.tick(matchManager.serverTick());
         });
+
+        ServerPlayConnectionEvents.DISCONNECT.register(
+            (handler, server) ->
+                matchManager.handleDisconnect(
+                    handler.player,
+                    server
+                )
+        );
 
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(
             matchManager::allowDamage
