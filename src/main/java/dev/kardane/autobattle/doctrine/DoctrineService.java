@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.doctrine;
 
+import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -95,6 +96,16 @@ public final class DoctrineService {
             normalizer.normalize(
                 source.lines()
             );
+
+        if (result.status()
+            == DoctrineNormalizationStatus.FALLBACK_ERROR) {
+            AutoBattleMod.LOGGER.warn(
+                "Doctrine normalization failed (hash={}, model={}): {}",
+                result.sourceHash(),
+                result.model(),
+                result.error()
+            );
+        }
 
         return source.withNormalization(result);
     }
