@@ -1,0 +1,42 @@
+{
+  "type": "minecraft:multi_action",
+  "title": {"text": "Doctrine 수정"},
+  "body": [
+    {
+      "type": "minecraft:plain_message",
+      "contents": {
+        "text": "이번 라운드에서 수정할 문장 하나를 선택하세요. 수정하지 않아도 됩니다."
+      },
+      "width": 360
+    }
+  ],
+  "pause": false,
+  "after_action": "close",
+  "columns": 1,
+  "actions": [
+    {
+      "label": {"text": "Doctrine 1 수정"},
+      "width": 220,
+      "action": {
+        "type": "minecraft:show_dialog",
+        "dialog": "autobattle:doctrine_edit_1"
+      }
+    },
+    {
+      "label": {"text": "Doctrine 2 수정"},
+      "width": 220,
+      "action": {
+        "type": "minecraft:show_dialog",
+        "dialog": "autobattle:doctrine_edit_2"
+      }
+    },
+    {
+      "label": {"text": "Doctrine 3 수정"},
+      "width": 220,
+      "action": {
+        "type": "minecraft:show_dialog",
+        "dialog": "autobattle:doctrine_edit_3"
+      }
+    }
+  ]
+}
