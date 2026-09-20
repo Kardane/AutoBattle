@@ -9,8 +9,11 @@ import dev.kardane.autobattle.config.ConfigReloadService;
 import dev.kardane.autobattle.config.LanguageConfig;
 import dev.kardane.autobattle.config.LanguageConfigLoader;
 import dev.kardane.autobattle.config.LanguageService;
+import dev.kardane.autobattle.doctrine.DoctrineNormalizer;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
+import dev.kardane.autobattle.doctrine.OpenAiDoctrineNormalizer;
+import dev.kardane.autobattle.doctrine.PassThroughDoctrineNormalizer;
 import dev.kardane.autobattle.event.AutoBattleEvents;
 import dev.kardane.autobattle.jev.JevClient;
 import dev.kardane.autobattle.jev.JevDecisionService;
@@ -108,7 +111,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             );
 
         DoctrineService doctrineService = new DoctrineService(
-            doctrineValidator
+            doctrineValidator,
+            createDoctrineNormalizer(config)
         );
         RoundReviewService reviewService =
             new RoundReviewService(decisionLogs);
@@ -151,7 +155,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 dialogs,
                 ui,
                 language,
-                this::createJevClient
+                this::createJevClient,
+                this::createDoctrineNormalizer
             );
 
         AutoBattleCommands.register(
@@ -188,6 +193,55 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         );
     }
 
+
+    private DoctrineNormalizer createDoctrineNormalizer(
+        AutoBattleConfig config
+    ) {
+        var normalizerConfig = config.doctrineNormalizer();
+
+        if (!normalizerConfig.enabled()) {
+            LOGGER.info(
+                "OpenAI Doctrine Normalizer is disabled."
+            );
+            return new PassThroughDoctrineNormalizer(
+                "Doctrine normalizer is disabled"
+            );
+        }
+
+        String apiKey = normalizerConfig.apiKey();
+
+        if (apiKey.isBlank()) {
+            String environmentKey = System.getenv(
+                "OPENAI_API_KEY"
+            );
+
+            if (environmentKey != null
+                && !environmentKey.isBlank()) {
+                apiKey = environmentKey.trim();
+            }
+        }
+
+        if (apiKey.isBlank()) {
+            LOGGER.warn(
+                "OpenAI Doctrine Normalizer is enabled but no API key "
+                    + "is configured. Source Doctrine will be used unchanged."
+            );
+            return new PassThroughDoctrineNormalizer(
+                "OPENAI_API_KEY is not configured"
+            );
+        }
+
+        LOGGER.info(
+            "Using OpenAI Doctrine Normalizer (model={}, baseUrl={})",
+            normalizerConfig.model(),
+            normalizerConfig.baseUrl()
+        );
+
+        return new OpenAiDoctrineNormalizer(
+            normalizerConfig,
+            apiKey
+        );
+    }
 
     private JevClient createJevClient(
         AutoBattleConfig config
