@@ -1,19 +1,34 @@
 package dev.kardane.autobattle.ui;
 
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
 
+import java.util.Objects;
+
 public final class BossBarUi {
-    private final ServerBossEvent event = new ServerBossEvent(
-        Component.literal("AutoBattle"),
-        BossEvent.BossBarColor.WHITE,
-        BossEvent.BossBarOverlay.PROGRESS
-    );
+    private final LanguageService language;
+    private final ServerBossEvent event;
+
+    public BossBarUi(LanguageService language) {
+        this.language = Objects.requireNonNull(
+            language,
+            "language"
+        );
+
+        this.event = new ServerBossEvent(
+            Component.literal(
+                language.text("bossbar.phase")
+            ),
+            BossEvent.BossBarColor.WHITE,
+            BossEvent.BossBarOverlay.PROGRESS
+        );
+    }
 
     public void addPlayer(ServerPlayer player) {
         event.addPlayer(player);
@@ -42,31 +57,40 @@ public final class BossBarUi {
             .flatMap(match::player)
             .map(PlayerSlot::color)
             .map(Enum::name)
-            .orElse("NEUTRAL");
+            .orElse(
+                language.text("bossbar.neutral-core")
+            );
 
-        String contested = match.core()
+        String contestedSuffix = match.core()
             .state()
             .contested()
-            ? " | CONTESTED"
+            ? language.text(
+                "bossbar.contested-suffix"
+            )
             : "";
 
         event.setName(
             Component.literal(
-                "ROUND "
-                    + match.currentRound()
-                    + "/"
-                    + totalRounds
-                    + " | "
-                    + seconds
-                    + "s | CORE "
-                    + coreOwner
-                    + contested
+                language.format(
+                    "bossbar.round",
+                    "round",
+                    match.currentRound(),
+                    "total_rounds",
+                    totalRounds,
+                    "seconds",
+                    seconds,
+                    "core_owner",
+                    coreOwner,
+                    "contested_suffix",
+                    contestedSuffix
+                )
             )
         );
 
         float progress = durationTicks <= 0
             ? 0.0F
-            : (float) remainingTicks / (float) durationTicks;
+            : (float) remainingTicks
+                / (float) durationTicks;
 
         event.setProgress(
             Math.max(0.0F, Math.min(1.0F, progress))
@@ -99,34 +123,48 @@ public final class BossBarUi {
 
             int nextRound = Math.min(
                 totalRounds,
-                Math.max(1, match.currentRound() + 1)
+                Math.max(
+                    1,
+                    match.currentRound() + 1
+                )
             );
 
-            label = "ROUND "
-                + nextRound
-                + "/"
-                + totalRounds
-                + " | STARTING IN "
-                + seconds
-                + "s";
+            label = language.format(
+                "bossbar.countdown",
+                "round",
+                nextRound,
+                "total_rounds",
+                totalRounds,
+                "seconds",
+                seconds
+            );
 
             progress = countdownTicks <= 0
                 ? 0.0F
-                : (float) remaining / (float) countdownTicks;
+                : (float) remaining
+                    / (float) countdownTicks;
         } else if (phase == MatchPhase.ROUND_REVIEW) {
-            label = "ROUND "
-                + match.currentRound()
-                + "/"
-                + totalRounds
-                + " | REVIEW";
+            label = language.format(
+                "bossbar.review",
+                "round",
+                match.currentRound(),
+                "total_rounds",
+                totalRounds
+            );
         } else if (phase == MatchPhase.DOCTRINE_EDIT) {
-            label = "ROUND "
-                + match.currentRound()
-                + "/"
-                + totalRounds
-                + " | DOCTRINE EDIT";
+            label = language.format(
+                "bossbar.doctrine-edit",
+                "round",
+                match.currentRound(),
+                "total_rounds",
+                totalRounds
+            );
         } else {
-            label = "AUTO BATTLE | " + phase.name();
+            label = language.format(
+                "bossbar.phase",
+                "phase",
+                phase.name()
+            );
         }
 
         event.setName(Component.literal(label));
