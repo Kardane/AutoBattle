@@ -77,7 +77,8 @@ public final class JevDecisionService {
             if (!controller.shouldRequestDecision(
                 currentTick,
                 config.decisionIntervalTicks(),
-                config.decisionLockTicks()
+                config.decisionLockTicks(),
+                config.decisionDebounceTicks()
             )) {
                 continue;
             }
