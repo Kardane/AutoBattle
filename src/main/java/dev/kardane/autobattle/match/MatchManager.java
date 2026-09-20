@@ -329,6 +329,41 @@ public final class MatchManager {
             && readyCount() == playerCount();
     }
 
+    public boolean beginDoctrineSetupIfReady() {
+        if (session.phase() != MatchPhase.LOBBY
+            || !canStart()) {
+            return false;
+        }
+
+        session.setPhase(
+            MatchPhase.DOCTRINE_SETUP,
+            serverTick
+        );
+
+        return true;
+    }
+
+    public boolean allDoctrinesSubmitted() {
+        return playerCount() >= config.minimumPlayers()
+            && session.players().stream()
+                .filter(slot -> !slot.forfeited())
+                .allMatch(slot -> slot.doctrine().isPresent());
+    }
+
+    public boolean beginCountdownIfDoctrinesReady() {
+        if (session.phase() != MatchPhase.DOCTRINE_SETUP
+            || !allDoctrinesSubmitted()) {
+            return false;
+        }
+
+        session.setPhase(
+            MatchPhase.COUNTDOWN,
+            serverTick
+        );
+
+        return true;
+    }
+
     public boolean startPrototypeRound(MinecraftServer server) {
         if (session.phase() == MatchPhase.ROUND_ACTIVE) {
             return false;
@@ -338,7 +373,12 @@ public final class MatchManager {
             .filter(slot -> !slot.forfeited())
             .count();
 
-        if (eligiblePlayers < 2L) {
+        if (eligiblePlayers < config.minimumPlayers()) {
+            return false;
+        }
+
+        if (session.currentRound() == 0
+            && !allDoctrinesSubmitted()) {
             return false;
         }
 
