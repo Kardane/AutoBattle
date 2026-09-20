@@ -96,6 +96,62 @@ public final class AutoBattleCommands {
                                 )
                         )
                         .then(
+                            Commands.literal("plan")
+                                .then(
+                                    Commands.argument(
+                                        "color",
+                                        StringArgumentType.word()
+                                    )
+                                    .then(
+                                        Commands.argument(
+                                            "plan",
+                                            StringArgumentType.word()
+                                        )
+                                        .executes(context ->
+                                            assignTestPlan(
+                                                context.getSource(),
+                                                matchManager,
+                                                planExecutor,
+                                                StringArgumentType.getString(
+                                                    context,
+                                                    "color"
+                                                ),
+                                                StringArgumentType.getString(
+                                                    context,
+                                                    "plan"
+                                                ),
+                                                null
+                                            )
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "targetColor",
+                                                StringArgumentType.word()
+                                            )
+                                            .executes(context ->
+                                                assignTestPlan(
+                                                    context.getSource(),
+                                                    matchManager,
+                                                    planExecutor,
+                                                    StringArgumentType.getString(
+                                                        context,
+                                                        "color"
+                                                    ),
+                                                    StringArgumentType.getString(
+                                                        context,
+                                                        "plan"
+                                                    ),
+                                                    StringArgumentType.getString(
+                                                        context,
+                                                        "targetColor"
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                        )
+                        .then(
                             Commands.literal("testrobot")
                                 .then(
                                     Commands.argument(
@@ -131,6 +187,219 @@ public final class AutoBattleCommands {
         );
     }
 
+
+
+    private static int assignTestPlan(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        PlanExecutor planExecutor,
+        String rawColor,
+        String rawPlan,
+        String rawTargetColor
+    ) {
+        RobotColor color;
+
+        try {
+            color = RobotColor.valueOf(
+                rawColor.toUpperCase(Locale.ROOT)
+            );
+        } catch (IllegalArgumentException exception) {
+            source.sendFailure(
+                Component.literal(
+                    "Unknown robot color."
+                )
+            );
+            return 0;
+        }
+
+        PlayerSlot slot = matchManager.session()
+            .players()
+            .stream()
+            .filter(candidate -> candidate.color() == color)
+            .findFirst()
+            .orElse(null);
+
+        if (slot == null) {
+            source.sendFailure(
+                Component.literal(
+                    "No participant owns " + color.name() + "."
+                )
+            );
+            return 0;
+        }
+
+        var controller = planExecutor
+            .byOwner(slot.playerUuid())
+            .orElse(null);
+
+        if (controller == null || !controller.alive()) {
+            source.sendFailure(
+                Component.literal(
+                    color.name() + " robot is not alive."
+                )
+            );
+            return 0;
+        }
+
+        long currentTick = matchManager.serverTick();
+        long lockTicks = AutoBattleConstants.DECISION_LOCK_TICKS;
+        String planName = rawPlan.toUpperCase(Locale.ROOT);
+
+        TacticalPlan plan;
+
+        switch (planName) {
+            case "ENGAGE", "CHASE" -> {
+                if (rawTargetColor == null) {
+                    source.sendFailure(
+                        Component.literal(
+                            planName + " requires targetColor."
+                        )
+                    );
+                    return 0;
+                }
+
+                RobotColor targetColor;
+
+                try {
+                    targetColor = RobotColor.valueOf(
+                        rawTargetColor.toUpperCase(Locale.ROOT)
+                    );
+                } catch (IllegalArgumentException exception) {
+                    source.sendFailure(
+                        Component.literal(
+                            "Unknown target robot color."
+                        )
+                    );
+                    return 0;
+                }
+
+                PlayerSlot targetSlot = matchManager.session()
+                    .players()
+                    .stream()
+                    .filter(candidate ->
+                        candidate.color() == targetColor
+                    )
+                    .findFirst()
+                    .orElse(null);
+
+                if (targetSlot == null
+                    || targetSlot.playerUuid()
+                        .equals(slot.playerUuid())) {
+                    source.sendFailure(
+                        Component.literal(
+                            "Target must be another participant."
+                        )
+                    );
+                    return 0;
+                }
+
+                plan = planName.equals("ENGAGE")
+                    ? TacticalPlan.engage(
+                        targetSlot.playerUuid(),
+                        "ENGAGE_" + targetColor.name(),
+                        currentTick,
+                        lockTicks
+                    )
+                    : TacticalPlan.chase(
+                        targetSlot.playerUuid(),
+                        "CHASE_" + targetColor.name(),
+                        currentTick,
+                        lockTicks
+                    );
+            }
+
+            case "CAPTURE" -> plan = TacticalPlan.capture(
+                coreCenter(matchManager),
+                currentTick,
+                lockTicks
+            );
+
+            case "DEFEND" -> plan = TacticalPlan.defend(
+                coreCenter(matchManager),
+                currentTick,
+                lockTicks
+            );
+
+            case "RETREAT" -> plan = TacticalPlan.retreat(
+                currentTick,
+                lockTicks
+            );
+
+            case "REPOSITION" -> {
+                var nodes = matchManager.config()
+                    .arena()
+                    .repositionNodes();
+
+                if (nodes.isEmpty()) {
+                    source.sendFailure(
+                        Component.literal(
+                            "Arena has no reposition nodes."
+                        )
+                    );
+                    return 0;
+                }
+
+                var node = nodes.get(
+                    slot.slotIndex() % nodes.size()
+                );
+
+                plan = TacticalPlan.reposition(
+                    new Vec3(
+                        node.getX() + 0.5D,
+                        node.getY(),
+                        node.getZ() + 0.5D
+                    ),
+                    currentTick,
+                    lockTicks
+                );
+            }
+
+            default -> {
+                source.sendFailure(
+                    Component.literal(
+                        "Plan must be engage, chase, capture, defend, retreat, or reposition."
+                    )
+                );
+                return 0;
+            }
+        }
+
+        if (!planExecutor.assignPlan(
+            controller,
+            plan,
+            currentTick
+        )) {
+            source.sendFailure(
+                Component.literal(
+                    "Plan change rejected by decision lock."
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                color.name() + " plan = " + plan.externalId()
+            ),
+            false
+        );
+
+        return 1;
+    }
+
+    private static Vec3 coreCenter(
+        MatchManager matchManager
+    ) {
+        var pos = matchManager.session()
+            .core()
+            .position();
+
+        return new Vec3(
+            pos.getX() + 0.5D,
+            pos.getY() + 0.5D,
+            pos.getZ() + 0.5D
+        );
+    }
 
     private static int startPrototypeRound(
         CommandSourceStack source,
