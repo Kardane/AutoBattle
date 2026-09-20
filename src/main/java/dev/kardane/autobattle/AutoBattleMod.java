@@ -7,6 +7,7 @@ import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.doctrine.DoctrineValidator;
 import dev.kardane.autobattle.event.AutoBattleEvents;
 import dev.kardane.autobattle.jev.JevDecisionService;
+import dev.kardane.autobattle.jev.JsonlDecisionLogRepository;
 import dev.kardane.autobattle.jev.RobotStateSerializer;
 import dev.kardane.autobattle.jev.ScriptedJevClient;
 import dev.kardane.autobattle.match.MatchManager;
@@ -18,6 +19,8 @@ import dev.kardane.autobattle.ui.UiCoordinator;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
 
 public final class AutoBattleMod implements DedicatedServerModInitializer {
     public static final String MOD_ID = "autobattle";
@@ -41,12 +44,22 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
                 config,
                 planExecutor
             );
+        JsonlDecisionLogRepository decisionLogs =
+            new JsonlDecisionLogRepository(
+                Path.of(
+                    "logs",
+                    "autobattle",
+                    "decisions"
+                )
+            );
+
         JevDecisionService decisionService =
             new JevDecisionService(
                 new ScriptedJevClient(),
                 new RobotStateSerializer(),
                 new ValidPlanFactory(),
                 planExecutor,
+                decisionLogs,
                 config
             );
         DoctrineService doctrineService = new DoctrineService(
@@ -73,7 +86,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
 
         AutoBattleEvents.register(
             matchManager,
-            planExecutor
+            planExecutor,
+            decisionService
         );
 
         LOGGER.info(
