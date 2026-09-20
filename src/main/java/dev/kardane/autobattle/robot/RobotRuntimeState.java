@@ -11,6 +11,7 @@ public final class RobotRuntimeState {
 
     public void markDamaged(long tick) {
         lastDamageTick = tick;
+        nextRegenTick = Long.MAX_VALUE;
     }
 
     public long lastDamageTick() {
