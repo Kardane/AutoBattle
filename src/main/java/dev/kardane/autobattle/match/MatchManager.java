@@ -35,6 +35,7 @@ import java.util.UUID;
 
 public final class MatchManager {
     private final AutoBattleConfig config;
+    private final RobotRegistry robotRegistry;
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
     private final DamageRules damageRules = new DamageRules();
@@ -43,7 +44,7 @@ public final class MatchManager {
     private final PlayerCommandService commandService;
     private final JevDecisionService decisionService;
     private final UiCoordinator ui;
-    private final MatchSession session;
+    private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
 
@@ -59,6 +60,7 @@ public final class MatchManager {
         UiCoordinator ui
     ) {
         this.config = config;
+        this.robotRegistry = robotRegistry;
         this.robotFactory = robotFactory;
         this.planExecutor = planExecutor;
         this.commandService = commandService;
@@ -69,11 +71,7 @@ public final class MatchManager {
             robotFactory,
             planExecutor
         );
-        this.session = new MatchSession(
-            UUID.randomUUID(),
-            robotRegistry,
-            new CoreController(config.arena())
-        );
+        this.session = createSession();
     }
 
     public AutoBattleConfig config() {
@@ -305,18 +303,44 @@ public final class MatchManager {
     }
 
     public boolean leave(ServerPlayer player) {
+        MinecraftServer server =
+            ((ServerLevel) player.level()).getServer();
+
+        return leave(player, server);
+    }
+
+    public boolean leave(
+        ServerPlayer player,
+        MinecraftServer server
+    ) {
         UUID uuid = player.getUUID();
+        PlayerSlot slot = session.player(uuid).orElse(null);
 
-        if (session.phase() != MatchPhase.LOBBY) {
-            session.player(uuid).ifPresent(PlayerSlot::forfeit);
+        if (slot == null || slot.forfeited()) {
             return false;
         }
 
-        if (session.player(uuid).isEmpty()) {
-            return false;
+        if (session.phase() == MatchPhase.LOBBY) {
+            session.removePlayer(uuid);
+            return true;
         }
 
-        session.removePlayer(uuid);
+        if (session.currentRound() == 0
+            && (session.phase() == MatchPhase.DOCTRINE_SETUP
+                || session.phase() == MatchPhase.COUNTDOWN)) {
+            session.removePlayer(uuid);
+            returnToLobbyAfterSetupAbort(server);
+            return true;
+        }
+
+        forfeitParticipant(uuid);
+
+        if (activePlayerCount() == 0) {
+            resetToFreshLobby(server);
+            return true;
+        }
+
+        advanceAfterForfeit(server);
         return true;
     }
 
@@ -340,15 +364,24 @@ public final class MatchManager {
         return session.players().size();
     }
 
+    public int activePlayerCount() {
+        return (int) session.players().stream()
+            .filter(slot -> !slot.forfeited())
+            .count();
+    }
+
     public int readyCount() {
         return (int) session.players().stream()
+            .filter(slot -> !slot.forfeited())
             .filter(PlayerSlot::ready)
             .count();
     }
 
     public boolean canStart() {
-        return playerCount() >= config.minimumPlayers()
-            && readyCount() == playerCount();
+        int activePlayers = activePlayerCount();
+
+        return activePlayers >= config.minimumPlayers()
+            && readyCount() == activePlayers;
     }
 
     public boolean beginDoctrineSetupIfReady(
@@ -369,7 +402,7 @@ public final class MatchManager {
     }
 
     public boolean allDoctrinesSubmitted() {
-        return playerCount() >= config.minimumPlayers()
+        return activePlayerCount() >= config.minimumPlayers()
             && session.players().stream()
                 .filter(slot -> !slot.forfeited())
                 .allMatch(slot -> slot.doctrine().isPresent());
@@ -409,23 +442,7 @@ public final class MatchManager {
         MinecraftServer server =
             ((ServerLevel) player.level()).getServer();
 
-        if (session.currentRound() >= config.roundCount()) {
-            session.setPhase(
-                MatchPhase.FINISHED,
-                serverTick
-            );
-            ui.onFinished(server, session);
-            return true;
-        }
-
-        resetReviewReady();
-
-        session.setPhase(
-            MatchPhase.DOCTRINE_EDIT,
-            serverTick
-        );
-
-        ui.onDoctrineEdit(server, session);
+        advanceFromReview(server);
         return true;
     }
 
@@ -476,12 +493,12 @@ public final class MatchManager {
             .filter(slot -> !slot.forfeited())
             .count();
 
-        if (eligiblePlayers < config.minimumPlayers()) {
-            return false;
-        }
-
-        if (session.currentRound() == 0
-            && !allDoctrinesSubmitted()) {
+        if (session.currentRound() == 0) {
+            if (eligiblePlayers < config.minimumPlayers()
+                || !allDoctrinesSubmitted()) {
+                return false;
+            }
+        } else if (eligiblePlayers == 0L) {
             return false;
         }
 
@@ -605,8 +622,104 @@ public final class MatchManager {
                 .orElse("none");
     }
 
-    public void handleDisconnect(ServerPlayer player) {
-        leave(player);
+    public void handleDisconnect(
+        ServerPlayer player,
+        MinecraftServer server
+    ) {
+        leave(player, server);
+    }
+
+    private MatchSession createSession() {
+        return new MatchSession(
+            UUID.randomUUID(),
+            robotRegistry,
+            new CoreController(config.arena())
+        );
+    }
+
+    private void forfeitParticipant(UUID ownerUuid) {
+        session.player(ownerUuid).ifPresent(PlayerSlot::forfeit);
+        planExecutor.removeOwner(ownerUuid);
+        combatTracker.clearFor(ownerUuid);
+        session.core().removeParticipant(ownerUuid);
+
+        pendingDamage.entrySet().removeIf(entry -> {
+            PendingRobotDamage damage = entry.getValue();
+            return ownerUuid.equals(damage.attackerOwnerUuid())
+                || ownerUuid.equals(damage.victimOwnerUuid());
+        });
+
+        requestRedecisionForTargetDeath(ownerUuid);
+    }
+
+    private void advanceAfterForfeit(MinecraftServer server) {
+        if (session.phase() == MatchPhase.ROUND_REVIEW
+            && allActivePlayersReadyForReview()) {
+            advanceFromReview(server);
+            return;
+        }
+
+        if (session.phase() == MatchPhase.DOCTRINE_EDIT
+            && allActivePlayersReadyForReview()) {
+            session.setPhase(
+                MatchPhase.COUNTDOWN,
+                serverTick
+            );
+        }
+    }
+
+    private void advanceFromReview(MinecraftServer server) {
+        if (session.currentRound() >= config.roundCount()) {
+            MatchSession finished = session;
+
+            finished.setPhase(
+                MatchPhase.FINISHED,
+                serverTick
+            );
+            ui.onFinished(server, finished);
+            resetToFreshLobby(server);
+            return;
+        }
+
+        resetReviewReady();
+
+        session.setPhase(
+            MatchPhase.DOCTRINE_EDIT,
+            serverTick
+        );
+
+        ui.onDoctrineEdit(server, session);
+    }
+
+    private void returnToLobbyAfterSetupAbort(
+        MinecraftServer server
+    ) {
+        planExecutor.clear();
+        combatTracker.reset();
+        pendingDamage.clear();
+        session.core().reset();
+
+        for (PlayerSlot slot : session.players()) {
+            slot.setReady(false);
+            slot.runtime().resetForRound();
+        }
+
+        session.setPhase(
+            MatchPhase.LOBBY,
+            serverTick
+        );
+
+        ui.cleanup(server);
+    }
+
+    private void resetToFreshLobby(
+        MinecraftServer server
+    ) {
+        planExecutor.clear();
+        combatTracker.reset();
+        pendingDamage.clear();
+        ui.cleanup(server);
+        session = createSession();
     }
 
     private void applyRobotDamage(
