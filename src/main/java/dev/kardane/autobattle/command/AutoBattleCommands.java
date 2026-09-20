@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.kardane.autobattle.config.ConfigReloadResult;
 import dev.kardane.autobattle.config.ConfigReloadService;
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
@@ -29,6 +30,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 public final class AutoBattleCommands {
+    private static LanguageService language;
+
     private AutoBattleCommands() {
     }
 
@@ -39,8 +42,14 @@ public final class AutoBattleCommands {
         DoctrineService doctrineService,
         PlayerCommandService commandService,
         RoundReviewService reviewService,
-        ConfigReloadService configReloadService
+        ConfigReloadService configReloadService,
+        LanguageService languageService
     ) {
+        language = java.util.Objects.requireNonNull(
+            languageService,
+            "languageService"
+        );
+
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
                 registerTree(
@@ -373,6 +382,15 @@ public final class AutoBattleCommands {
 
 
 
+
+    private static Component message(
+        String key,
+        Object... placeholders
+    ) {
+        return Component.literal(
+            language.format(key, placeholders)
+        );
+    }
 
     private static int debugRobot(
         CommandSourceStack source,
