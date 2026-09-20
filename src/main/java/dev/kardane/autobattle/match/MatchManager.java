@@ -1,19 +1,31 @@
 package dev.kardane.autobattle.match;
 
+import dev.kardane.autobattle.AutoBattleConstants;
+import dev.kardane.autobattle.combat.CombatTracker;
+import dev.kardane.autobattle.combat.DamageRules;
+import dev.kardane.autobattle.combat.KillResolution;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.SpawnPoint;
 import dev.kardane.autobattle.core.CoreController;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
+import dev.kardane.autobattle.robot.RobotRespawnManager;
+import dev.kardane.autobattle.robot.RobotRuntimeState;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.tactics.PlanExecutor;
+import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -22,7 +34,12 @@ public final class MatchManager {
     private final AutoBattleConfig config;
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
+    private final DamageRules damageRules = new DamageRules();
+    private final CombatTracker combatTracker = new CombatTracker();
+    private final RobotRespawnManager respawnManager;
     private final MatchSession session;
+    private final Map<UUID, PendingRobotDamage> pendingDamage =
+        new HashMap<>();
 
     private long serverTick;
 
@@ -35,6 +52,11 @@ public final class MatchManager {
         this.config = config;
         this.robotFactory = robotFactory;
         this.planExecutor = planExecutor;
+        this.respawnManager = new RobotRespawnManager(
+            config,
+            robotFactory,
+            planExecutor
+        );
         this.session = new MatchSession(
             UUID.randomUUID(),
             robotRegistry,
@@ -61,11 +83,154 @@ public final class MatchManager {
             return;
         }
 
+        respawnManager.tick(server, session, serverTick);
+        tickRegen();
         session.core().tick(session, serverTick);
 
         if (session.roundState().expired(serverTick)) {
             stopPrototypeRound();
         }
+    }
+
+    public boolean allowDamage(
+        LivingEntity victim,
+        DamageSource source,
+        float amount
+    ) {
+        boolean allowed = damageRules.allowDamage(
+            victim,
+            source,
+            this
+        );
+
+        if (!allowed) {
+            return false;
+        }
+
+        if (!(victim instanceof RobotZombie victimRobot)) {
+            return true;
+        }
+
+        Entity attackerEntity = source.getEntity();
+
+        if (!(attackerEntity instanceof RobotZombie attackerRobot)) {
+            return true;
+        }
+
+        if (amount <= 0.0F) {
+            return true;
+        }
+
+        pendingDamage.put(
+            victimRobot.getUUID(),
+            new PendingRobotDamage(
+                attackerRobot.ownerUuid(),
+                victimRobot.ownerUuid(),
+                amount,
+                serverTick
+            )
+        );
+
+        return true;
+    }
+
+    public void handleAfterDamage(
+        LivingEntity victim,
+        DamageSource source,
+        float baseDamageTaken,
+        float damageTaken,
+        boolean blocked
+    ) {
+        if (!(victim instanceof RobotZombie victimRobot)) {
+            return;
+        }
+
+        PendingRobotDamage pending =
+            pendingDamage.remove(victimRobot.getUUID());
+
+        if (pending == null || blocked || damageTaken <= 0.0F) {
+            return;
+        }
+
+        applyRobotDamage(
+            pending,
+            damageTaken
+        );
+    }
+
+    public void handleAfterDeath(
+        LivingEntity victim,
+        DamageSource source
+    ) {
+        if (!(victim instanceof RobotZombie victimRobot)) {
+            return;
+        }
+
+        if (!victimRobot.matchId().equals(session.matchId())) {
+            return;
+        }
+
+        PendingRobotDamage pending =
+            pendingDamage.remove(victimRobot.getUUID());
+
+        if (pending != null) {
+            applyRobotDamage(
+                pending,
+                Math.min(
+                    pending.amount(),
+                    RobotFactory.MAX_HEALTH
+                )
+            );
+        }
+
+        UUID killerOwner = null;
+        Entity killerEntity = source.getEntity();
+
+        if (killerEntity instanceof RobotZombie killerRobot
+            && killerRobot.matchId().equals(session.matchId())
+            && !killerRobot.ownerUuid()
+                .equals(victimRobot.ownerUuid())) {
+            killerOwner = killerRobot.ownerUuid();
+        }
+
+        KillResolution resolution = combatTracker.resolveDeath(
+            victimRobot.ownerUuid(),
+            killerOwner,
+            serverTick
+        );
+
+        session.player(victimRobot.ownerUuid()).ifPresent(
+            slot -> slot.score().addDeath()
+        );
+
+        resolution.killerOwner().flatMap(session::player).ifPresent(
+            slot -> slot.score().addKill(
+                AutoBattleConstants.KILL_SCORE
+            )
+        );
+
+        for (UUID assistOwner : resolution.assistOwnerUuids()) {
+            session.player(assistOwner).ifPresent(
+                slot -> slot.score().addAssist(
+                    AutoBattleConstants.ASSIST_SCORE
+                )
+            );
+        }
+
+        RobotController deadController = planExecutor
+            .byOwner(victimRobot.ownerUuid())
+            .orElse(null);
+
+        if (deadController != null) {
+            respawnManager.schedule(
+                deadController,
+                serverTick
+            );
+        }
+
+        requestRedecisionForTargetDeath(
+            victimRobot.ownerUuid()
+        );
     }
 
     public boolean join(ServerPlayer player) {
@@ -162,6 +327,8 @@ public final class MatchManager {
         }
 
         planExecutor.clear();
+        combatTracker.reset();
+        pendingDamage.clear();
         session.core().reset();
 
         int nextRound = session.currentRound() <= 0
@@ -225,7 +392,10 @@ public final class MatchManager {
         }
 
         session.roundState().stop();
+        respawnManager.cancelAll(session);
         planExecutor.clear();
+        combatTracker.reset();
+        pendingDamage.clear();
 
         session.setPhase(
             MatchPhase.ROUND_REVIEW,
@@ -252,6 +422,98 @@ public final class MatchManager {
         leave(player);
     }
 
+    private void applyRobotDamage(
+        PendingRobotDamage pending,
+        float amount
+    ) {
+        combatTracker.recordDamage(
+            pending.attackerOwnerUuid(),
+            pending.victimOwnerUuid(),
+            amount,
+            serverTick
+        );
+
+        session.player(pending.attackerOwnerUuid()).ifPresent(
+            slot -> slot.score().addDamageDealt(amount)
+        );
+
+        session.player(pending.victimOwnerUuid()).ifPresent(
+            slot -> slot.score().addDamageTaken(amount)
+        );
+
+        planExecutor.byOwner(
+            pending.victimOwnerUuid()
+        ).ifPresent(controller -> {
+            RobotRuntimeState runtime = controller.runtime();
+            runtime.markDamaged(serverTick);
+            controller.requestRedecision();
+        });
+    }
+
+    private void tickRegen() {
+        for (RobotController controller :
+            session.robots().alive()) {
+            RobotZombie robot = controller.entity()
+                .orElse(null);
+
+            if (robot == null) {
+                continue;
+            }
+
+            if (robot.getHealth() >= robot.getMaxHealth()) {
+                controller.runtime().setNextRegenTick(
+                    Long.MAX_VALUE
+                );
+                continue;
+            }
+
+            RobotRuntimeState runtime = controller.runtime();
+
+            if (!runtime.regenEligible(
+                serverTick,
+                AutoBattleConstants.REGEN_DELAY_TICKS
+            )) {
+                continue;
+            }
+
+            if (runtime.nextRegenTick() == Long.MAX_VALUE) {
+                runtime.setNextRegenTick(serverTick);
+            }
+
+            if (serverTick < runtime.nextRegenTick()) {
+                continue;
+            }
+
+            robot.setHealth(
+                Math.min(
+                    robot.getMaxHealth(),
+                    robot.getHealth()
+                        + AutoBattleConstants.REGEN_AMOUNT
+                )
+            );
+
+            runtime.setNextRegenTick(
+                serverTick
+                    + AutoBattleConstants.REGEN_INTERVAL_TICKS
+            );
+        }
+    }
+
+    private void requestRedecisionForTargetDeath(
+        UUID deadOwnerUuid
+    ) {
+        for (RobotController controller :
+            session.robots().all()) {
+            controller.currentPlan().ifPresent(plan -> {
+                if (deadOwnerUuid.equals(
+                    plan.targetOwnerUuid()
+                )) {
+                    controller.requestRedecision();
+                }
+            });
+        }
+    }
+
     private int nextFreeSlot() {
         Set<Integer> used = new HashSet<>();
 
@@ -268,5 +530,13 @@ public final class MatchManager {
         }
 
         return -1;
+    }
+
+    private record PendingRobotDamage(
+        UUID attackerOwnerUuid,
+        UUID victimOwnerUuid,
+        float amount,
+        long tick
+    ) {
     }
 }
