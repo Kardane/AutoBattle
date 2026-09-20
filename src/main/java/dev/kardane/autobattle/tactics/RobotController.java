@@ -139,7 +139,6 @@ public final class RobotController {
         currentPlan = plan;
         planStartedTick = currentTick;
         lastDecisionTick = currentTick;
-        redecisionRequested = false;
         return true;
     }
 
@@ -156,6 +155,7 @@ public final class RobotController {
     public void markDecisionRequested(long generation) {
         decisionPending = true;
         decisionGeneration = generation;
+        redecisionRequested = false;
     }
 
     public void markDecisionCompleted(
@@ -168,7 +168,6 @@ public final class RobotController {
 
         decisionPending = false;
         lastDecisionTick = currentTick;
-        redecisionRequested = false;
     }
 
     public void requestRedecision() {
