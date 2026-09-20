@@ -122,7 +122,7 @@ Jev decisions remain in:
 logs/autobattle/decisions/<match-id>.jsonl
 ```
 
-The shared match ID makes the two files easy to join during later analysis.
+The shared match ID makes the two files easy to join during later analysis. Decision rows also record the requested tick and observed tick, selected versus effective plan, robot/target/destination coordinates, distance to CORE, and distance to the active target.
 
 ## TypeSafe Jev
 
