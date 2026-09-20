@@ -3,6 +3,7 @@ package dev.kardane.autobattle.ui;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
+import dev.kardane.autobattle.review.RoundReviewService;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.server.MinecraftServer;
@@ -17,6 +18,8 @@ public final class UiCoordinator {
 
     private final AutoBattleConfig config;
     private final PlanExecutor planExecutor;
+    private final DialogService dialogs;
+    private final RoundReviewService reviewService;
     private final BossBarUi bossBar = new BossBarUi();
     private final ActionBarUi actionBar = new ActionBarUi();
     private final ChatAnnouncer chat = new ChatAnnouncer();
@@ -26,12 +29,33 @@ public final class UiCoordinator {
 
     public UiCoordinator(
         AutoBattleConfig config,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        DialogService dialogs,
+        RoundReviewService reviewService
     ) {
         this.config = Objects.requireNonNull(config, "config");
         this.planExecutor = Objects.requireNonNull(
             planExecutor,
             "planExecutor"
+        );
+        this.dialogs = Objects.requireNonNull(
+            dialogs,
+            "dialogs"
+        );
+        this.reviewService = Objects.requireNonNull(
+            reviewService,
+            "reviewService"
+        );
+    }
+
+    public void onDoctrineSetup(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        forEachActivePlayer(
+            server,
+            match,
+            dialogs::openDoctrineSetup
         );
     }
 
@@ -150,10 +174,88 @@ public final class UiCoordinator {
         bossBar.clear();
         sidebar.clear(server);
         lastCoreOwner = null;
+
+        for (PlayerSlot slot : match.players()) {
+            if (slot.forfeited()) {
+                continue;
+            }
+
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player == null) {
+                continue;
+            }
+
+            dialogs.openRoundReview(
+                player,
+                reviewService.build(
+                    match,
+                    slot.playerUuid()
+                )
+            );
+        }
+    }
+
+    public void onDoctrineEdit(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        for (PlayerSlot slot : match.players()) {
+            if (slot.forfeited()) {
+                continue;
+            }
+
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player == null
+                || slot.doctrine().isEmpty()) {
+                continue;
+            }
+
+            dialogs.openDoctrineEditSelect(
+                player,
+                slot.doctrine().orElseThrow()
+            );
+        }
+    }
+
+    public void onFinished(
+        MinecraftServer server,
+        MatchSession match
+    ) {
+        forEachActivePlayer(
+            server,
+            match,
+            player -> dialogs.openFinalResult(
+                player,
+                match
+            )
+        );
     }
 
     public void cleanup() {
         bossBar.clear();
         lastCoreOwner = null;
+    }
+
+    private void forEachActivePlayer(
+        MinecraftServer server,
+        MatchSession match,
+        java.util.function.Consumer<ServerPlayer> action
+    ) {
+        for (PlayerSlot slot : match.players()) {
+            if (slot.forfeited()) {
+                continue;
+            }
+
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null) {
+                action.accept(player);
+            }
+        }
     }
 }
