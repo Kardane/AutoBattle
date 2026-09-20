@@ -4,6 +4,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import dev.kardane.autobattle.config.ConfigReloadResult;
+import dev.kardane.autobattle.config.ConfigReloadService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
@@ -36,7 +38,8 @@ public final class AutoBattleCommands {
         PlanExecutor planExecutor,
         DoctrineService doctrineService,
         PlayerCommandService commandService,
-        RoundReviewService reviewService
+        RoundReviewService reviewService,
+        ConfigReloadService configReloadService
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
@@ -47,7 +50,8 @@ public final class AutoBattleCommands {
                     planExecutor,
                     doctrineService,
                     commandService,
-                    reviewService
+                    reviewService,
+                    configReloadService
                 )
         );
     }
@@ -59,7 +63,8 @@ public final class AutoBattleCommands {
         PlanExecutor planExecutor,
         DoctrineService doctrineService,
         PlayerCommandService commandService,
-        RoundReviewService reviewService
+        RoundReviewService reviewService,
+        ConfigReloadService configReloadService
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -227,6 +232,15 @@ public final class AutoBattleCommands {
                 .then(
                     Commands.literal("admin")
                         .requires(source -> source.hasPermission(2))
+                        .then(
+                            Commands.literal("reload")
+                                .executes(context ->
+                                    reloadConfig(
+                                        context.getSource(),
+                                        configReloadService
+                                    )
+                                )
+                        )
                         .then(
                             Commands.literal("startround")
                                 .executes(context ->
@@ -662,6 +676,28 @@ public final class AutoBattleCommands {
             pos.getY() + 0.5D,
             pos.getZ() + 0.5D
         );
+    }
+
+    private static int reloadConfig(
+        CommandSourceStack source,
+        ConfigReloadService configReloadService
+    ) {
+        ConfigReloadResult result =
+            configReloadService.reload();
+
+        if (!result.success()) {
+            source.sendFailure(
+                Component.literal(result.message())
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(result.message()),
+            true
+        );
+
+        return 1;
     }
 
     private static int startPrototypeRound(
