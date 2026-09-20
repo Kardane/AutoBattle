@@ -514,7 +514,7 @@ public final class DialogService {
     private ActionButton closeButton(String label) {
         return new ActionButton(
             new CommonButtonData(
-                Component.literal(label),
+                language.componentText(label),
                 BUTTON_WIDTH
             ),
             Optional.empty()
@@ -528,7 +528,7 @@ public final class DialogService {
     ) {
         return new ActionButton(
             new CommonButtonData(
-                Component.literal(label),
+                language.componentText(label),
                 BUTTON_WIDTH
             ),
             Optional.of(
