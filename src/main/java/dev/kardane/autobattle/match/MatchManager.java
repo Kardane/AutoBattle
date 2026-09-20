@@ -87,6 +87,10 @@ public final class MatchManager {
             return;
         }
 
+        for (PlayerSlot slot : session.players()) {
+            slot.runtime().clearExpiredCommand(serverTick);
+        }
+
         respawnManager.tick(server, session, serverTick);
         tickRegen();
         session.core().tick(session, serverTick);
