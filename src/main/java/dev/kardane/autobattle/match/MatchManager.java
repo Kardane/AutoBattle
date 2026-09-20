@@ -333,7 +333,9 @@ public final class MatchManager {
             && readyCount() == playerCount();
     }
 
-    public boolean beginDoctrineSetupIfReady() {
+    public boolean beginDoctrineSetupIfReady(
+        MinecraftServer server
+    ) {
         if (session.phase() != MatchPhase.LOBBY
             || !canStart()) {
             return false;
@@ -343,6 +345,8 @@ public final class MatchManager {
             MatchPhase.DOCTRINE_SETUP,
             serverTick
         );
+
+        ui.onDoctrineSetup(server, session);
 
         return true;
     }
