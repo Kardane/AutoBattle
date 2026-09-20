@@ -24,7 +24,11 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         RobotFactory robotFactory = new RobotFactory();
         RobotRegistry robotRegistry = new RobotRegistry();
 
-        matchManager = new MatchManager(config);
+        matchManager = new MatchManager(
+            config,
+            robotRegistry
+        );
+
         planExecutor = new PlanExecutor(robotRegistry);
 
         AutoBattleCommands.register(
