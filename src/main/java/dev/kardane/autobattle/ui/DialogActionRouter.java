@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.AutoBattleMod;
+import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
 import dev.kardane.autobattle.match.MatchManager;
@@ -19,12 +20,14 @@ public final class DialogActionRouter {
     private final DoctrineService doctrineService;
     private final RoundReviewService reviewService;
     private final DialogService dialogs;
+    private final LanguageService language;
 
     public DialogActionRouter(
         MatchManager matchManager,
         DoctrineService doctrineService,
         RoundReviewService reviewService,
-        DialogService dialogs
+        DialogService dialogs,
+        LanguageService language
     ) {
         this.matchManager = Objects.requireNonNull(
             matchManager,
@@ -41,6 +44,10 @@ public final class DialogActionRouter {
         this.dialogs = Objects.requireNonNull(
             dialogs,
             "dialogs"
+        );
+        this.language = Objects.requireNonNull(
+            language,
+            "language"
         );
     }
 
@@ -91,8 +98,11 @@ public final class DialogActionRouter {
         if (!result.success()) {
             player.sendSystemMessage(
                 Component.literal(
-                    "Doctrine rejected: "
-                        + result.error().name()
+                    language.format(
+                        "chat.doctrine-rejected",
+                        "error",
+                        result.error().name()
+                    )
                 )
             );
 
@@ -102,9 +112,11 @@ public final class DialogActionRouter {
 
         player.sendSystemMessage(
             Component.literal(
-                "Doctrine v"
-                    + result.doctrine().version()
-                    + " saved."
+                language.format(
+                    "chat.doctrine-saved",
+                    "version",
+                    result.doctrine().version()
+                )
             )
         );
 
@@ -118,7 +130,9 @@ public final class DialogActionRouter {
         if (!matchManager.markReviewReady(player)) {
             player.sendSystemMessage(
                 Component.literal(
-                    "Review ready is unavailable in the current phase."
+                    language.text(
+                        "chat.review-ready-unavailable"
+                    )
                 )
             );
             return true;
@@ -143,7 +157,9 @@ public final class DialogActionRouter {
             || line > 3) {
             player.sendSystemMessage(
                 Component.literal(
-                    "Doctrine edit selection is invalid."
+                    language.text(
+                        "chat.doctrine-selection-invalid"
+                    )
                 )
             );
             return true;
@@ -179,8 +195,11 @@ public final class DialogActionRouter {
         if (!result.success()) {
             player.sendSystemMessage(
                 Component.literal(
-                    "Doctrine edit rejected: "
-                        + result.error().name()
+                    language.format(
+                        "chat.doctrine-edit-rejected",
+                        "error",
+                        result.error().name()
+                    )
                 )
             );
 
@@ -205,11 +224,13 @@ public final class DialogActionRouter {
 
         player.sendSystemMessage(
             Component.literal(
-                "Doctrine "
-                    + line
-                    + " updated to version "
-                    + result.doctrine().version()
-                    + "."
+                language.format(
+                    "chat.doctrine-updated",
+                    "line",
+                    line,
+                    "version",
+                    result.doctrine().version()
+                )
             )
         );
 
@@ -223,7 +244,9 @@ public final class DialogActionRouter {
         if (!matchManager.markDoctrineEditDone(player)) {
             player.sendSystemMessage(
                 Component.literal(
-                    "Doctrine keep is unavailable in the current phase."
+                    language.text(
+                        "chat.doctrine-keep-unavailable"
+                    )
                 )
             );
             return true;
@@ -231,7 +254,9 @@ public final class DialogActionRouter {
 
         player.sendSystemMessage(
             Component.literal(
-                "Doctrine kept unchanged."
+                language.text(
+                    "chat.doctrine-kept"
+                )
             )
         );
 
