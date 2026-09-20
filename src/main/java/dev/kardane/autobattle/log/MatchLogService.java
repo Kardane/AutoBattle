@@ -414,6 +414,26 @@ public final class MatchLogService {
                 "doctrine",
                 doctrine.lines()
             );
+            player.put(
+                "doctrineNormalized",
+                doctrine.normalizedLines()
+            );
+            player.put(
+                "doctrineNormalizationHash",
+                doctrine.normalizationHash()
+            );
+            player.put(
+                "doctrineNormalizerModel",
+                doctrine.normalizerModel()
+            );
+            player.put(
+                "doctrineNormalizationStatus",
+                doctrine.normalizationStatus().name()
+            );
+            player.put(
+                "doctrineNormalizationError",
+                doctrine.normalizationError()
+            );
         });
 
         var score = slot.score();

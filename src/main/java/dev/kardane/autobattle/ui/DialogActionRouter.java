@@ -87,42 +87,51 @@ public final class DialogActionRouter {
         ServerPlayer player,
         CompoundTag payload
     ) {
-        DoctrineEditResult result =
-            doctrineService.submitInitial(
-                matchManager.session(),
-                player,
-                payload.getStringOr("d1", ""),
-                payload.getStringOr("d2", ""),
-                payload.getStringOr("d3", "")
-            );
+        var future = doctrineService.submitInitialAsync(
+            player.getServer(),
+            matchManager.session(),
+            player,
+            payload.getStringOr("d1", ""),
+            payload.getStringOr("d2", ""),
+            payload.getStringOr("d3", "")
+        );
 
-        if (!result.success()) {
+        // Close immediately so repeated clicks cannot enqueue duplicate
+        // normalizations while the HTTP request runs off-thread.
+        clearDialog(player);
+
+        future.thenAccept(result -> {
+            if (!result.success()) {
+                player.sendSystemMessage(
+                    Component.literal(
+                        language.format(
+                            "chat.doctrine-rejected",
+                            "error",
+                            result.error().name()
+                        )
+                    )
+                );
+
+                if (matchManager.session().phase()
+                    == dev.kardane.autobattle.match.MatchPhase.DOCTRINE_SETUP) {
+                    dialogs.openDoctrineSetup(player);
+                }
+                return;
+            }
+
             player.sendSystemMessage(
                 Component.literal(
                     language.format(
-                        "chat.doctrine-rejected",
-                        "error",
-                        result.error().name()
+                        "chat.doctrine-saved",
+                        "version",
+                        result.doctrine().version()
                     )
                 )
             );
 
-            dialogs.openDoctrineSetup(player);
-            return true;
-        }
+            matchManager.beginCountdownIfDoctrinesReady();
+        });
 
-        player.sendSystemMessage(
-            Component.literal(
-                language.format(
-                    "chat.doctrine-saved",
-                    "version",
-                    result.doctrine().version()
-                )
-            )
-        );
-
-        clearDialog(player);
-        matchManager.beginCountdownIfDoctrinesReady();
         return true;
     }
 
@@ -198,67 +207,83 @@ public final class DialogActionRouter {
             ""
         );
 
-        DoctrineEditResult result =
-            doctrineService.replaceLine(
-                matchManager.session(),
-                player,
-                line - 1,
-                text
-            );
+        var future = doctrineService.replaceLineAsync(
+            player.getServer(),
+            matchManager.session(),
+            player,
+            line - 1,
+            text
+        );
 
-        if (!result.success()) {
+        clearDialog(player);
+
+        future.thenAccept(result -> {
+            if (!result.success()) {
+                player.sendSystemMessage(
+                    Component.literal(
+                        language.format(
+                            "chat.doctrine-edit-rejected",
+                            "error",
+                            result.error().name()
+                        )
+                    )
+                );
+
+                if (retryableDoctrineError(result)
+                    && line >= 1
+                    && line <= 3
+                    && matchManager.session().phase()
+                        == dev.kardane.autobattle.match.MatchPhase.DOCTRINE_EDIT
+                    && matchManager.session()
+                        .player(player.getUUID())
+                        .flatMap(slot -> slot.doctrine())
+                        .isPresent()) {
+                    dialogs.openDoctrineLine(
+                        player,
+                        line,
+                        matchManager.session()
+                            .player(player.getUUID())
+                            .flatMap(slot -> slot.doctrine())
+                            .orElseThrow()
+                    );
+                }
+                return;
+            }
+
             player.sendSystemMessage(
                 Component.literal(
                     language.format(
-                        "chat.doctrine-edit-rejected",
-                        "error",
-                        result.error().name()
+                        "chat.doctrine-updated",
+                        "line",
+                        line,
+                        "version",
+                        result.doctrine().version()
                     )
                 )
             );
 
-            if (retryableDoctrineError(result)
-                && line >= 1
-                && line <= 3
-                && matchManager.session()
-                    .player(player.getUUID())
-                    .flatMap(slot -> slot.doctrine())
-                    .isPresent()) {
-                dialogs.openDoctrineLine(
-                    player,
-                    line,
-                    matchManager.session()
-                        .player(player.getUUID())
-                        .flatMap(slot -> slot.doctrine())
-                        .orElseThrow()
-                );
-            } else {
-                clearDialog(player);
-            }
+            matchManager.markDoctrineEditDone(player);
+        });
 
-            return true;
-        }
-
-        player.sendSystemMessage(
-            Component.literal(
-                language.format(
-                    "chat.doctrine-updated",
-                    "line",
-                    line,
-                    "version",
-                    result.doctrine().version()
-                )
-            )
-        );
-
-        clearDialog(player);
-        matchManager.markDoctrineEditDone(player);
         return true;
     }
 
     private boolean keepDoctrine(
         ServerPlayer player
     ) {
+        if (doctrineService.normalizationPending(
+            player.getUUID()
+        )) {
+            player.sendSystemMessage(
+                Component.literal(
+                    language.text(
+                        "chat.doctrine-keep-unavailable"
+                    )
+                )
+            );
+            return true;
+        }
+
         if (!matchManager.markDoctrineEditDone(player)) {
             player.sendSystemMessage(
                 Component.literal(

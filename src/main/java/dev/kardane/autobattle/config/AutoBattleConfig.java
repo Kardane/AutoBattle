@@ -10,6 +10,7 @@ public record AutoBattleConfig(
     MatchRulesConfig match,
     AiConfig ai,
     DoctrineConfig doctrine,
+    DoctrineNormalizerConfig doctrineNormalizer,
     RobotConfig robot,
     ScoringConfig scoring,
     CoreRulesConfig core,
@@ -20,6 +21,10 @@ public record AutoBattleConfig(
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(ai, "ai");
         Objects.requireNonNull(doctrine, "doctrine");
+        Objects.requireNonNull(
+            doctrineNormalizer,
+            "doctrineNormalizer"
+        );
         Objects.requireNonNull(robot, "robot");
         Objects.requireNonNull(scoring, "scoring");
         Objects.requireNonNull(core, "core");
@@ -91,6 +96,13 @@ public record AutoBattleConfig(
             ),
             new DoctrineConfig(
                 AutoBattleConstants.DOCTRINE_MAX_LINE_LENGTH
+            ),
+            new DoctrineNormalizerConfig(
+                true,
+                "",
+                "https://api.openai.com",
+                "gpt-5.6-luna",
+                2500
             ),
             new RobotConfig(
                 AutoBattleConstants.ROBOT_MAX_HEALTH,

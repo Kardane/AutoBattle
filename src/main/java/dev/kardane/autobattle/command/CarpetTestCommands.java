@@ -15,7 +15,10 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 public final class CarpetTestCommands {
     private static final String[] BOT_NAMES = {
@@ -388,6 +391,10 @@ public final class CarpetTestCommands {
             return 0;
         }
 
+        List<CompletableFuture<DoctrineEditResult>>
+            submissions = new ArrayList<>();
+        List<String> submittedBots = new ArrayList<>();
+
         for (int index = 0;
              index < players.length;
              index++) {
@@ -402,8 +409,9 @@ public final class CarpetTestCommands {
 
             String[] doctrine = DOCTRINES[index];
 
-            DoctrineEditResult result =
-                doctrineService.submitInitial(
+            CompletableFuture<DoctrineEditResult> future =
+                doctrineService.submitInitialAsync(
+                    source.getServer(),
                     matchManager.session(),
                     player,
                     doctrine[0],
@@ -411,39 +419,100 @@ public final class CarpetTestCommands {
                     doctrine[2]
                 );
 
-            if (!result.success()) {
-                source.sendFailure(
-                    message(
-                        language,
-                        "commands.test.doctrine-failed",
-                        "bot",
-                        BOT_NAMES[index],
-                        "error",
-                        result.error().name()
-                    )
-                );
-                return 0;
+            if (future.isDone()) {
+                DoctrineEditResult immediate =
+                    future.getNow(null);
+
+                if (immediate != null
+                    && !immediate.success()) {
+                    source.sendFailure(
+                        message(
+                            language,
+                            "commands.test.doctrine-failed",
+                            "bot",
+                            BOT_NAMES[index],
+                            "error",
+                            immediate.error().name()
+                        )
+                    );
+                    return 0;
+                }
             }
+
+            submissions.add(future);
+            submittedBots.add(BOT_NAMES[index]);
         }
 
-        matchManager.beginCountdownIfDoctrinesReady();
+        if (submissions.isEmpty()) {
+            matchManager.beginCountdownIfDoctrinesReady();
 
-        MatchPhase nextPhase =
-            matchManager.session().phase();
+            MatchPhase nextPhase =
+                matchManager.session().phase();
 
-        source.sendSuccess(
-            () -> message(
-                language,
-                "commands.test.setup-success",
-                "phase",
-                nextPhase.name()
-            ),
-            true
+            source.sendSuccess(
+                () -> message(
+                    language,
+                    "commands.test.setup-success",
+                    "phase",
+                    nextPhase.name()
+                ),
+                true
+            );
+
+            return nextPhase == MatchPhase.COUNTDOWN
+                ? 1
+                : 0;
+        }
+
+        CompletableFuture.allOf(
+            submissions.toArray(
+                CompletableFuture[]::new
+            )
+        ).thenRun(() ->
+            source.getServer().execute(() -> {
+                for (int index = 0;
+                     index < submissions.size();
+                     index++) {
+                    DoctrineEditResult result =
+                        submissions.get(index)
+                            .getNow(null);
+
+                    if (result == null
+                        || !result.success()) {
+                        source.sendFailure(
+                            message(
+                                language,
+                                "commands.test.doctrine-failed",
+                                "bot",
+                                submittedBots.get(index),
+                                "error",
+                                result == null
+                                    ? "UNKNOWN"
+                                    : result.error().name()
+                            )
+                        );
+                        return;
+                    }
+                }
+
+                matchManager.beginCountdownIfDoctrinesReady();
+
+                MatchPhase nextPhase =
+                    matchManager.session().phase();
+
+                source.sendSuccess(
+                    () -> message(
+                        language,
+                        "commands.test.setup-success",
+                        "phase",
+                        nextPhase.name()
+                    ),
+                    true
+                );
+            })
         );
 
-        return nextPhase == MatchPhase.COUNTDOWN
-            ? 1
-            : 0;
+        return 1;
     }
 
     private static int reviewBots(

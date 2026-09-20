@@ -167,7 +167,8 @@ public final class AutoBattleCommands {
                                 .executes(context ->
                                     keepDoctrine(
                                         context.getSource(),
-                                        matchManager
+                                        matchManager,
+                                        doctrineService
                                     )
                                 )
                         )
@@ -902,7 +903,8 @@ public final class AutoBattleCommands {
     ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
 
-        DoctrineEditResult result = doctrineService.submitInitial(
+        var future = doctrineService.submitInitialAsync(
+            source.getServer(),
             matchManager.session(),
             player,
             line1,
@@ -910,34 +912,53 @@ public final class AutoBattleCommands {
             line3
         );
 
-        if (!result.success()) {
-            source.sendFailure(
-                message(
-                    "commands.doctrine-rejected",
-                    "error",
-                    result.error().name()
-                )
-            );
-            return 0;
+        if (future.isDone()) {
+            DoctrineEditResult immediate =
+                future.getNow(null);
+
+            if (immediate != null
+                && !immediate.success()) {
+                source.sendFailure(
+                    message(
+                        "commands.doctrine-rejected",
+                        "error",
+                        immediate.error().name()
+                    )
+                );
+                return 0;
+            }
         }
 
-        source.sendSuccess(
-            () -> message(
-                "commands.doctrine-saved",
-                "version",
-                result.doctrine().version()
-            ),
-            false
-        );
+        future.thenAccept(result -> {
+            if (!result.success()) {
+                source.sendFailure(
+                    message(
+                        "commands.doctrine-rejected",
+                        "error",
+                        result.error().name()
+                    )
+                );
+                return;
+            }
 
-        if (matchManager.beginCountdownIfDoctrinesReady()) {
             source.sendSuccess(
                 () -> message(
-                    "commands.doctrines-ready"
+                    "commands.doctrine-saved",
+                    "version",
+                    result.doctrine().version()
                 ),
-                true
+                false
             );
-        }
+
+            if (matchManager.beginCountdownIfDoctrinesReady()) {
+                source.sendSuccess(
+                    () -> message(
+                        "commands.doctrines-ready"
+                    ),
+                    true
+                );
+            }
+        });
 
         return 1;
     }
@@ -951,36 +972,56 @@ public final class AutoBattleCommands {
     ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
 
-        DoctrineEditResult result = doctrineService.replaceLine(
+        var future = doctrineService.replaceLineAsync(
+            source.getServer(),
             matchManager.session(),
             player,
             oneBasedLine - 1,
             text
         );
 
-        if (!result.success()) {
-            source.sendFailure(
-                message(
-                    "commands.doctrine-edit-rejected",
-                    "error",
-                    result.error().name()
-                )
-            );
-            return 0;
+        if (future.isDone()) {
+            DoctrineEditResult immediate =
+                future.getNow(null);
+
+            if (immediate != null
+                && !immediate.success()) {
+                source.sendFailure(
+                    message(
+                        "commands.doctrine-edit-rejected",
+                        "error",
+                        immediate.error().name()
+                    )
+                );
+                return 0;
+            }
         }
 
-        source.sendSuccess(
-            () -> message(
-                "commands.doctrine-line-updated",
-                "line",
-                oneBasedLine,
-                "version",
-                result.doctrine().version()
-            ),
-            false
-        );
+        future.thenAccept(result -> {
+            if (!result.success()) {
+                source.sendFailure(
+                    message(
+                        "commands.doctrine-edit-rejected",
+                        "error",
+                        result.error().name()
+                    )
+                );
+                return;
+            }
 
-        matchManager.markDoctrineEditDone(player);
+            source.sendSuccess(
+                () -> message(
+                    "commands.doctrine-line-updated",
+                    "line",
+                    oneBasedLine,
+                    "version",
+                    result.doctrine().version()
+                ),
+                false
+            );
+
+            matchManager.markDoctrineEditDone(player);
+        });
 
         return 1;
     }
@@ -1177,9 +1218,21 @@ public final class AutoBattleCommands {
 
     private static int keepDoctrine(
         CommandSourceStack source,
-        MatchManager matchManager
+        MatchManager matchManager,
+        DoctrineService doctrineService
     ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
+
+        if (doctrineService.normalizationPending(
+            player.getUUID()
+        )) {
+            source.sendFailure(
+                message(
+                    "commands.doctrine-keep-invalid"
+                )
+            );
+            return 0;
+        }
 
         if (!matchManager.markDoctrineEditDone(player)) {
             source.sendFailure(
