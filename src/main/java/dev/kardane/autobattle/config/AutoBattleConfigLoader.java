@@ -15,12 +15,15 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public final class AutoBattleConfigLoader {
-    public static final String FILE_NAME = "autobattle.yml";
+    public static final String DIRECTORY_NAME = "autobattle";
+    public static final String FILE_NAME = "config.yml";
+    public static final String LEGACY_FILE_NAME = "autobattle.yml";
 
     private static final String DEFAULT_YAML = """
         # AutoBattle server configuration
@@ -127,8 +130,10 @@ public final class AutoBattleConfigLoader {
         Path path = configPath();
 
         try {
+            Files.createDirectories(path.getParent());
+            migrateLegacyConfig(path);
+
             if (Files.notExists(path)) {
-                Files.createDirectories(path.getParent());
                 Files.writeString(
                     path,
                     DEFAULT_YAML,
@@ -169,10 +174,38 @@ public final class AutoBattleConfigLoader {
         }
     }
 
-    public static Path configPath() {
+    public static Path configDirectory() {
         return FabricLoader.getInstance()
             .getConfigDir()
+            .resolve(DIRECTORY_NAME);
+    }
+
+    public static Path configPath() {
+        return configDirectory()
             .resolve(FILE_NAME);
+    }
+
+    public static Path legacyConfigPath() {
+        return FabricLoader.getInstance()
+            .getConfigDir()
+            .resolve(LEGACY_FILE_NAME);
+    }
+
+    private static void migrateLegacyConfig(
+        Path target
+    ) throws IOException {
+        Path legacy = legacyConfigPath();
+
+        if (Files.exists(target)
+            || Files.notExists(legacy)) {
+            return;
+        }
+
+        Files.move(
+            legacy,
+            target,
+            StandardCopyOption.REPLACE_EXISTING
+        );
     }
 
     private static AutoBattleConfig parse(
