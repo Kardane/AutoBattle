@@ -59,7 +59,7 @@ public final class RobotStateSerializer {
 
             boolean alive = enemy != null && enemy.alive();
             float hp = 0.0F;
-            double distance = Double.POSITIVE_INFINITY;
+            Double distance = null;
             boolean attackingSelf = false;
 
             if (alive) {
