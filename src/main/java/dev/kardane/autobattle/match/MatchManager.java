@@ -1,10 +1,16 @@
 package dev.kardane.autobattle.match;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.config.SpawnPoint;
 import dev.kardane.autobattle.core.CoreController;
 import dev.kardane.autobattle.robot.RobotColor;
+import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
+import dev.kardane.autobattle.robot.RobotZombie;
+import dev.kardane.autobattle.tactics.PlanExecutor;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashSet;
@@ -14,15 +20,21 @@ import java.util.UUID;
 
 public final class MatchManager {
     private final AutoBattleConfig config;
+    private final RobotFactory robotFactory;
+    private final PlanExecutor planExecutor;
     private final MatchSession session;
 
     private long serverTick;
 
     public MatchManager(
         AutoBattleConfig config,
-        RobotRegistry robotRegistry
+        RobotRegistry robotRegistry,
+        RobotFactory robotFactory,
+        PlanExecutor planExecutor
     ) {
         this.config = config;
+        this.robotFactory = robotFactory;
+        this.planExecutor = planExecutor;
         this.session = new MatchSession(
             UUID.randomUUID(),
             robotRegistry,
@@ -44,7 +56,16 @@ public final class MatchManager {
 
     public void tick(MinecraftServer server) {
         serverTick++;
+
+        if (session.phase() != MatchPhase.ROUND_ACTIVE) {
+            return;
+        }
+
         session.core().tick(session, serverTick);
+
+        if (session.roundState().expired(serverTick)) {
+            stopPrototypeRound();
+        }
     }
 
     public boolean join(ServerPlayer player) {
@@ -119,14 +140,111 @@ public final class MatchManager {
             && readyCount() == playerCount();
     }
 
+    public boolean startPrototypeRound(MinecraftServer server) {
+        if (session.phase() == MatchPhase.ROUND_ACTIVE) {
+            return false;
+        }
+
+        long eligiblePlayers = session.players().stream()
+            .filter(slot -> !slot.forfeited())
+            .count();
+
+        if (eligiblePlayers < 2L) {
+            return false;
+        }
+
+        ServerLevel level = server.getLevel(
+            config.arena().dimension()
+        );
+
+        if (level == null) {
+            return false;
+        }
+
+        planExecutor.clear();
+        session.core().reset();
+
+        int nextRound = session.currentRound() <= 0
+            ? 1
+            : Math.min(
+                session.currentRound() + 1,
+                config.roundCount()
+            );
+
+        session.setCurrentRound(nextRound);
+
+        for (PlayerSlot slot : session.players()) {
+            if (slot.forfeited()) {
+                continue;
+            }
+
+            SpawnPoint spawn = config.arena()
+                .robotSpawns()
+                .get(slot.slotIndex());
+
+            ServerPlayer owner = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            Component ownerName = owner != null
+                ? owner.getName()
+                : slot.color().displayName();
+
+            slot.score().resetRound();
+            slot.runtime().resetForRound();
+
+            RobotZombie robot = robotFactory.spawnRobot(
+                level,
+                session.matchId(),
+                slot.playerUuid(),
+                ownerName,
+                slot.color(),
+                spawn.position(),
+                spawn.yaw()
+            );
+
+            planExecutor.register(robot, serverTick);
+        }
+
+        session.roundState().start(
+            nextRound,
+            serverTick,
+            config.roundDurationTicks()
+        );
+
+        session.setPhase(
+            MatchPhase.ROUND_ACTIVE,
+            serverTick
+        );
+
+        return true;
+    }
+
+    public boolean stopPrototypeRound() {
+        if (session.phase() != MatchPhase.ROUND_ACTIVE) {
+            return false;
+        }
+
+        session.roundState().stop();
+        planExecutor.clear();
+
+        session.setPhase(
+            MatchPhase.ROUND_REVIEW,
+            serverTick
+        );
+
+        return true;
+    }
+
     public String statusLine() {
         return "phase=" + session.phase()
+            + ", round=" + session.currentRound()
             + ", players=" + playerCount()
             + ", ready=" + readyCount()
             + ", minimum=" + config.minimumPlayers()
             + ", coreOwner="
             + session.core().state().ownerUuid()
-                .map(UUID::toString)
+                .flatMap(session::player)
+                .map(slot -> slot.color().name())
                 .orElse("none");
     }
 
