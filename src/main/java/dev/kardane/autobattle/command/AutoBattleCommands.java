@@ -3,11 +3,14 @@ package dev.kardane.autobattle.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import dev.kardane.autobattle.AutoBattleConstants;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotZombie;
+import dev.kardane.autobattle.tactics.PlanExecutor;
+import dev.kardane.autobattle.tactics.TacticalPlan;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -25,18 +28,25 @@ public final class AutoBattleCommands {
 
     public static void register(
         MatchManager matchManager,
-        RobotFactory robotFactory
+        RobotFactory robotFactory,
+        PlanExecutor planExecutor
     ) {
         CommandRegistrationCallback.EVENT.register(
             (dispatcher, registryAccess, environment) ->
-                registerTree(dispatcher, matchManager, robotFactory)
+                registerTree(
+                    dispatcher,
+                    matchManager,
+                    robotFactory,
+                    planExecutor
+                )
         );
     }
 
     private static void registerTree(
         CommandDispatcher<CommandSourceStack> dispatcher,
         MatchManager matchManager,
-        RobotFactory robotFactory
+        RobotFactory robotFactory,
+        PlanExecutor planExecutor
     ) {
         dispatcher.register(
             Commands.literal("autobattle")
@@ -78,6 +88,7 @@ public final class AutoBattleCommands {
                                         spawnTestRobot(
                                             context.getSource(),
                                             robotFactory,
+                                            planExecutor,
                                             StringArgumentType.getString(
                                                 context,
                                                 "color"
@@ -91,7 +102,9 @@ public final class AutoBattleCommands {
                                 .executes(context ->
                                     spawnTestFight(
                                         context.getSource(),
-                                        robotFactory
+                                        matchManager,
+                                        robotFactory,
+                                        planExecutor
                                     )
                                 )
                         )
@@ -200,7 +213,9 @@ public final class AutoBattleCommands {
 
     private static int spawnTestFight(
         CommandSourceStack source,
-        RobotFactory robotFactory
+        MatchManager matchManager,
+        RobotFactory robotFactory,
+        PlanExecutor planExecutor
     ) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         ServerLevel level = (ServerLevel) player.level();
@@ -245,8 +260,31 @@ public final class AutoBattleCommands {
             player.getYRot()
         );
 
-        red.setTarget(blue);
-        blue.setTarget(red);
+        planExecutor.register(red);
+        planExecutor.register(blue);
+
+        long currentTick = matchManager.serverTick();
+        long lockTicks = AutoBattleConstants.DECISION_LOCK_TICKS;
+
+        planExecutor.assignPlan(
+            red,
+            TacticalPlan.engage(
+                blue.getUUID(),
+                currentTick,
+                lockTicks
+            ),
+            currentTick
+        );
+
+        planExecutor.assignPlan(
+            blue,
+            TacticalPlan.engage(
+                red.getUUID(),
+                currentTick,
+                lockTicks
+            ),
+            currentTick
+        );
 
         source.sendSuccess(
             () -> Component.literal(
@@ -261,6 +299,7 @@ public final class AutoBattleCommands {
     private static int spawnTestRobot(
         CommandSourceStack source,
         RobotFactory robotFactory,
+        PlanExecutor planExecutor,
         String rawColor
     ) throws CommandSyntaxException {
         RobotColor color;
@@ -280,6 +319,7 @@ public final class AutoBattleCommands {
 
         ServerPlayer player = source.getPlayerOrException();
         RobotZombie robot = robotFactory.spawnTestRobot(player, color);
+        planExecutor.register(robot);
 
         source.sendSuccess(
             () -> Component.literal("Spawned test robot ")
