@@ -511,6 +511,7 @@ public final class JevDecisionService {
                 context.matchId(),
                 context.round(),
                 context.requestedTick(),
+                currentTick,
                 context.ownerUuid(),
                 context.robotEntityUuid(),
                 controller.color(),
@@ -519,6 +520,9 @@ public final class JevDecisionService {
                 response == null
                     ? null
                     : response.selectedPlanId(),
+                controller.currentPlan()
+                    .map(TacticalPlan::externalId)
+                    .orElse(null),
                 response == null
                     ? 0.0D
                     : response.confidence(),
@@ -527,11 +531,32 @@ public final class JevDecisionService {
                     : response.probabilities(),
                 latencyMs,
                 fallback,
-                result
+                result,
+                controller.positionSnapshot()
+                    .map(DecisionPosition::from)
+                    .orElse(null),
+                controller.targetPositionSnapshot()
+                    .map(DecisionPosition::from)
+                    .orElse(null),
+                controller.destinationSnapshot()
+                    .map(DecisionPosition::from)
+                    .orElse(null),
+                finiteOrNull(
+                    controller.distanceToCoreSnapshot()
+                ),
+                finiteOrNull(
+                    controller.distanceToTargetSnapshot()
+                )
             )
         );
 
         return result;
+    }
+
+    private Double finiteOrNull(double value) {
+        return Double.isFinite(value)
+            ? value
+            : null;
     }
 
     private void finishDecision(

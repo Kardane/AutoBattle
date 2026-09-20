@@ -96,7 +96,7 @@ public final class ConfigReloadService {
 
             planExecutor.clear();
             robotFactory.reloadConfig(next.robot());
-            planExecutor.reloadConfig(next.robot());
+            planExecutor.reloadConfig(next);
             commandService.reloadConfig(next);
             decisionService.reload(nextClient, next);
             doctrineValidator.reloadMaxLineLength(

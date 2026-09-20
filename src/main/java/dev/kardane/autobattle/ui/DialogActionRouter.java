@@ -9,6 +9,7 @@ import dev.kardane.autobattle.review.RoundReviewService;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.common.ClientboundClearDialogPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -120,6 +121,7 @@ public final class DialogActionRouter {
             )
         );
 
+        clearDialog(player);
         matchManager.beginCountdownIfDoctrinesReady();
         return true;
     }
@@ -127,7 +129,14 @@ public final class DialogActionRouter {
     private boolean markReviewReady(
         ServerPlayer player
     ) {
-        if (!matchManager.markReviewReady(player)) {
+        var slot = matchManager.session()
+            .player(player.getUUID())
+            .orElse(null);
+
+        if (slot == null
+            || slot.forfeited()
+            || matchManager.session().phase()
+                != dev.kardane.autobattle.match.MatchPhase.ROUND_REVIEW) {
             player.sendSystemMessage(
                 Component.literal(
                     language.text(
@@ -138,6 +147,10 @@ public final class DialogActionRouter {
             return true;
         }
 
+        // Clear the completed review before MatchManager can
+        // synchronously open the next doctrine/final dialog.
+        clearDialog(player);
+        matchManager.markReviewReady(player);
         return true;
     }
 
@@ -234,6 +247,7 @@ public final class DialogActionRouter {
             )
         );
 
+        clearDialog(player);
         matchManager.markDoctrineEditDone(player);
         return true;
     }
@@ -260,7 +274,14 @@ public final class DialogActionRouter {
             )
         );
 
+        clearDialog(player);
         return true;
+    }
+
+    private void clearDialog(ServerPlayer player) {
+        player.connection.send(
+            ClientboundClearDialogPacket.INSTANCE
+        );
     }
 
     private CompoundTag compound(

@@ -10,17 +10,24 @@ public record DecisionLog(
     UUID matchId,
     int round,
     long serverTick,
+    long observedTick,
     UUID ownerUuid,
     UUID robotEntityUuid,
     RobotColor color,
     int doctrineVersion,
     List<String> validPlanIds,
     String selectedPlanId,
+    String effectivePlanId,
     double confidence,
     Map<String, Double> probabilities,
     long latencyMs,
     boolean fallback,
-    DecisionApplyResult applyResult
+    DecisionApplyResult applyResult,
+    DecisionPosition robotPosition,
+    DecisionPosition targetPosition,
+    DecisionPosition destination,
+    Double distanceToCore,
+    Double distanceToTarget
 ) {
     public DecisionLog {
         validPlanIds = List.copyOf(validPlanIds);
