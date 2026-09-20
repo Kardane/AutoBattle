@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.ui;
 
+import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.network.chat.Component;
@@ -67,6 +68,68 @@ public final class BossBarUi {
             ? 0.0F
             : (float) remainingTicks / (float) durationTicks;
 
+        event.setProgress(
+            Math.max(0.0F, Math.min(1.0F, progress))
+        );
+    }
+
+    public void updateIntermission(
+        MatchSession match,
+        long currentTick,
+        int totalRounds,
+        int countdownTicks
+    ) {
+        MatchPhase phase = match.phase();
+        String label;
+        float progress = 1.0F;
+
+        if (phase == MatchPhase.COUNTDOWN) {
+            long elapsed = Math.max(
+                0L,
+                currentTick - match.phaseStartedTick()
+            );
+            long remaining = Math.max(
+                0L,
+                countdownTicks - elapsed
+            );
+
+            int seconds = (int) Math.ceil(
+                remaining / 20.0D
+            );
+
+            int nextRound = Math.min(
+                totalRounds,
+                Math.max(1, match.currentRound() + 1)
+            );
+
+            label = "ROUND "
+                + nextRound
+                + "/"
+                + totalRounds
+                + " | STARTING IN "
+                + seconds
+                + "s";
+
+            progress = countdownTicks <= 0
+                ? 0.0F
+                : (float) remaining / (float) countdownTicks;
+        } else if (phase == MatchPhase.ROUND_REVIEW) {
+            label = "ROUND "
+                + match.currentRound()
+                + "/"
+                + totalRounds
+                + " | REVIEW";
+        } else if (phase == MatchPhase.DOCTRINE_EDIT) {
+            label = "ROUND "
+                + match.currentRound()
+                + "/"
+                + totalRounds
+                + " | DOCTRINE EDIT";
+        } else {
+            label = "AUTO BATTLE | " + phase.name();
+        }
+
+        event.setName(Component.literal(label));
         event.setProgress(
             Math.max(0.0F, Math.min(1.0F, progress))
         );
