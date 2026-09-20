@@ -351,7 +351,9 @@ public final class MatchManager {
             && readyCount() == playerCount();
     }
 
-    public boolean beginDoctrineSetupIfReady() {
+    public boolean beginDoctrineSetupIfReady(
+        MinecraftServer server
+    ) {
         if (session.phase() != MatchPhase.LOBBY
             || !canStart()) {
             return false;
@@ -362,6 +364,7 @@ public final class MatchManager {
             serverTick
         );
 
+        ui.onDoctrineSetup(server, session);
         return true;
     }
 
@@ -403,11 +406,15 @@ public final class MatchManager {
             return true;
         }
 
+        MinecraftServer server =
+            ((ServerLevel) player.level()).getServer();
+
         if (session.currentRound() >= config.roundCount()) {
             session.setPhase(
                 MatchPhase.FINISHED,
                 serverTick
             );
+            ui.onFinished(server, session);
             return true;
         }
 
@@ -418,6 +425,7 @@ public final class MatchManager {
             serverTick
         );
 
+        ui.onDoctrineEdit(server, session);
         return true;
     }
 
