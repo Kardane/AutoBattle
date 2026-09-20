@@ -3,6 +3,7 @@ package dev.kardane.autobattle.robot;
 public final class RobotRuntimeState {
     private long lastDamageTick = Long.MIN_VALUE;
     private long nextRegenTick = Long.MAX_VALUE;
+    private long nextAttackTick;
     private int currentAttackers;
     private long respawnAtTick = -1L;
     private boolean alive;
@@ -41,6 +42,20 @@ public final class RobotRuntimeState {
         this.nextRegenTick = nextRegenTick;
     }
 
+    public boolean attackReady(long currentTick) {
+        return alive
+            && !frozen
+            && currentTick >= nextAttackTick;
+    }
+
+    public void markAttack(
+        long currentTick,
+        int cooldownTicks
+    ) {
+        nextAttackTick = currentTick
+            + Math.max(1, cooldownTicks);
+    }
+
     public int currentAttackers() {
         return currentAttackers;
     }
@@ -75,6 +90,7 @@ public final class RobotRuntimeState {
         respawnAtTick = -1L;
         lastDamageTick = Long.MIN_VALUE;
         nextRegenTick = Long.MAX_VALUE;
+        nextAttackTick = tick;
         currentAttackers = 0;
         frozen = false;
     }

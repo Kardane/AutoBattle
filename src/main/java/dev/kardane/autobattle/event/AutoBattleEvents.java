@@ -22,6 +22,7 @@ public final class AutoBattleEvents {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             matchManager.tick(server);
             planExecutor.tick(matchManager.serverTick());
+            matchManager.resolveRobotCombat();
         });
 
         ServerPlayConnectionEvents.DISCONNECT.register(

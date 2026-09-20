@@ -116,6 +116,10 @@ public final class RobotFactory {
             robot.getAttribute(Attributes.FOLLOW_RANGE),
             config.followRange()
         );
+        setBaseValue(
+            robot.getAttribute(Attributes.KNOCKBACK_RESISTANCE),
+            1.0D
+        );
         setBaseValue(robot.getAttribute(Attributes.ARMOR), 0.0D);
         setBaseValue(
             robot.getAttribute(Attributes.ARMOR_TOUGHNESS),

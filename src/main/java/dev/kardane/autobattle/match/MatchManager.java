@@ -25,7 +25,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionHand;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -36,6 +39,9 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class MatchManager {
+    private static final int ROBOT_ATTACK_INTERVAL_TICKS = 20;
+    private static final double ROBOT_ATTACK_RANGE_SQR = 4.0D;
+
     private AutoBattleConfig config;
     private final RobotRegistry robotRegistry;
     private final RobotFactory robotFactory;
@@ -127,6 +133,129 @@ public final class MatchManager {
 
     public long serverTick() {
         return serverTick;
+    }
+
+    public void resolveRobotCombat() {
+        if (session.phase() != MatchPhase.ROUND_ACTIVE) {
+            return;
+        }
+
+        List<RobotAttackIntent> intents =
+            new ArrayList<>();
+
+        for (RobotController controller :
+            session.robots().alive()) {
+            RobotRuntimeState runtime =
+                controller.runtime();
+
+            if (!runtime.attackReady(serverTick)) {
+                continue;
+            }
+
+            RobotZombie attacker = controller.entity()
+                .orElse(null);
+
+            if (attacker == null
+                || !attacker.isAlive()) {
+                continue;
+            }
+
+            LivingEntity target = attacker.getTarget();
+
+            if (!(target instanceof RobotZombie victim)
+                || !victim.isAlive()
+                || victim.isRemoved()
+                || !victim.matchId().equals(
+                    session.matchId()
+                )
+                || victim.ownerUuid().equals(
+                    attacker.ownerUuid()
+                )
+                || attacker.distanceToSqr(victim)
+                    > ROBOT_ATTACK_RANGE_SQR) {
+                continue;
+            }
+
+            runtime.markAttack(
+                serverTick,
+                ROBOT_ATTACK_INTERVAL_TICKS
+            );
+
+            attacker.swing(InteractionHand.MAIN_HAND);
+
+            intents.add(
+                new RobotAttackIntent(
+                    attacker,
+                    victim,
+                    (float) config.robot()
+                        .attackDamage()
+                )
+            );
+        }
+
+        intents.sort(
+            (left, right) -> Long.compareUnsigned(
+                attackOrderKey(left),
+                attackOrderKey(right)
+            )
+        );
+
+        for (RobotAttackIntent intent : intents) {
+            applyRobotAttack(intent);
+        }
+    }
+
+    private void applyRobotAttack(
+        RobotAttackIntent intent
+    ) {
+        RobotZombie victim = intent.victim();
+
+        if (!victim.isAlive()
+            || victim.isRemoved()
+            || !(victim.level()
+                instanceof ServerLevel level)) {
+            return;
+        }
+
+        // AutoBattle resolves all attack intents for this tick
+        // before applying damage. Reset vanilla hurt immunity so
+        // each queued robot hit is counted independently.
+        victim.invulnerableTime = 0;
+
+        victim.hurtServer(
+            level,
+            intent.attacker()
+                .damageSources()
+                .mobAttack(intent.attacker()),
+            intent.damage()
+        );
+    }
+
+    private long attackOrderKey(
+        RobotAttackIntent intent
+    ) {
+        UUID attacker = intent.attacker().ownerUuid();
+        UUID victim = intent.victim().ownerUuid();
+
+        long value = serverTick
+            ^ attacker.getMostSignificantBits()
+            ^ Long.rotateLeft(
+                attacker.getLeastSignificantBits(),
+                17
+            )
+            ^ Long.rotateLeft(
+                victim.getMostSignificantBits(),
+                31
+            )
+            ^ victim.getLeastSignificantBits();
+
+        value ^= value >>> 33;
+        value *= 0xff51afd7ed558ccdL;
+        value ^= value >>> 33;
+        value *= 0xc4ceb9fe1a85ec53L;
+        value ^= value >>> 33;
+
+        return value;
     }
 
     public void tick(MinecraftServer server) {
@@ -1005,6 +1134,13 @@ public final class MatchManager {
         }
 
         return -1;
+    }
+
+    private record RobotAttackIntent(
+        RobotZombie attacker,
+        RobotZombie victim,
+        float damage
+    ) {
     }
 
     private record PendingRobotDamage(
