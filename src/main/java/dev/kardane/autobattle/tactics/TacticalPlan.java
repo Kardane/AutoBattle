@@ -8,16 +8,20 @@ import java.util.UUID;
 
 public record TacticalPlan(
     TacticalPlanType type,
-    UUID targetEntityUuid,
+    UUID targetOwnerUuid,
     Vec3 destination,
+    String externalId,
     long issuedTick,
     long lockUntilTick
 ) {
     public TacticalPlan {
         Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(externalId, "externalId");
 
         if (issuedTick < 0L) {
-            throw new IllegalArgumentException("issuedTick must not be negative");
+            throw new IllegalArgumentException(
+                "issuedTick must not be negative"
+            );
         }
 
         if (lockUntilTick < issuedTick) {
@@ -29,8 +33,8 @@ public record TacticalPlan(
         switch (type) {
             case ENGAGE, CHASE, RETREAT ->
                 Objects.requireNonNull(
-                    targetEntityUuid,
-                    type + " requires targetEntityUuid"
+                    targetOwnerUuid,
+                    type + " requires targetOwnerUuid"
                 );
             case CAPTURE, DEFEND, REPOSITION ->
                 Objects.requireNonNull(
@@ -41,39 +45,45 @@ public record TacticalPlan(
     }
 
     public static TacticalPlan engage(
-        UUID targetEntityUuid,
+        UUID targetOwnerUuid,
+        String externalId,
         long currentTick,
         long lockTicks
     ) {
         return targeted(
             TacticalPlanType.ENGAGE,
-            targetEntityUuid,
+            targetOwnerUuid,
+            externalId,
             currentTick,
             lockTicks
         );
     }
 
     public static TacticalPlan chase(
-        UUID targetEntityUuid,
+        UUID targetOwnerUuid,
+        String externalId,
         long currentTick,
         long lockTicks
     ) {
         return targeted(
             TacticalPlanType.CHASE,
-            targetEntityUuid,
+            targetOwnerUuid,
+            externalId,
             currentTick,
             lockTicks
         );
     }
 
     public static TacticalPlan retreat(
-        UUID threatEntityUuid,
+        UUID threatOwnerUuid,
+        String externalId,
         long currentTick,
         long lockTicks
     ) {
         return targeted(
             TacticalPlanType.RETREAT,
-            threatEntityUuid,
+            threatOwnerUuid,
+            externalId,
             currentTick,
             lockTicks
         );
@@ -87,6 +97,7 @@ public record TacticalPlan(
         return positional(
             TacticalPlanType.CAPTURE,
             destination,
+            "CAPTURE_CORE",
             currentTick,
             lockTicks
         );
@@ -100,6 +111,7 @@ public record TacticalPlan(
         return positional(
             TacticalPlanType.DEFEND,
             destination,
+            "DEFEND_CORE",
             currentTick,
             lockTicks
         );
@@ -113,13 +125,14 @@ public record TacticalPlan(
         return positional(
             TacticalPlanType.REPOSITION,
             destination,
+            "REPOSITION",
             currentTick,
             lockTicks
         );
     }
 
-    public Optional<UUID> targetEntity() {
-        return Optional.ofNullable(targetEntityUuid);
+    public Optional<UUID> targetOwner() {
+        return Optional.ofNullable(targetOwnerUuid);
     }
 
     public Optional<Vec3> destinationPosition() {
@@ -132,17 +145,19 @@ public record TacticalPlan(
 
     private static TacticalPlan targeted(
         TacticalPlanType type,
-        UUID targetEntityUuid,
+        UUID targetOwnerUuid,
+        String externalId,
         long currentTick,
         long lockTicks
     ) {
-        Objects.requireNonNull(targetEntityUuid, "targetEntityUuid");
+        Objects.requireNonNull(targetOwnerUuid, "targetOwnerUuid");
         validateLockTicks(lockTicks);
 
         return new TacticalPlan(
             type,
-            targetEntityUuid,
+            targetOwnerUuid,
             null,
+            externalId,
             currentTick,
             currentTick + lockTicks
         );
@@ -151,6 +166,7 @@ public record TacticalPlan(
     private static TacticalPlan positional(
         TacticalPlanType type,
         Vec3 destination,
+        String externalId,
         long currentTick,
         long lockTicks
     ) {
@@ -161,6 +177,7 @@ public record TacticalPlan(
             type,
             null,
             destination,
+            externalId,
             currentTick,
             currentTick + lockTicks
         );
