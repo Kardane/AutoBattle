@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.command;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.log.MatchLogService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -13,15 +14,21 @@ import java.util.Objects;
 public final class PlayerCommandService {
     private AutoBattleConfig config;
     private final PlanExecutor planExecutor;
+    private final MatchLogService matchLogs;
 
     public PlayerCommandService(
         AutoBattleConfig config,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        MatchLogService matchLogs
     ) {
         this.config = Objects.requireNonNull(config, "config");
         this.planExecutor = Objects.requireNonNull(
             planExecutor,
             "planExecutor"
+        );
+        this.matchLogs = Objects.requireNonNull(
+            matchLogs,
+            "matchLogs"
         );
     }
 
@@ -71,6 +78,13 @@ public final class PlayerCommandService {
 
         slot.runtime().activateCommand(command);
         controller.requestRedecision();
+
+        matchLogs.playerCommand(
+            match,
+            slot,
+            type,
+            currentTick
+        );
 
         return CommandUseResult.SUCCESS;
     }
