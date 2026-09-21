@@ -10,6 +10,7 @@ public record DecisionContext(
     int doctrineVersion,
     long generation,
     long requestedTick,
+    DecisionTrigger trigger,
     int candidatesHash
 ) {
 }
