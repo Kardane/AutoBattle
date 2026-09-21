@@ -623,6 +623,8 @@ public final class JevDecisionService {
         DecisionContext context = request.context();
         RobotSnapshot self = request.snapshot().self();
         CoreSnapshot core = request.snapshot().core();
+        TeamContextSnapshot teamContext =
+            request.snapshot().teamContext();
 
         long latencyMs = response != null
             ? response.latencyMs()
@@ -661,8 +663,8 @@ public final class JevDecisionService {
 
         logs.append(
             new DecisionLog(
-                2,
-                "DECOMPOSED_V2",
+                3,
+                "TEAM_DECOMPOSED_V3",
                 modVersion(),
                 context.trigger(),
                 context.matchId(),
@@ -672,6 +674,8 @@ public final class JevDecisionService {
                 context.ownerUuid(),
                 context.robotEntityUuid(),
                 controller.color(),
+                controller.targetId(),
+                controller.team(),
                 context.doctrineVersion(),
                 request.validPlanIds(),
                 applyValidPlanIds,
@@ -696,7 +700,13 @@ public final class JevDecisionService {
                 self.hp(),
                 self.maxHp(),
                 hpRatio,
-                core.ownerUuid(),
+                teamContext.teamScore(),
+                teamContext.enemyTeamScore(),
+                teamContext.aliveAllies(),
+                teamContext.aliveEnemies(),
+                teamContext.alliesInsideCore(),
+                teamContext.enemiesInsideCore(),
+                core.ownerTeam(),
                 core.contested(),
                 errorClass,
                 errorMessage,
