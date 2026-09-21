@@ -164,6 +164,33 @@ public final class MatchLogService {
             teamScores(match)
         );
 
+        var coreTelemetry = match.core().telemetry();
+        Map<String, Object> core =
+            new LinkedHashMap<>();
+
+        core.put(
+            "emptyTicks",
+            coreTelemetry.emptyTicks()
+        );
+        core.put(
+            "redOnlyTicks",
+            coreTelemetry.redOnlyTicks()
+        );
+        core.put(
+            "blueOnlyTicks",
+            coreTelemetry.blueOnlyTicks()
+        );
+        core.put(
+            "contestedTicks",
+            coreTelemetry.contestedTicks()
+        );
+        core.put(
+            "totalTicks",
+            coreTelemetry.totalTicks()
+        );
+
+        payload.put("coreOccupancy", core);
+
         append(
             match,
             "round_ended",
