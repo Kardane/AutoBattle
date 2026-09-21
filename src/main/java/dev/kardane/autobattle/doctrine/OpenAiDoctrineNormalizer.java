@@ -34,7 +34,6 @@ public final class OpenAiDoctrineNormalizer
         - CAPTURE_CORE: move to and capture CORE.
         - DEFEND_CORE: stay near an owned CORE and defend it.
         - RETREAT: disengage to survive or recover.
-        - REPOSITION: move to a better tactical position without committing to a fight.
         - HP: robot health.
 
         Do not invent team colors or specific enemies. Do not turn vague language into a numeric threshold. Preserve explicit numeric thresholds exactly. Keep the three rules separate and in the same order. Output only the schema fields.
