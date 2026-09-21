@@ -253,7 +253,7 @@ public final class AutoBattleConfigLoader {
         );
     }
 
-    private static AutoBattleConfig parse(
+    static AutoBattleConfig parse(
         Map<String, Object> root
     ) {
         AutoBattleConfig defaults =

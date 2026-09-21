@@ -214,15 +214,25 @@ public final class CoreController {
             return false;
         }
 
-        Vec3 center = center();
-        double deltaX = Math.abs(
-            robot.position().x - center.x
+        return isInsideBounds(
+            robot.position(),
+            center(),
+            radius
         );
-        double deltaZ = Math.abs(
-            robot.position().z - center.z
-        );
+    }
 
-        return deltaX <= radius && deltaZ <= radius;
+    static boolean isInsideBounds(
+        Vec3 position,
+        Vec3 center,
+        double radius
+    ) {
+        double deltaX = Math.abs(position.x - center.x);
+        double deltaY = Math.abs(position.y - center.y);
+        double deltaZ = Math.abs(position.z - center.z);
+
+        return deltaX <= radius
+            && deltaY <= radius
+            && deltaZ <= radius;
     }
 
     public double distanceTo(RobotZombie robot) {

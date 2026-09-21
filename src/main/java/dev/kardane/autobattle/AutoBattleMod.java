@@ -6,6 +6,7 @@ import dev.kardane.autobattle.command.PlayerCommandService;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.AutoBattleConfigLoader;
 import dev.kardane.autobattle.config.ConfigReloadService;
+import dev.kardane.autobattle.config.EffectiveConfigSummary;
 import dev.kardane.autobattle.config.LanguageConfig;
 import dev.kardane.autobattle.config.LanguageConfigLoader;
 import dev.kardane.autobattle.config.LanguageService;
@@ -186,12 +187,11 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         );
 
         LOGGER.info(
-            "AutoBattle initialized (config={}, messages={}, teamSize={}..{}, rounds={})",
-            AutoBattleConfigLoader.configPath(),
-            LanguageConfigLoader.messagePath(),
-            config.minTeamSize(),
-            config.maxTeamSize(),
-            config.roundCount()
+            "AutoBattle initialized (config={}, messages={}, rounds={}, effective={})",
+            AutoBattleConfigLoader.configPath().toAbsolutePath().normalize(),
+            LanguageConfigLoader.messagePath().toAbsolutePath().normalize(),
+            config.roundCount(),
+            EffectiveConfigSummary.describe(config)
         );
     }
 
