@@ -166,7 +166,7 @@ final class TypeSafeJevClientTest {
             "normalizer-model",
             DoctrineNormalizationStatus.NORMALIZED,
             null,
-            "prompt-v2",
+            "prompt-v3",
             1,
             120L,
             200
