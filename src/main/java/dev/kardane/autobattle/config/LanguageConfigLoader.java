@@ -76,9 +76,13 @@ public final class LanguageConfigLoader {
           review-completed: "[AutoBattle] {player} completed the review for round {round}."
           # {player}, {round}
           doctrine-edit-completed: "[AutoBattle] {player} completed doctrine editing for round {round}."
-          final-standings-title: "[AutoBattle] Final standings"
-          # {rank}, {color}, {score}
-          final-standing: "{rank}. {color} - {score} points"
+          # {team}, {red_score}, {blue_score}
+          team-winner: "[AutoBattle] {team} TEAM WINS | RED {red_score} - BLUE {blue_score}"
+          # {red_score}, {blue_score}
+          team-draw: "[AutoBattle] DRAW | RED {red_score} - BLUE {blue_score}"
+          final-standings-title: "[AutoBattle] Personal contributions"
+          # {rank}, {team}, {id}, {score}
+          final-standing: "{rank}. {team} {id} - {score} contribution points"
           # {error}
           doctrine-rejected: "Doctrine rejected: {error}"
           # {version}
@@ -265,8 +269,13 @@ public final class LanguageConfigLoader {
 
           final-result:
             title: "AutoBattle Final Result"
-            # {rank}, {color}, {score}
-            entry: "{rank}. {color} • {score} pts"
+            # {team}
+            team-winner: "{team} TEAM WINS"
+            team-draw: "DRAW"
+            # {red_score}, {blue_score}
+            team-score: "RED {red_score} • BLUE {blue_score}"
+            # {rank}, {team}, {id}, {score}
+            entry: "{rank}. {team} {id} • {score} contribution pts"
             close: "결과 닫기"
         """;
 
