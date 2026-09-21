@@ -47,7 +47,7 @@ public final class CarpetTestCommands {
         {
             "Stay close to CORE and deny captures.",
             "Engage enemies that enter the objective area.",
-            "Reposition instead of chasing too far."
+            "Do not chase enemies too far; prefer ENGAGE over CHASE."
         }
     };
 
