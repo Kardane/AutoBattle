@@ -1435,7 +1435,7 @@ public final class AutoBattleCommands {
             red,
             TacticalPlan.engage(
                 blue.ownerUuid(),
-                "ENGAGE_BLUE",
+                "ENGAGE_B1",
                 currentTick,
                 lockTicks
             ),
@@ -1446,7 +1446,7 @@ public final class AutoBattleCommands {
             blue,
             TacticalPlan.engage(
                 red.ownerUuid(),
-                "ENGAGE_RED",
+                "ENGAGE_R1",
                 currentTick,
                 lockTicks
             ),
@@ -1468,10 +1468,10 @@ public final class AutoBattleCommands {
         PlanExecutor planExecutor,
         String rawColor
     ) throws CommandSyntaxException {
-        RobotColor color;
+        BattleTeam team;
 
         try {
-            color = RobotColor.valueOf(
+            team = BattleTeam.valueOf(
                 rawColor.toUpperCase(Locale.ROOT)
             );
         } catch (IllegalArgumentException exception) {
@@ -1482,14 +1482,14 @@ public final class AutoBattleCommands {
         }
 
         ServerPlayer player = source.getPlayerOrException();
-        RobotZombie robot = robotFactory.spawnTestRobot(player, color);
+        RobotZombie robot = robotFactory.spawnTestRobot(player, team);
         planExecutor.register(robot, matchManager.serverTick());
 
         source.sendSuccess(
             () -> message(
                 "commands.test.robot-spawned",
                 "color",
-                color.name(),
+                team.name(),
                 "entity",
                 robot.getId()
             ),
