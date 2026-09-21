@@ -16,6 +16,15 @@ public final class ScriptedJevClient implements JevClient {
         List<EnemySnapshot> living = snapshot.enemies()
             .stream()
             .filter(EnemySnapshot::alive)
+            .filter(enemy -> {
+                String color = enemy.color().name();
+
+                return request.validPlanIds().contains(
+                    "ENGAGE_" + color
+                ) || request.validPlanIds().contains(
+                    "CHASE_" + color
+                );
+            })
             .toList();
 
         String intentChoice = chooseIntent(
@@ -40,10 +49,15 @@ public final class ScriptedJevClient implements JevClient {
                     .toList()
             );
 
-            String pursuitChoice = choosePursuit(snapshot);
+            List<String> pursuitChoices =
+                availablePursuitStyles(request);
+            String pursuitChoice = choosePursuit(
+                snapshot,
+                pursuitChoices
+            );
             pursuit = deterministic(
                 pursuitChoice,
-                List.of("ENGAGE", "CHASE")
+                pursuitChoices
             );
         }
 
@@ -138,17 +152,42 @@ public final class ScriptedJevClient implements JevClient {
             .name();
     }
 
+    private List<String> availablePursuitStyles(
+        DecisionRequest request
+    ) {
+        java.util.ArrayList<String> styles =
+            new java.util.ArrayList<>();
+
+        if (request.validPlanIds().stream()
+            .anyMatch(id -> id.startsWith("ENGAGE_"))) {
+            styles.add("ENGAGE");
+        }
+
+        if (request.validPlanIds().stream()
+            .anyMatch(id -> id.startsWith("CHASE_"))) {
+            styles.add("CHASE");
+        }
+
+        return List.copyOf(styles);
+    }
+
     private String choosePursuit(
-        RobotDecisionSnapshot snapshot
+        RobotDecisionSnapshot snapshot,
+        List<String> choices
     ) {
         ActiveCommandSnapshot command = snapshot.command();
 
         if (command != null
-            && command.type() == PlayerCommandType.ATTACK) {
+            && command.type() == PlayerCommandType.ATTACK
+            && choices.contains("CHASE")) {
             return "CHASE";
         }
 
-        return "ENGAGE";
+        if (choices.contains("ENGAGE")) {
+            return "ENGAGE";
+        }
+
+        return choices.getFirst();
     }
 
     private ChoiceDecision deterministic(
