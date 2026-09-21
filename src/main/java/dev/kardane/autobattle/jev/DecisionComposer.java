@@ -79,7 +79,7 @@ public final class DecisionComposer {
             );
         }
 
-        String targetColor = target.choice();
+        String targetId = target.choice();
         ChoiceDecision pursuit = response.pursuitStyle();
 
         String style = "ENGAGE";
@@ -95,7 +95,7 @@ public final class DecisionComposer {
             }
         }
 
-        String planId = style + "_" + targetColor;
+        String planId = style + "_" + targetId;
 
         if (currentPlanIds.contains(planId)) {
             return new DecisionComposition(
@@ -105,7 +105,7 @@ public final class DecisionComposer {
             );
         }
 
-        String engagePlan = "ENGAGE_" + targetColor;
+        String engagePlan = "ENGAGE_" + targetId;
 
         if ("CHASE".equals(style)
             && currentPlanIds.contains(engagePlan)) {
@@ -118,9 +118,9 @@ public final class DecisionComposer {
 
         boolean targetStillLegal =
             currentPlanIds.contains(
-                "ENGAGE_" + targetColor
+                "ENGAGE_" + targetId
             ) || currentPlanIds.contains(
-                "CHASE_" + targetColor
+                "CHASE_" + targetId
             );
 
         return new DecisionComposition(
