@@ -303,7 +303,7 @@ public final class AutoBattleCommands {
                             Commands.literal("debug")
                                 .then(
                                     Commands.argument(
-                                        "color",
+                                        "robotId",
                                         StringArgumentType.word()
                                     )
                                     .executes(context ->
@@ -313,7 +313,7 @@ public final class AutoBattleCommands {
                                             planExecutor,
                                             StringArgumentType.getString(
                                                 context,
-                                                "color"
+                                                "robotId"
                                             )
                                         )
                                     )
@@ -323,7 +323,7 @@ public final class AutoBattleCommands {
                             Commands.literal("plan")
                                 .then(
                                     Commands.argument(
-                                        "color",
+                                        "robotId",
                                         StringArgumentType.word()
                                     )
                                     .then(
@@ -338,7 +338,7 @@ public final class AutoBattleCommands {
                                                 planExecutor,
                                                 StringArgumentType.getString(
                                                     context,
-                                                    "color"
+                                                    "robotId"
                                                 ),
                                                 StringArgumentType.getString(
                                                     context,
@@ -349,7 +349,7 @@ public final class AutoBattleCommands {
                                         )
                                         .then(
                                             Commands.argument(
-                                                "targetColor",
+                                                "targetId",
                                                 StringArgumentType.word()
                                             )
                                             .executes(context ->
@@ -367,7 +367,7 @@ public final class AutoBattleCommands {
                                                     ),
                                                     StringArgumentType.getString(
                                                         context,
-                                                        "targetColor"
+                                                        "targetId"
                                                     )
                                                 )
                                             )
@@ -379,7 +379,7 @@ public final class AutoBattleCommands {
                             Commands.literal("testrobot")
                                 .then(
                                     Commands.argument(
-                                        "color",
+                                        "team",
                                         StringArgumentType.word()
                                     )
                                     .executes(context ->
@@ -390,7 +390,7 @@ public final class AutoBattleCommands {
                                             planExecutor,
                                             StringArgumentType.getString(
                                                 context,
-                                                "color"
+                                                "team"
                                             )
                                         )
                                     )
