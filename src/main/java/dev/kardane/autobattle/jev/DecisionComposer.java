@@ -116,10 +116,17 @@ public final class DecisionComposer {
             );
         }
 
+        boolean targetStillLegal =
+            currentPlanIds.contains(
+                "ENGAGE_" + targetColor
+            ) || currentPlanIds.contains(
+                "CHASE_" + targetColor
+            );
+
         return new DecisionComposition(
             null,
             lowConfidence,
-            true
+            !targetStillLegal
         );
     }
 
