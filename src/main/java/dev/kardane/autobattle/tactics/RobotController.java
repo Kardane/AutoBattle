@@ -2,6 +2,7 @@ package dev.kardane.autobattle.tactics;
 
 import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.config.RobotConfig;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
@@ -37,6 +38,8 @@ public final class RobotController {
     private long lastDecisionTick = -1L;
     private boolean decisionPending;
     private boolean redecisionRequested;
+    private DecisionTrigger redecisionTrigger =
+        DecisionTrigger.INITIAL;
     private long decisionGeneration;
     private UUID localCombatTargetUuid;
     private Vec3 retreatPlanDestination;
@@ -164,6 +167,7 @@ public final class RobotController {
         decisionPending = false;
         decisionGeneration++;
         redecisionRequested = true;
+        redecisionTrigger = DecisionTrigger.RESPAWN;
         registry.reindexEntity(this);
     }
 
@@ -208,6 +212,7 @@ public final class RobotController {
         decisionPending = true;
         decisionGeneration = generation;
         redecisionRequested = false;
+        redecisionTrigger = DecisionTrigger.INTERVAL;
     }
 
     public void markDecisionCompleted(
@@ -223,7 +228,27 @@ public final class RobotController {
     }
 
     public void requestRedecision() {
+        requestRedecision(DecisionTrigger.OTHER);
+    }
+
+    public void requestRedecision(DecisionTrigger trigger) {
         redecisionRequested = true;
+        redecisionTrigger = Objects.requireNonNull(
+            trigger,
+            "trigger"
+        );
+    }
+
+    public DecisionTrigger decisionTrigger() {
+        if (lastDecisionTick < 0L) {
+            return DecisionTrigger.INITIAL;
+        }
+
+        if (redecisionRequested) {
+            return redecisionTrigger;
+        }
+
+        return DecisionTrigger.INTERVAL;
     }
 
     public boolean consumeRedecisionFlag() {
@@ -445,7 +470,9 @@ public final class RobotController {
 
             if (completeOnArrival) {
                 clearPlan();
-                requestRedecision();
+                requestRedecision(
+                    DecisionTrigger.PLAN_COMPLETED
+                );
             }
 
             return;
@@ -710,7 +737,9 @@ public final class RobotController {
         }
 
         clearPlan();
-        requestRedecision();
+        requestRedecision(
+            DecisionTrigger.TARGET_INVALIDATED
+        );
     }
 
     private static double calculateArenaRadius(
