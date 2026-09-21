@@ -1,18 +1,40 @@
 package dev.kardane.autobattle.jev;
 
+import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.robot.RobotZombie;
 import dev.kardane.autobattle.tactics.RobotController;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 public final class RobotStateSerializer {
+    private static final double DISTANCE_TREND_EPSILON =
+        0.02D;
+
+    private RobotConfig config;
+
+    public RobotStateSerializer(RobotConfig config) {
+        this.config = Objects.requireNonNull(
+            config,
+            "config"
+        );
+    }
+
+    public void reloadConfig(RobotConfig config) {
+        this.config = Objects.requireNonNull(
+            config,
+            "config"
+        );
+    }
+
     public RobotDecisionSnapshot snapshot(
         MatchSession match,
         RobotController self,
@@ -59,7 +81,12 @@ public final class RobotStateSerializer {
 
             boolean alive = enemy != null && enemy.alive();
             float hp = 0.0F;
+            float maxHp = 0.0F;
+            double hpRatio = 0.0D;
             Double distance = null;
+            DistanceTrend trend = null;
+            boolean withinEngageRange = false;
+            boolean withinChaseRange = false;
             boolean attackingSelf = false;
 
             if (alive) {
@@ -67,7 +94,20 @@ public final class RobotStateSerializer {
                     .orElseThrow();
 
                 hp = enemyEntity.getHealth();
-                distance = (double) selfEntity.distanceTo(enemyEntity);
+                maxHp = enemyEntity.getMaxHealth();
+                hpRatio = maxHp <= 0.0F
+                    ? 0.0D
+                    : hp / maxHp;
+                distance =
+                    (double) selfEntity.distanceTo(enemyEntity);
+                trend = distanceTrend(
+                    selfEntity,
+                    enemyEntity
+                );
+                withinEngageRange =
+                    distance <= config.engageLeashDistance();
+                withinChaseRange =
+                    distance <= config.chaseLeashDistance();
                 attackingSelf =
                     enemyEntity.getTarget() == selfEntity;
             }
@@ -78,11 +118,15 @@ public final class RobotStateSerializer {
                     slot.color(),
                     alive,
                     hp,
+                    maxHp,
+                    hpRatio,
                     distance,
+                    trend,
+                    withinEngageRange,
+                    withinChaseRange,
                     ranks.getOrDefault(slot.playerUuid(), 0),
                     slot.score().roundScore(),
-                    attackingSelf,
-                    0
+                    attackingSelf
                 )
             );
         }
@@ -112,6 +156,36 @@ public final class RobotStateSerializer {
             selfSlot.doctrine().orElseThrow(),
             command
         );
+    }
+
+    private DistanceTrend distanceTrend(
+        RobotZombie self,
+        RobotZombie enemy
+    ) {
+        Vec3 relativePosition = enemy.position()
+            .subtract(self.position());
+        double distance = relativePosition.length();
+
+        if (distance < 1.0E-6D) {
+            return DistanceTrend.STABLE;
+        }
+
+        Vec3 relativeVelocity = enemy.getDeltaMovement()
+            .subtract(self.getDeltaMovement());
+
+        double radialVelocity =
+            relativePosition.dot(relativeVelocity)
+                / distance;
+
+        if (radialVelocity > DISTANCE_TREND_EPSILON) {
+            return DistanceTrend.SEPARATING;
+        }
+
+        if (radialVelocity < -DISTANCE_TREND_EPSILON) {
+            return DistanceTrend.APPROACHING;
+        }
+
+        return DistanceTrend.STABLE;
     }
 
     private Map<UUID, Integer> buildRanks(
