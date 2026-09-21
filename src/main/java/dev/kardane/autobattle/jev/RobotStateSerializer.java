@@ -135,6 +135,51 @@ public final class RobotStateSerializer {
             );
         }
 
+        int aliveAllies = 0;
+        int aliveEnemies = 0;
+        int alliesInsideCore = 0;
+        int enemiesInsideCore = 0;
+
+        for (RobotController controller :
+            match.robots().alive()) {
+            boolean ally =
+                controller.team() == selfSlot.team();
+
+            if (controller != self) {
+                if (ally) {
+                    aliveAllies++;
+                } else {
+                    aliveEnemies++;
+                }
+            }
+
+            boolean insideCore = controller.entity()
+                .filter(match.core()::isInside)
+                .isPresent();
+
+            if (insideCore) {
+                if (ally) {
+                    alliesInsideCore++;
+                } else {
+                    enemiesInsideCore++;
+                }
+            }
+        }
+
+        TeamContextSnapshot teamContext =
+            new TeamContextSnapshot(
+                selfSlot.team(),
+                match.teamScore(selfSlot.team())
+                    .totalScore(),
+                match.teamScore(
+                    selfSlot.team().opponent()
+                ).totalScore(),
+                aliveAllies,
+                aliveEnemies,
+                alliesInsideCore,
+                enemiesInsideCore
+            );
+
         int remainingSeconds = (int) Math.ceil(
             match.roundState().remainingTicks(currentTick)
                 / 20.0D
@@ -155,6 +200,7 @@ public final class RobotStateSerializer {
             currentTick,
             remainingSeconds,
             selfSnapshot,
+            teamContext,
             coreSnapshot,
             enemies,
             selfSlot.doctrine().orElseThrow(),
