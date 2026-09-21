@@ -102,8 +102,8 @@ final class DecisionComposerTest {
                 choice("CHASE", 0.9D)
             ),
             List.of(
-                "ENGAGE_RED",
-                "CHASE_RED",
+                "ENGAGE_R1",
+                "CHASE_R1",
                 "RETREAT"
             ),
             null,
