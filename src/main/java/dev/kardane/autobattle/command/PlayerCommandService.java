@@ -2,6 +2,7 @@ package dev.kardane.autobattle.command;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.log.MatchLogService;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -77,7 +78,9 @@ public final class PlayerCommandService {
         );
 
         slot.runtime().activateCommand(command);
-        controller.requestRedecision();
+        controller.requestRedecision(
+            DecisionTrigger.PLAYER_COMMAND
+        );
 
         matchLogs.playerCommand(
             match,
