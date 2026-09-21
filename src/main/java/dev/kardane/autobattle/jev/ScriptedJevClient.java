@@ -16,13 +16,16 @@ public final class ScriptedJevClient implements JevClient {
         List<EnemySnapshot> living = snapshot.enemies()
             .stream()
             .filter(EnemySnapshot::alive)
+            .filter(enemy ->
+                enemy.team() != snapshot.self().team()
+            )
             .filter(enemy -> {
-                String color = enemy.color().name();
+                String targetId = enemy.targetId();
 
                 return request.validPlanIds().contains(
-                    "ENGAGE_" + color
+                    "ENGAGE_" + targetId
                 ) || request.validPlanIds().contains(
-                    "CHASE_" + color
+                    "CHASE_" + targetId
                 );
             })
             .toList();
@@ -45,7 +48,7 @@ public final class ScriptedJevClient implements JevClient {
             target = deterministic(
                 targetChoice,
                 living.stream()
-                    .map(enemy -> enemy.color().name())
+                    .map(EnemySnapshot::targetId)
                     .toList()
             );
 
@@ -102,7 +105,9 @@ public final class ScriptedJevClient implements JevClient {
             }
         }
 
-        if (snapshot.core().ownerUuid() == null) {
+        if (snapshot.core().ownerTeam() == null
+            || snapshot.core().ownerTeam()
+                != snapshot.self().team()) {
             return "CONTROL_CORE";
         }
 
@@ -148,8 +153,7 @@ public final class ScriptedJevClient implements JevClient {
                     )
             )
             .orElseThrow()
-            .color()
-            .name();
+            .targetId();
     }
 
     private List<String> availablePursuitStyles(
