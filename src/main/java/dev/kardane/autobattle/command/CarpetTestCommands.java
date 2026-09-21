@@ -1004,6 +1004,32 @@ public final class CarpetTestCommands {
                 continue;
             }
 
+            ServerPlayer participant = source.getServer()
+                .getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (participant == null) {
+                problems.add(
+                    slot.targetId()
+                        + " participant is offline during active round"
+                );
+            } else {
+                if (participant.gameMode()
+                    != net.minecraft.world.level.GameType.SPECTATOR) {
+                    problems.add(
+                        slot.targetId()
+                            + " participant is not in spectator mode"
+                    );
+                }
+
+                if (slot.runtime().viewOrigin().isEmpty()) {
+                    problems.add(
+                        slot.targetId()
+                            + " has no restorable view origin"
+                    );
+                }
+            }
+
             var controller = match.robots()
                 .byOwner(slot.playerUuid())
                 .orElse(null);
