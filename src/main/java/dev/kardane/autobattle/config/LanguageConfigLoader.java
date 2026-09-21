@@ -21,6 +21,8 @@ public final class LanguageConfigLoader {
         # Supported placeholders are documented next to each section.
         # Edit this file and run /autobattle admin reload at any time.
 
+        messages-version: 2
+
         sidebar:
           title: "AUTO BATTLE"
           # {rank}, {color}, {score}
@@ -63,8 +65,8 @@ public final class LanguageConfigLoader {
           # {round}
           round-started: "[AutoBattle] Round {round} started."
           round-ended: "[AutoBattle] Round {round} ended."
-          # {killer_color}, {victim_color}
-          robot-killed: "[AutoBattle] {killer_color} destroyed {victim_color}."
+          # {killer_color}, {killer_id}, {victim_color}, {victim_id}
+          robot-killed: "[AutoBattle] {killer_color} {killer_id} destroyed {victim_color} {victim_id}."
           # {color}
           core-captured: "[AutoBattle] {color} captured CORE."
           # {player}, {round}
@@ -125,7 +127,12 @@ public final class LanguageConfigLoader {
           doctrine-view-title: "{player}'s Doctrine ({color}, version {version})"
           # {line}, {text}
           doctrine-view-line: "  {line}. {text}"
-          join-failed: "Unable to join AutoBattle. The lobby may be closed or full."
+          join-failed: "Unable to join AutoBattle. The lobby may be closed or one team may be full."
+          # {team}, {id}
+          joined-team: "Joined {team} as {id}. You are ready."
+          auto-ready: "Lobby participants are ready automatically after joining."
+          start-unbalanced: "Cannot start: RED and BLUE must have the same number of players (1-8 per team)."
+          # Legacy key kept for migrated custom message files.
           # {color}
           joined: "Joined AutoBattle as {color}."
           leave-failed: "You are not an active AutoBattle participant."
@@ -288,37 +295,45 @@ public final class LanguageConfigLoader {
                 path,
                 StandardCharsets.UTF_8
             )) {
-                Map<String, String> values =
-                    new LinkedHashMap<>();
-
                 Object defaultsRaw = yaml.load(
                     DEFAULT_YAML
                 );
 
-                if (!(defaultsRaw instanceof Map<?, ?> defaults)) {
-                    throw new IllegalStateException(
-                        "Default messages YAML root must be a mapping"
+                Map<String, Object> defaults =
+                    stringMap(
+                        defaultsRaw,
+                        "default messages"
                     );
-                }
-
-                flatten(
-                    "",
-                    defaults,
-                    values
-                );
 
                 Object raw = yaml.load(reader);
 
-                if (!(raw instanceof Map<?, ?> map)) {
-                    throw new IllegalArgumentException(
-                        "messages.yml root must be a YAML mapping"
+                Map<String, Object> existing =
+                    stringMap(
+                        raw,
+                        "messages.yml"
                     );
-                }
+
+                LanguageConfigMigrationService migrations =
+                    new LanguageConfigMigrationService();
+
+                LanguageConfigMigrationService.MigrationResult migrated =
+                    migrations.migrate(
+                        existing,
+                        defaults
+                    );
+
+                Map<String, String> values =
+                    new LinkedHashMap<>();
 
                 flatten(
                     "",
-                    map,
+                    migrated.messages(),
                     values
+                );
+
+                migrations.backupAndWrite(
+                    path,
+                    migrated
                 );
 
                 return new LanguageConfig(values);
@@ -344,6 +359,28 @@ public final class LanguageConfigLoader {
     public static Path messagePath() {
         return AutoBattleConfigLoader.configDirectory()
             .resolve(FILE_NAME);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> stringMap(
+        Object value,
+        String path
+    ) {
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException(
+                path + " root must be a YAML mapping"
+            );
+        }
+
+        for (Object key : map.keySet()) {
+            if (!(key instanceof String)) {
+                throw new IllegalArgumentException(
+                    path + " contains a non-string key"
+                );
+            }
+        }
+
+        return (Map<String, Object>) map;
     }
 
     private static void flatten(
