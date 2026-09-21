@@ -9,6 +9,7 @@ import dev.kardane.autobattle.config.ConfigReloadService;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.review.RoundReviewService;
@@ -765,7 +766,11 @@ public final class AutoBattleCommands {
                 source.getServer()
             )) {
                 source.sendFailure(
-                    message("commands.start-failed")
+                    message(
+                        matchManager.teamsBalanced()
+                            ? "commands.start-failed"
+                            : "commands.start-unbalanced"
+                    )
                 );
                 return 0;
             }
@@ -1117,9 +1122,11 @@ public final class AutoBattleCommands {
 
         source.sendSuccess(
             () -> message(
-                "commands.joined",
-                "color",
-                slot.color().name()
+                "commands.joined-team",
+                "team",
+                slot.team().name(),
+                "id",
+                slot.targetId()
             ),
             false
         );
@@ -1164,7 +1171,7 @@ public final class AutoBattleCommands {
         }
 
         source.sendSuccess(
-            () -> message("commands.ready"),
+            () -> message("commands.auto-ready"),
             false
         );
 
@@ -1366,9 +1373,8 @@ public final class AutoBattleCommands {
         String coreOwner = matchManager.session()
             .core()
             .state()
-            .ownerUuid()
-            .flatMap(matchManager::playerSlot)
-            .map(slot -> slot.color().name())
+            .ownerTeam()
+            .map(Enum::name)
             .orElse("none");
 
         source.sendSuccess(
@@ -1380,10 +1386,14 @@ public final class AutoBattleCommands {
                 matchManager.session().currentRound(),
                 "players",
                 matchManager.playerCount(),
-                "ready",
-                matchManager.readyCount(),
-                "minimum",
-                matchManager.config().minimumPlayers(),
+                "red",
+                matchManager.teamCount(BattleTeam.RED),
+                "blue",
+                matchManager.teamCount(BattleTeam.BLUE),
+                "balanced",
+                matchManager.teamsBalanced(),
+                "maximum",
+                matchManager.config().maxTeamSize(),
                 "core_owner",
                 coreOwner
             ),
@@ -1427,7 +1437,8 @@ public final class AutoBattleCommands {
             testMatchId,
             UUID.randomUUID(),
             message("commands.test.fight-red-name"),
-            RobotColor.RED,
+            BattleTeam.RED,
+            "R1",
             center.add(right.scale(3.0D)),
             player.getYRot()
         );
@@ -1437,7 +1448,8 @@ public final class AutoBattleCommands {
             testMatchId,
             UUID.randomUUID(),
             message("commands.test.fight-blue-name"),
-            RobotColor.BLUE,
+            BattleTeam.BLUE,
+            "B1",
             center.add(right.scale(-3.0D)),
             player.getYRot()
         );
