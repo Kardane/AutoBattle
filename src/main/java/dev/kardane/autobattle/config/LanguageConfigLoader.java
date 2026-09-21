@@ -219,7 +219,7 @@ public final class LanguageConfigLoader {
             fight-red-name: "Test RED"
             fight-blue-name: "Test BLUE"
             fight-success: "Spawned RED vs BLUE test fight."
-            robot-unknown-color: "Unknown robot color. Use red, blue, green, or yellow."
+            robot-unknown-color: "Unknown team. Use red or blue."
             # {color}, {entity}
             robot-spawned: "Spawned test robot {color} (entity {entity})."
 
