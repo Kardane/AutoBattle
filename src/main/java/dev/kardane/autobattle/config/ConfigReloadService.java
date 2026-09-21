@@ -13,11 +13,15 @@ import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.ui.DialogService;
 import dev.kardane.autobattle.ui.UiCoordinator;
 import net.minecraft.server.MinecraftServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.function.Function;
 
 public final class ConfigReloadService {
+    private static final Logger LOGGER =
+        LoggerFactory.getLogger("autobattle");
     private final MatchManager matchManager;
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
@@ -148,13 +152,30 @@ public final class ConfigReloadService {
                 );
             }
 
+            String effective =
+                EffectiveConfigSummary.describe(next);
+
+            LOGGER.info(
+                "AutoBattle config reloaded from {}: {}",
+                AutoBattleConfigLoader.configPath()
+                    .toAbsolutePath()
+                    .normalize(),
+                effective
+            );
+
             return ConfigReloadResult.ok(
                 language.format(
-                    "commands.reload-applied",
+                    "commands.reload-effective",
                     "config",
-                    AutoBattleConfigLoader.configPath(),
-                    "messages",
-                    LanguageConfigLoader.messagePath()
+                    AutoBattleConfigLoader.configPath()
+                        .toAbsolutePath()
+                        .normalize(),
+                    "core_y",
+                    next.arena().corePos().getY(),
+                    "spawn_y",
+                    next.arena().teamSpawns().y(),
+                    "viewer_y",
+                    next.arena().viewerSpawn().y()
                 )
             );
         } catch (RuntimeException exception) {
