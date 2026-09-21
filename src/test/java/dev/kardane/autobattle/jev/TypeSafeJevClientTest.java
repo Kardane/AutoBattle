@@ -274,7 +274,8 @@ final class TypeSafeJevClientTest {
                 doctrine.version(),
                 1L,
                 snapshot.serverTick(),
-                DecisionTrigger.INTERVAL
+                DecisionTrigger.INTERVAL,
+                1
             ),
             snapshot,
             validPlanIds
