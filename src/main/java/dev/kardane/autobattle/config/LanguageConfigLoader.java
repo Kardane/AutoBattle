@@ -212,6 +212,10 @@ public final class LanguageConfigLoader {
             cleanup-success: "Cleaned up {cleaned} Carpet test bots."
             # {status}
             match-status: "Test match: {status}"
+            # {team_size}, {phase}, {participants}, {robots_checked}
+            verify-success: "Team battle verification passed: {team_size}v{team_size}, phase={phase}, participants={participants}, robotsChecked={robots_checked}."
+            # {errors}
+            verify-failure: "Team battle verification failed: {errors}"
             # {bot}, {state}, {color}, {ready}, {doctrine}
             bot-status: "{bot}: {state} | color={color} | ready={ready} | doctrine={doctrine}"
             # {bot}, {result}
