@@ -41,6 +41,7 @@ public final class ValidPlanFactory {
 
         List<TacticalPlan> plans = new ArrayList<>();
         long lockTicks = config.decisionLockTicks();
+        var selfEntity = self.entity().orElseThrow();
 
         for (RobotController enemy : match.robots().alive()) {
             if (enemy == self) {
@@ -55,25 +56,39 @@ public final class ValidPlanFactory {
                 continue;
             }
 
+            var enemyEntity = enemy.entity().orElse(null);
+
+            if (enemyEntity == null) {
+                continue;
+            }
+
+            double distance =
+                selfEntity.distanceTo(enemyEntity);
             String suffix = enemy.color().name();
 
-            plans.add(
-                TacticalPlan.engage(
-                    enemy.ownerUuid(),
-                    "ENGAGE_" + suffix,
-                    currentTick,
-                    lockTicks
-                )
-            );
+            if (distance <= config.robot()
+                .engageLeashDistance()) {
+                plans.add(
+                    TacticalPlan.engage(
+                        enemy.ownerUuid(),
+                        "ENGAGE_" + suffix,
+                        currentTick,
+                        lockTicks
+                    )
+                );
+            }
 
-            plans.add(
-                TacticalPlan.chase(
-                    enemy.ownerUuid(),
-                    "CHASE_" + suffix,
-                    currentTick,
-                    lockTicks
-                )
-            );
+            if (distance <= config.robot()
+                .chaseLeashDistance()) {
+                plans.add(
+                    TacticalPlan.chase(
+                        enemy.ownerUuid(),
+                        "CHASE_" + suffix,
+                        currentTick,
+                        lockTicks
+                    )
+                );
+            }
         }
 
         UUID coreOwner = match.core()
