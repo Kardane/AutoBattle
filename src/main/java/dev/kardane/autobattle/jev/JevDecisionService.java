@@ -147,6 +147,7 @@ public final class JevDecisionService {
             slot.doctrine().orElseThrow().version(),
             generation,
             currentTick,
+            controller.decisionTrigger(),
             validPlanIds.hashCode()
         );
 
@@ -648,6 +649,8 @@ public final class JevDecisionService {
             new DecisionLog(
                 2,
                 "DECOMPOSED_V2",
+                modVersion(),
+                context.trigger(),
                 context.matchId(),
                 context.round(),
                 context.requestedTick(),
@@ -703,6 +706,18 @@ public final class JevDecisionService {
         );
 
         return result;
+    }
+
+    private String modVersion() {
+        return net.fabricmc.loader.api.FabricLoader
+            .getInstance()
+            .getModContainer("autobattle")
+            .map(container ->
+                container.getMetadata()
+                    .getVersion()
+                    .getFriendlyString()
+            )
+            .orElse("unknown");
     }
 
     private Throwable unwrapError(Throwable error) {
