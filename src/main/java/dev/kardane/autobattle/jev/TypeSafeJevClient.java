@@ -171,14 +171,13 @@ public final class TypeSafeJevClient implements JevClient {
             )
         );
 
-        List<EnemySnapshot> living = livingEnemies(
-            request.snapshot()
-        );
+        List<EnemySnapshot> combatEligible =
+            combatEligibleEnemies(request);
 
-        if (living.size() > 1) {
+        if (combatEligible.size() > 1) {
             JsonObject targetCriteria = new JsonObject();
 
-            for (EnemySnapshot enemy : living) {
+            for (EnemySnapshot enemy : combatEligible) {
                 targetCriteria.addProperty(
                     enemy.color().name(),
                     "Prefer this enemy as the combat target."
@@ -198,16 +197,24 @@ public final class TypeSafeJevClient implements JevClient {
             );
         }
 
-        if (!living.isEmpty()) {
+        if (!combatEligible.isEmpty()) {
             JsonObject pursuitCriteria = new JsonObject();
-            pursuitCriteria.addProperty(
-                "ENGAGE",
-                "Fight the preferred target within normal engagement range without extended pursuit."
-            );
-            pursuitCriteria.addProperty(
-                "CHASE",
-                "Actively pursue the preferred target over the longer chase range when Doctrine and state justify extended pursuit."
-            );
+
+            if (request.validPlanIds().stream()
+                .anyMatch(id -> id.startsWith("ENGAGE_"))) {
+                pursuitCriteria.addProperty(
+                    "ENGAGE",
+                    "Fight the preferred target within normal engagement range without extended pursuit."
+                );
+            }
+
+            if (request.validPlanIds().stream()
+                .anyMatch(id -> id.startsWith("CHASE_"))) {
+                pursuitCriteria.addProperty(
+                    "CHASE",
+                    "Actively pursue the preferred target over the longer chase range when Doctrine and state justify extended pursuit."
+                );
+            }
 
             questions.add(
                 PURSUIT_STYLE,
@@ -369,12 +376,22 @@ public final class TypeSafeJevClient implements JevClient {
         return json;
     }
 
-    private List<EnemySnapshot> livingEnemies(
-        RobotDecisionSnapshot snapshot
+    private List<EnemySnapshot> combatEligibleEnemies(
+        DecisionRequest request
     ) {
-        return snapshot.enemies()
+        return request.snapshot()
+            .enemies()
             .stream()
             .filter(EnemySnapshot::alive)
+            .filter(enemy -> {
+                String color = enemy.color().name();
+
+                return request.validPlanIds().contains(
+                    "ENGAGE_" + color
+                ) || request.validPlanIds().contains(
+                    "CHASE_" + color
+                );
+            })
             .toList();
     }
 
@@ -438,13 +455,12 @@ public final class TypeSafeJevClient implements JevClient {
             true
         );
 
-        List<EnemySnapshot> living = livingEnemies(
-            request.snapshot()
-        );
+        List<EnemySnapshot> combatEligible =
+            combatEligibleEnemies(request);
 
         ChoiceDecision target = null;
-        if (living.size() == 1) {
-            String color = living.getFirst()
+        if (combatEligible.size() == 1) {
+            String color = combatEligible.getFirst()
                 .color()
                 .name();
             target = new ChoiceDecision(
@@ -452,7 +468,7 @@ public final class TypeSafeJevClient implements JevClient {
                 1.0D,
                 Map.of(color, 1.0D)
             );
-        } else if (living.size() > 1) {
+        } else if (combatEligible.size() > 1) {
             target = parseChoice(
                 answers,
                 COMBAT_TARGET,
@@ -460,7 +476,7 @@ public final class TypeSafeJevClient implements JevClient {
             );
         }
 
-        ChoiceDecision pursuit = living.isEmpty()
+        ChoiceDecision pursuit = combatEligible.isEmpty()
             ? null
             : parseChoice(
                 answers,
