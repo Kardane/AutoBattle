@@ -25,6 +25,8 @@ public final class JevDecisionService {
     private final DecisionLogRepository logs;
     private final DecisionComposer composer =
         new DecisionComposer();
+    private final DecisionIntervalStagger intervalStagger =
+        new DecisionIntervalStagger();
     private AutoBattleConfig config;
 
     public JevDecisionService(
@@ -83,6 +85,18 @@ public final class JevDecisionService {
                 config.decisionLockTicks(),
                 config.decisionDebounceTicks()
             )) {
+                continue;
+            }
+
+            if (controller.decisionTrigger()
+                    == DecisionTrigger.INTERVAL
+                && controller.currentPlan().isPresent()
+                && !intervalStagger.eligible(
+                    match,
+                    controller.ownerUuid(),
+                    currentTick,
+                    config.decisionIntervalTicks()
+                )) {
                 continue;
             }
 
