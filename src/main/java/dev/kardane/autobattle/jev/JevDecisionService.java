@@ -147,8 +147,7 @@ public final class JevDecisionService {
             slot.doctrine().orElseThrow().version(),
             generation,
             currentTick,
-            controller.decisionTrigger(),
-            validPlanIds.hashCode()
+            controller.decisionTrigger()
         );
 
         RobotDecisionSnapshot snapshot =
@@ -652,8 +651,13 @@ public final class JevDecisionService {
                 : null;
 
         boolean candidateSetChanged =
-            applyValidPlanIds.hashCode()
-                != context.candidatesHash();
+            !java.util.Set.copyOf(
+                applyValidPlanIds
+            ).equals(
+                java.util.Set.copyOf(
+                    request.validPlanIds()
+                )
+            );
 
         logs.append(
             new DecisionLog(
