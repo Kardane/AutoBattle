@@ -197,20 +197,15 @@ public final class TypeSafeJevClient implements JevClient {
             );
         }
 
-        List<String> pursuitStyles =
-            availablePursuitStyles(request);
-
-        if (!combatEligible.isEmpty()
-            && pursuitStyles.size() > 1) {
+        if (!combatEligible.isEmpty()) {
             JsonObject pursuitCriteria = new JsonObject();
-
             pursuitCriteria.addProperty(
                 "ENGAGE",
-                "Fight the preferred target within normal engagement range without extended pursuit."
+                "Fight the preferred target only within normal engagement range. If the target is outside that range, do not turn this preference into an extended pursuit."
             );
             pursuitCriteria.addProperty(
                 "CHASE",
-                "Actively pursue the preferred target over the longer chase range when Doctrine and state justify extended pursuit."
+                "Deliberately pursue the preferred target over the longer chase range when Doctrine and state justify extended pursuit."
             );
 
             questions.add(
@@ -392,25 +387,6 @@ public final class TypeSafeJevClient implements JevClient {
             .toList();
     }
 
-    private List<String> availablePursuitStyles(
-        DecisionRequest request
-    ) {
-        java.util.ArrayList<String> styles =
-            new java.util.ArrayList<>();
-
-        if (request.validPlanIds().stream()
-            .anyMatch(id -> id.startsWith("ENGAGE_"))) {
-            styles.add("ENGAGE");
-        }
-
-        if (request.validPlanIds().stream()
-            .anyMatch(id -> id.startsWith("CHASE_"))) {
-            styles.add("CHASE");
-        }
-
-        return List.copyOf(styles);
-    }
-
     private boolean hasCombatCandidate(
         List<String> candidates
     ) {
@@ -492,27 +468,14 @@ public final class TypeSafeJevClient implements JevClient {
             );
         }
 
-        List<String> pursuitStyles =
-            availablePursuitStyles(request);
-
-        ChoiceDecision pursuit = null;
-
-        if (!combatEligible.isEmpty()) {
-            if (pursuitStyles.size() == 1) {
-                String style = pursuitStyles.getFirst();
-                pursuit = new ChoiceDecision(
-                    style,
-                    1.0D,
-                    Map.of(style, 1.0D)
-                );
-            } else if (pursuitStyles.size() > 1) {
-                pursuit = parseChoice(
+        ChoiceDecision pursuit =
+            combatEligible.isEmpty()
+                ? null
+                : parseChoice(
                     answers,
                     PURSUIT_STYLE,
                     true
                 );
-            }
-        }
 
         return new DecisionResponse(
             intent,
