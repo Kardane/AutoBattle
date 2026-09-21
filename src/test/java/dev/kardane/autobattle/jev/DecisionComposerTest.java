@@ -90,6 +90,28 @@ final class DecisionComposerTest {
         assertTrue(result.targetUnavailable());
     }
 
+
+    @Test
+    void engagePreferenceOutsideEngageRangeIsNotTargetLoss() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("FIGHT", 0.9D),
+                choice("BLUE", 0.9D),
+                choice("ENGAGE", 0.9D)
+            ),
+            List.of(
+                "CHASE_BLUE",
+                "CAPTURE_CORE",
+                "RETREAT"
+            ),
+            "CAPTURE_CORE",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertFalse(result.targetUnavailable());
+    }
+
     @Test
     void lowConfidencePursuitDegradesToEngage() {
         DecisionComposition result = composer.compose(
