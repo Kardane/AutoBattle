@@ -43,7 +43,10 @@ public final class AutoBattleConfigLoader {
             api-key: ""
             base-url: "https://api.openai.com"
             model: "gpt-5.6-luna"
-            request-timeout-ms: 2500
+            request-timeout-ms: 5000
+            total-timeout-ms: 6500
+            max-attempts: 2
+            retry-backoff-ms: 200
 
         typesafe:
           # Leave empty to fall back to TYPESAFE_API_KEY.
@@ -407,6 +410,24 @@ public final class AutoBattleConfigLoader {
                     "request-timeout-ms",
                     defaults.doctrineNormalizer()
                         .requestTimeoutMs()
+                ),
+                intValue(
+                    normalizer,
+                    "total-timeout-ms",
+                    defaults.doctrineNormalizer()
+                        .totalTimeoutMs()
+                ),
+                intValue(
+                    normalizer,
+                    "max-attempts",
+                    defaults.doctrineNormalizer()
+                        .maxAttempts()
+                ),
+                intValue(
+                    normalizer,
+                    "retry-backoff-ms",
+                    defaults.doctrineNormalizer()
+                        .retryBackoffMs()
                 )
             );
 
