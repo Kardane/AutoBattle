@@ -338,7 +338,25 @@ public final class TypeSafeJevClient implements JevClient {
         json.addProperty("color", enemy.color().name());
         json.addProperty("alive", enemy.alive());
         addFiniteNumber(json, "hp", enemy.hp());
+        addFiniteNumber(json, "max_hp", enemy.maxHp());
+        addFiniteNumber(json, "hp_ratio", enemy.hpRatio());
         addFiniteNumber(json, "distance", enemy.distance());
+        if (enemy.distanceTrend() == null) {
+            json.add("distance_trend", null);
+        } else {
+            json.addProperty(
+                "distance_trend",
+                enemy.distanceTrend().name()
+            );
+        }
+        json.addProperty(
+            "within_engage_range",
+            enemy.withinEngageRange()
+        );
+        json.addProperty(
+            "within_chase_range",
+            enemy.withinChaseRange()
+        );
         json.addProperty("rank", enemy.rank());
         json.addProperty(
             "round_score",
