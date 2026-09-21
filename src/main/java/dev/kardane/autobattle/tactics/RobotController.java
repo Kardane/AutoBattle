@@ -278,12 +278,6 @@ public final class RobotController {
             return;
         }
 
-        if ((currentPlan == null
-            || currentPlan.type() != TacticalPlanType.RETREAT)
-            && attackNearbyEnemy()) {
-            return;
-        }
-
         if (currentPlan == null) {
             entity.setTarget(null);
             entity.getNavigation().stop();
@@ -309,37 +303,6 @@ public final class RobotController {
         }
     }
 
-    private boolean attackNearbyEnemy() {
-        RobotZombie target = resolveNearestEnemy()
-            .filter(candidate ->
-                entity.distanceToSqr(candidate)
-                    <= square(config.engageLeashDistance())
-            )
-            .orElse(null);
-
-        if (target == null) {
-            localCombatTargetUuid = null;
-            return false;
-        }
-
-        if (!target.ownerUuid().equals(
-            localCombatTargetUuid
-        )) {
-            localCombatTargetUuid = target.ownerUuid();
-            renderIntentLine(
-                entityAimPoint(target)
-            );
-        }
-
-        entity.setTarget(target);
-        entity.getNavigation().moveTo(
-            target,
-            config.engageSpeed()
-        );
-
-        return true;
-    }
-
     private void engage(double leashDistance) {
         followCombatTarget(
             leashDistance,
@@ -363,18 +326,7 @@ public final class RobotController {
                 if (!insideArena(target.position())
                     || entity.distanceToSqr(target)
                         > square(leashDistance)) {
-                    Vec3 destination = clampToArena(
-                        target.position()
-                    );
-
-                    entity.setTarget(null);
-                    entity.getNavigation().moveTo(
-                        destination.x,
-                        destination.y,
-                        destination.z,
-                        speed
-                    );
-                    requestRedecision();
+                    invalidateCurrentTarget();
                     return;
                 }
 
@@ -389,14 +341,37 @@ public final class RobotController {
     }
 
     private void defend(Vec3 destination) {
+        Vec3 boundedDestination =
+            clampToArena(destination);
+
+        Optional<RobotZombie> intruder =
+            resolveNearestEnemy().filter(enemy ->
+                enemy.position().distanceToSqr(
+                    boundedDestination
+                ) <= square(config.defendRadius())
+            );
+
+        if (intruder.isPresent()) {
+            RobotZombie target = intruder.orElseThrow();
+            localCombatTargetUuid = target.ownerUuid();
+            entity.setTarget(target);
+            entity.getNavigation().moveTo(
+                target,
+                config.engageSpeed()
+            );
+            return;
+        }
+
+        localCombatTargetUuid = null;
         entity.setTarget(null);
 
-        if (entity.position().distanceToSqr(destination)
-            > square(config.defendRadius())) {
+        if (entity.position().distanceToSqr(
+            boundedDestination
+        ) > square(config.defendRadius())) {
             entity.getNavigation().moveTo(
-                destination.x,
-                destination.y,
-                destination.z,
+                boundedDestination.x,
+                boundedDestination.y,
+                boundedDestination.z,
                 config.defendSpeed()
             );
         } else {
@@ -605,7 +580,7 @@ public final class RobotController {
         }
 
         return switch (currentPlan.type()) {
-            case CAPTURE, DEFEND, REPOSITION ->
+            case CAPTURE, DEFEND ->
                 Optional.of(
                     clampToArena(
                         currentPlan.destination()
@@ -649,7 +624,7 @@ public final class RobotController {
                 resolveTarget(plan.targetOwnerUuid())
                     .map(this::entityAimPoint)
                     .orElse(null);
-            case CAPTURE, DEFEND, REPOSITION ->
+            case CAPTURE, DEFEND ->
                 clampToArena(plan.destination());
             case RETREAT ->
                 retreatPlanDestination;
@@ -734,7 +709,7 @@ public final class RobotController {
             entity.getNavigation().stop();
         }
 
-        localCombatTargetUuid = null;
+        clearPlan();
         requestRedecision();
     }
 
@@ -752,24 +727,6 @@ public final class RobotController {
                     horizontalDistanceSqr(
                         center,
                         spawn.position()
-                    )
-                )
-            );
-        }
-
-        for (BlockPos node : arena.repositionNodes()) {
-            Vec3 point = new Vec3(
-                node.getX() + 0.5D,
-                node.getY(),
-                node.getZ() + 0.5D
-            );
-
-            maxRadius = Math.max(
-                maxRadius,
-                Math.sqrt(
-                    horizontalDistanceSqr(
-                        center,
-                        point
                     )
                 )
             );
