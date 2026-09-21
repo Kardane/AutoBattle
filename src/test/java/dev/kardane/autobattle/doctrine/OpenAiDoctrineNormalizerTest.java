@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -200,9 +199,6 @@ final class OpenAiDoctrineNormalizerTest {
         server.createContext(
             "/v1/responses",
             exchange -> handler.handle(exchange)
-        );
-        server.setExecutor(
-            Executors.newCachedThreadPool()
         );
         server.start();
     }
