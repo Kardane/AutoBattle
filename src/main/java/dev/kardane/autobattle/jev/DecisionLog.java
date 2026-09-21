@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 
 public record DecisionLog(
+    int schemaVersion,
+    String decisionMode,
     UUID matchId,
     int round,
     long serverTick,
@@ -15,11 +17,15 @@ public record DecisionLog(
     UUID robotEntityUuid,
     RobotColor color,
     int doctrineVersion,
-    List<String> validPlanIds,
-    String selectedPlanId,
+    List<String> requestValidPlanIds,
+    List<String> applyValidPlanIds,
+    boolean candidateSetChanged,
+    String previousPlanId,
+    ChoiceDecision strategicIntent,
+    ChoiceDecision combatTarget,
+    ChoiceDecision pursuitStyle,
+    String composedPlanId,
     String effectivePlanId,
-    double confidence,
-    Map<String, Double> probabilities,
     long latencyMs,
     boolean fallback,
     DecisionApplyResult applyResult,
@@ -38,9 +44,44 @@ public record DecisionLog(
     Double distanceToTarget
 ) {
     public DecisionLog {
-        validPlanIds = List.copyOf(validPlanIds);
-        probabilities = probabilities == null
+        requestValidPlanIds = List.copyOf(
+            requestValidPlanIds
+        );
+        applyValidPlanIds = List.copyOf(
+            applyValidPlanIds
+        );
+    }
+
+    /**
+     * Compatibility accessor for round-review code.
+     */
+    public String selectedPlanId() {
+        return composedPlanId;
+    }
+
+    /**
+     * The high-level intent confidence remains the primary confidence
+     * used by the existing round-review UI.
+     */
+    public double confidence() {
+        return strategicIntent == null
+            ? 0.0D
+            : strategicIntent.confidence();
+    }
+
+    /**
+     * Compatibility accessor for round-review code.
+     */
+    public Map<String, Double> probabilities() {
+        return strategicIntent == null
             ? Map.of()
-            : Map.copyOf(probabilities);
+            : strategicIntent.probabilities();
+    }
+
+    /**
+     * Compatibility accessor for historical naming.
+     */
+    public List<String> validPlanIds() {
+        return requestValidPlanIds;
     }
 }
