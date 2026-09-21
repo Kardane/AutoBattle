@@ -12,6 +12,7 @@ public record DecisionLog(
     String decisionMode,
     String modVersion,
     DecisionTrigger trigger,
+    int inFlightAtRequest,
     UUID matchId,
     int round,
     long serverTick,
