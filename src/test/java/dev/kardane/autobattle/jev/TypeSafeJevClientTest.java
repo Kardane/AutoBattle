@@ -87,6 +87,18 @@ final class TypeSafeJevClientTest {
         assertEquals(1, state.getAsJsonArray("allies").size());
         assertEquals(2, state.getAsJsonArray("enemies").size());
 
+        JsonObject ally = state
+            .getAsJsonArray("allies")
+            .get(0)
+            .getAsJsonObject();
+
+        assertEquals("R2", ally.get("id").getAsString());
+        assertTrue(ally.has("hp_ratio"));
+        assertTrue(ally.has("distance"));
+        assertFalse(ally.has("within_engage_range"));
+        assertFalse(ally.has("within_chase_range"));
+        assertFalse(ally.has("attacking_self"));
+
         JsonObject blue = state
             .getAsJsonArray("enemies")
             .get(0)
