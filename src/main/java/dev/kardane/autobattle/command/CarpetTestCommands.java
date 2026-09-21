@@ -21,11 +21,13 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public final class CarpetTestCommands {
+    private static final int DEFAULT_TEST_TEAM_SIZE = 4;
+
     private static final String[] BOT_NAMES = {
-        "ABot1",
-        "ABot2",
-        "ABot3",
-        "ABot4"
+        "ABot1", "ABot2", "ABot3", "ABot4",
+        "ABot5", "ABot6", "ABot7", "ABot8",
+        "ABot9", "ABot10", "ABot11", "ABot12",
+        "ABot13", "ABot14", "ABot15", "ABot16"
     };
 
     private static final String[][] DOCTRINES = {
@@ -96,7 +98,24 @@ public final class CarpetTestCommands {
                                         .executes(context ->
                                             spawnBots(
                                                 context.getSource(),
-                                                language
+                                                language,
+                                                DEFAULT_TEST_TEAM_SIZE
+                                            )
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "teamSize",
+                                                IntegerArgumentType.integer(1, 8)
+                                            )
+                                            .executes(context ->
+                                                spawnBots(
+                                                    context.getSource(),
+                                                    language,
+                                                    IntegerArgumentType.getInteger(
+                                                        context,
+                                                        "teamSize"
+                                                    )
+                                                )
                                             )
                                         )
                                 )
@@ -107,7 +126,26 @@ public final class CarpetTestCommands {
                                                 context.getSource(),
                                                 matchManager,
                                                 doctrineService,
-                                                language
+                                                language,
+                                                DEFAULT_TEST_TEAM_SIZE
+                                            )
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "teamSize",
+                                                IntegerArgumentType.integer(1, 8)
+                                            )
+                                            .executes(context ->
+                                                setupBots(
+                                                    context.getSource(),
+                                                    matchManager,
+                                                    doctrineService,
+                                                    language,
+                                                    IntegerArgumentType.getInteger(
+                                                        context,
+                                                        "teamSize"
+                                                    )
+                                                )
                                             )
                                         )
                                 )
@@ -228,8 +266,10 @@ public final class CarpetTestCommands {
 
     private static int spawnBots(
         CommandSourceStack source,
-        LanguageService language
+        LanguageService language,
+        int teamSize
     ) {
+        int botCount = teamSize * 2;
         var dispatcher = source.getServer()
             .getCommands()
             .getDispatcher();
@@ -247,7 +287,9 @@ public final class CarpetTestCommands {
         int spawned = 0;
         int existing = 0;
 
-        for (String botName : BOT_NAMES) {
+        for (int index = 0; index < botCount; index++) {
+            String botName = BOT_NAMES[index];
+
             if (source.getServer().getPlayerList()
                 .getPlayerByName(botName) != null) {
                 existing++;
@@ -297,8 +339,10 @@ public final class CarpetTestCommands {
         CommandSourceStack source,
         MatchManager matchManager,
         DoctrineService doctrineService,
-        LanguageService language
+        LanguageService language,
+        int teamSize
     ) {
+        int botCount = teamSize * 2;
         MatchPhase phase = matchManager.session().phase();
 
         if (phase != MatchPhase.LOBBY
@@ -315,10 +359,10 @@ public final class CarpetTestCommands {
         }
 
         ServerPlayer[] players =
-            new ServerPlayer[BOT_NAMES.length];
+            new ServerPlayer[botCount];
 
         for (int index = 0;
-             index < BOT_NAMES.length;
+             index < botCount;
              index++) {
             String botName = BOT_NAMES[index];
             ServerPlayer player = source.getServer()
@@ -352,16 +396,6 @@ public final class CarpetTestCommands {
                         )
                     );
                     return 0;
-                }
-            }
-
-            for (ServerPlayer player : players) {
-                PlayerSlot slot = matchManager
-                    .playerSlot(player.getUUID())
-                    .orElseThrow();
-
-                if (!slot.ready()) {
-                    matchManager.toggleReady(player);
                 }
             }
 
@@ -407,7 +441,8 @@ public final class CarpetTestCommands {
                 continue;
             }
 
-            String[] doctrine = DOCTRINES[index];
+            String[] doctrine =
+                DOCTRINES[index % DOCTRINES.length];
 
             CompletableFuture<DoctrineEditResult> future =
                 doctrineService.submitInitialAsync(
