@@ -863,7 +863,9 @@ public final class CarpetTestCommands {
 
             String color = slot == null
                 ? "-"
-                : slot.color().name();
+                : slot.team().name()
+                    + " "
+                    + slot.targetId();
 
             String ready = slot == null
                 ? "-"
