@@ -79,7 +79,8 @@ final class ConfigMigrationService {
             Files.copy(
                 path,
                 path.resolveSibling(backupName),
-                StandardCopyOption.COPY_ATTRIBUTES
+                StandardCopyOption.COPY_ATTRIBUTES,
+                StandardCopyOption.REPLACE_EXISTING
             );
         }
 
