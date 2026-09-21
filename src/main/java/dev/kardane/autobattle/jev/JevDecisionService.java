@@ -272,7 +272,9 @@ public final class JevDecisionService {
             context.robotEntityUuid()
         )) {
             finishDecision(controller, context, currentTick);
-            controller.requestRedecision();
+            controller.requestRedecision(
+                DecisionTrigger.STALE_RETRY
+            );
 
             return logAndReturn(
                 controller,
@@ -297,7 +299,9 @@ public final class JevDecisionService {
             || slot.doctrine().orElseThrow().version()
                 != context.doctrineVersion()) {
             finishDecision(controller, context, currentTick);
-            controller.requestRedecision();
+            controller.requestRedecision(
+                DecisionTrigger.STALE_RETRY
+            );
 
             return logAndReturn(
                 controller,
@@ -379,7 +383,9 @@ public final class JevDecisionService {
                     context,
                     currentTick
                 );
-                controller.requestRedecision();
+                controller.requestRedecision(
+                    DecisionTrigger.TARGET_INVALIDATED
+                );
 
                 return logAndReturn(
                     controller,
@@ -477,7 +483,9 @@ public final class JevDecisionService {
         finishDecision(controller, context, currentTick);
 
         if (!applied) {
-            controller.requestRedecision();
+            controller.requestRedecision(
+                DecisionTrigger.STALE_RETRY
+            );
 
             return logAndReturn(
                 controller,
@@ -537,7 +545,9 @@ public final class JevDecisionService {
 
         if (fallback == null) {
             controller.clearPlan();
-            controller.requestRedecision();
+            controller.requestRedecision(
+                DecisionTrigger.STALE_RETRY
+            );
             return fallbackResult;
         }
 
