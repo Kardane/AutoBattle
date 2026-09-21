@@ -75,12 +75,12 @@ final class DecisionComposerTest {
         DecisionComposition result = composer.compose(
             response(
                 choice("FIGHT", 0.9D),
-                choice("BLUE", 0.2D),
+                choice("B1", 0.2D),
                 choice("CHASE", 0.9D)
             ),
             List.of(
-                "ENGAGE_BLUE",
-                "CHASE_BLUE",
+                "ENGAGE_B1",
+                "CHASE_B1",
                 "CAPTURE_CORE",
                 "RETREAT"
             ),
@@ -98,7 +98,7 @@ final class DecisionComposerTest {
         DecisionComposition result = composer.compose(
             response(
                 choice("FIGHT", 0.9D),
-                choice("BLUE", 0.9D),
+                choice("B1", 0.9D),
                 choice("CHASE", 0.9D)
             ),
             List.of(
@@ -120,11 +120,11 @@ final class DecisionComposerTest {
         DecisionComposition result = composer.compose(
             response(
                 choice("FIGHT", 0.9D),
-                choice("BLUE", 0.9D),
+                choice("B1", 0.9D),
                 choice("ENGAGE", 0.9D)
             ),
             List.of(
-                "CHASE_BLUE",
+                "CHASE_B1",
                 "CAPTURE_CORE",
                 "RETREAT"
             ),
@@ -141,19 +141,19 @@ final class DecisionComposerTest {
         DecisionComposition result = composer.compose(
             response(
                 choice("FIGHT", 0.9D),
-                choice("BLUE", 0.9D),
+                choice("B1", 0.9D),
                 choice("CHASE", 0.2D)
             ),
             List.of(
-                "ENGAGE_BLUE",
-                "CHASE_BLUE",
+                "ENGAGE_B1",
+                "CHASE_B1",
                 "RETREAT"
             ),
             null,
             0.35D
         );
 
-        assertEquals("ENGAGE_BLUE", result.planId());
+        assertEquals("ENGAGE_B1", result.planId());
         assertTrue(result.lowConfidence());
     }
 
