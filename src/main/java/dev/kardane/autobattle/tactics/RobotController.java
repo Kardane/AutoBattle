@@ -421,35 +421,46 @@ public final class RobotController {
     }
 
     private Optional<Vec3> calculateRetreatDestination() {
-        return resolveNearestEnemy().map(threat -> {
-            Vec3 away = entity.position()
-                .subtract(threat.position());
+        if (entity == null || entity.isRemoved()) {
+            return Optional.empty();
+        }
 
-            Vec3 horizontal = new Vec3(
-                away.x,
-                0.0D,
-                away.z
+        Vec3 away = resolveNearestEnemy()
+            .map(threat ->
+                entity.position()
+                    .subtract(threat.position())
+            )
+            .orElseGet(() ->
+                entity.position()
+                    .subtract(arenaCenter)
             );
 
-            if (horizontal.lengthSqr() < 1.0E-4D) {
-                horizontal = new Vec3(
-                    1.0D,
-                    0.0D,
-                    0.0D
-                );
-            } else {
-                horizontal = horizontal.normalize();
-            }
+        Vec3 horizontal = new Vec3(
+            away.x,
+            0.0D,
+            away.z
+        );
 
-            Vec3 destination = entity.position()
-                .add(
-                    horizontal.scale(
-                        config.retreatDistance()
-                    )
-                );
+        if (horizontal.lengthSqr() < 1.0E-4D) {
+            horizontal = new Vec3(
+                1.0D,
+                0.0D,
+                0.0D
+            );
+        } else {
+            horizontal = horizontal.normalize();
+        }
 
-            return clampToArena(destination);
-        });
+        Vec3 destination = entity.position()
+            .add(
+                horizontal.scale(
+                    config.retreatDistance()
+                )
+            );
+
+        return Optional.of(
+            clampToArena(destination)
+        );
     }
 
     private void moveToPosition(
