@@ -45,7 +45,7 @@ public final class ValidPlanFactory {
 
         for (RobotController enemy : match.robots().alive()) {
             if (enemy == self
-                || enemy.team() == self.team()) {
+                || !self.team().isEnemy(enemy.team())) {
                 continue;
             }
 
