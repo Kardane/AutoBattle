@@ -35,6 +35,8 @@ public final class CoreController {
     private int holdScoreIntervalTicks;
     private ScoringConfig scoring;
     private final CoreState state = new CoreState();
+    private final CoreTelemetry telemetry =
+        new CoreTelemetry();
 
     public CoreController(
         ArenaConfig arena,
@@ -113,6 +115,7 @@ public final class CoreController {
             blueInside
         );
 
+        telemetry.record(occupancy);
         state.setContested(occupancy.contested());
 
         occupancy.soleTeam().ifPresent(team ->
@@ -194,6 +197,10 @@ public final class CoreController {
         return state;
     }
 
+    public CoreTelemetry telemetry() {
+        return telemetry;
+    }
+
     public BlockPos position() {
         return corePos;
     }
@@ -231,6 +238,7 @@ public final class CoreController {
 
     public void reset() {
         state.reset();
+        telemetry.reset();
     }
 
     private void advanceCapture(
