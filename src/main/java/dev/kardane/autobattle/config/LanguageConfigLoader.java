@@ -104,7 +104,8 @@ public final class LanguageConfigLoader {
           reload-applied: "Reloaded {config} and {messages}."
           # {error}
           reload-error: "Config reload failed: {error}"
-          start-failed: "Unable to start round. Check active participants, submitted doctrines, and arena dimension."
+          start-failed: "Unable to start match. Check balanced team size, active participants, submitted doctrines, and arena dimension."
+          start-invalid-phase: "Match start is only available from the lobby."
           # {round}
           start-success: "Started AutoBattle prototype round {round}."
           stop-failed: "No active AutoBattle round to stop."
