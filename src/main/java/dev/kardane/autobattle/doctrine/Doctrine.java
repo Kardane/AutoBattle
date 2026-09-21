@@ -14,7 +14,11 @@ public record Doctrine(
     String normalizationHash,
     String normalizerModel,
     DoctrineNormalizationStatus normalizationStatus,
-    String normalizationError
+    String normalizationError,
+    String normalizationPromptVersion,
+    int normalizationAttemptCount,
+    long normalizationLatencyMs,
+    Integer normalizationHttpStatus
 ) {
     public Doctrine {
         if (version < 1) {
@@ -67,6 +71,10 @@ public record Doctrine(
             ),
             null,
             DoctrineNormalizationStatus.FALLBACK_DISABLED,
+            null,
+            null,
+            0,
+            0L,
             null
         );
     }
@@ -144,7 +152,11 @@ public record Doctrine(
             result.sourceHash(),
             result.model(),
             result.status(),
-            result.error()
+            result.error(),
+            result.promptVersion(),
+            result.attemptCount(),
+            result.latencyMs(),
+            result.httpStatus()
         );
     }
 }

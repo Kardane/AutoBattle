@@ -43,7 +43,10 @@ public final class AutoBattleConfigLoader {
             api-key: ""
             base-url: "https://api.openai.com"
             model: "gpt-5.6-luna"
-            request-timeout-ms: 2500
+            request-timeout-ms: 5000
+            total-timeout-ms: 6500
+            max-attempts: 2
+            retry-backoff-ms: 200
 
         typesafe:
           # Leave empty to fall back to TYPESAFE_API_KEY.
@@ -67,8 +70,8 @@ public final class AutoBattleConfigLoader {
           request-timeout-ms: 1500
           minimum-confidence: 0.35
 
-          # RETREAT is only offered to Jev at or below this HP ratio.
-          # The same threshold is used by server-side fallback logic.
+          # Used only by deterministic server fallback when an AI
+          # decision cannot be applied. RETREAT itself is always available.
           fallback-retreat-hp-ratio: 0.25
 
         doctrine:
@@ -91,7 +94,6 @@ public final class AutoBattleConfigLoader {
           chase-speed: 1.20
           capture-speed: 1.05
           defend-speed: 1.00
-          reposition-speed: 1.10
           retreat-speed: 1.20
 
           position-reached-distance: 1.5
@@ -130,11 +132,6 @@ public final class AutoBattleConfigLoader {
             - { x: -20.0, y: 88.0, z: -20.0, yaw: 0.0, pitch: 0.0 }
             - { x: 20.0,  y: 88.0, z: -20.0, yaw: 0.0, pitch: 0.0 }
 
-          reposition-nodes:
-            - { x: 8,  y: 80, z: 8 }
-            - { x: -8, y: 80, z: 8 }
-            - { x: -8, y: 80, z: -8 }
-            - { x: 8,  y: 80, z: -8 }
         """;
 
     private AutoBattleConfigLoader() {
@@ -413,6 +410,24 @@ public final class AutoBattleConfigLoader {
                     "request-timeout-ms",
                     defaults.doctrineNormalizer()
                         .requestTimeoutMs()
+                ),
+                intValue(
+                    normalizer,
+                    "total-timeout-ms",
+                    defaults.doctrineNormalizer()
+                        .totalTimeoutMs()
+                ),
+                intValue(
+                    normalizer,
+                    "max-attempts",
+                    defaults.doctrineNormalizer()
+                        .maxAttempts()
+                ),
+                intValue(
+                    normalizer,
+                    "retry-backoff-ms",
+                    defaults.doctrineNormalizer()
+                        .retryBackoffMs()
                 )
             );
 
@@ -493,11 +508,6 @@ public final class AutoBattleConfigLoader {
                 robot,
                 "defend-speed",
                 defaults.robot().defendSpeed()
-            ),
-            doubleValue(
-                robot,
-                "reposition-speed",
-                defaults.robot().repositionSpeed()
             ),
             doubleValue(
                 robot,
@@ -668,20 +678,12 @@ public final class AutoBattleConfigLoader {
                 "arena.viewer-spawns"
             );
 
-        List<BlockPos> repositionNodes =
-            blockPositions(
-                arena.get("reposition-nodes"),
-                defaults.repositionNodes(),
-                "arena.reposition-nodes"
-            );
-
         return new ArenaConfig(
             dimension,
             corePos,
             radius,
             robotSpawns,
-            viewerSpawns,
-            repositionNodes
+            viewerSpawns
         );
     }
 
@@ -719,37 +721,6 @@ public final class AutoBattleConfigLoader {
                         "pitch",
                         0.0D
                     )
-                )
-            );
-        }
-
-        return List.copyOf(result);
-    }
-
-    private static List<BlockPos> blockPositions(
-        Object raw,
-        List<BlockPos> fallback,
-        String path
-    ) {
-        if (raw == null) {
-            return fallback;
-        }
-
-        List<?> list = asList(raw, path);
-        List<BlockPos> result = new ArrayList<>();
-
-        for (int index = 0; index < list.size(); index++) {
-            Map<String, Object> point =
-                asMap(
-                    list.get(index),
-                    path + "[" + index + "]"
-                );
-
-            result.add(
-                new BlockPos(
-                    requiredInt(point, "x", path),
-                    requiredInt(point, "y", path),
-                    requiredInt(point, "z", path)
                 )
             );
         }

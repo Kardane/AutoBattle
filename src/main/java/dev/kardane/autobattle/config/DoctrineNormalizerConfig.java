@@ -7,16 +7,23 @@ public record DoctrineNormalizerConfig(
     String apiKey,
     String baseUrl,
     String model,
-    int requestTimeoutMs
+    int requestTimeoutMs,
+    int totalTimeoutMs,
+    int maxAttempts,
+    int retryBackoffMs
 ) {
     public DoctrineNormalizerConfig {
         apiKey = Objects.requireNonNull(apiKey, "apiKey").trim();
         baseUrl = requireNonBlank(baseUrl, "baseUrl");
         model = requireNonBlank(model, "model");
 
-        if (requestTimeoutMs < 1) {
+        if (requestTimeoutMs < 1
+            || totalTimeoutMs < requestTimeoutMs
+            || maxAttempts < 1
+            || maxAttempts > 3
+            || retryBackoffMs < 0) {
             throw new IllegalArgumentException(
-                "Doctrine normalizer timeout must be positive"
+                "Invalid Doctrine normalizer retry/timeout configuration"
             );
         }
     }

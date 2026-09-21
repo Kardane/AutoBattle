@@ -119,7 +119,9 @@ public final class RoundReviewService {
             score += 5;
         }
 
-        if (log.applyResult() != DecisionApplyResult.APPLIED) {
+        if (log.applyResult() != DecisionApplyResult.APPLIED
+            && log.applyResult()
+                != DecisionApplyResult.APPLIED_RECOMPOSED) {
             score += 2;
         }
 

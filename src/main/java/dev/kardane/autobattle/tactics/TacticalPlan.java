@@ -36,7 +36,7 @@ public record TacticalPlan(
                     targetOwnerUuid,
                     type + " requires targetOwnerUuid"
                 );
-            case CAPTURE, DEFEND, REPOSITION ->
+            case CAPTURE, DEFEND ->
                 Objects.requireNonNull(
                     destination,
                     type + " requires destination"
@@ -116,20 +116,6 @@ public record TacticalPlan(
             TacticalPlanType.DEFEND,
             destination,
             "DEFEND_CORE",
-            currentTick,
-            lockTicks
-        );
-    }
-
-    public static TacticalPlan reposition(
-        Vec3 destination,
-        long currentTick,
-        long lockTicks
-    ) {
-        return positional(
-            TacticalPlanType.REPOSITION,
-            destination,
-            "REPOSITION",
             currentTick,
             lockTicks
         );

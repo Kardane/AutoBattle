@@ -678,33 +678,6 @@ public final class AutoBattleCommands {
                 lockTicks
             );
 
-            case "REPOSITION" -> {
-                var nodes = matchManager.config()
-                    .arena()
-                    .repositionNodes();
-
-                if (nodes.isEmpty()) {
-                    source.sendFailure(
-                        message("commands.admin.debug-no-reposition-nodes")
-                    );
-                    return 0;
-                }
-
-                var node = nodes.get(
-                    slot.slotIndex() % nodes.size()
-                );
-
-                plan = TacticalPlan.reposition(
-                    new Vec3(
-                        node.getX() + 0.5D,
-                        node.getY(),
-                        node.getZ() + 0.5D
-                    ),
-                    currentTick,
-                    lockTicks
-                );
-            }
-
             default -> {
                 source.sendFailure(
                     message("commands.admin.debug-plan-invalid")

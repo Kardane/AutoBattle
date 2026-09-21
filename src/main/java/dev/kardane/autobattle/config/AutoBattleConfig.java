@@ -102,7 +102,10 @@ public record AutoBattleConfig(
                 "",
                 "https://api.openai.com",
                 "gpt-5.6-luna",
-                2500
+                5000,
+                6500,
+                2,
+                200
             ),
             new RobotConfig(
                 AutoBattleConstants.ROBOT_MAX_HEALTH,
@@ -118,7 +121,6 @@ public record AutoBattleConfig(
                 AutoBattleConstants.CHASE_SPEED,
                 AutoBattleConstants.CAPTURE_SPEED,
                 AutoBattleConstants.DEFEND_SPEED,
-                AutoBattleConstants.REPOSITION_SPEED,
                 AutoBattleConstants.RETREAT_SPEED,
                 AutoBattleConstants.POSITION_REACHED_DISTANCE,
                 AutoBattleConstants.DEFEND_RADIUS,

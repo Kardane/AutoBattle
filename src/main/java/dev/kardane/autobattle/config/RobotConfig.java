@@ -14,7 +14,6 @@ public record RobotConfig(
     double chaseSpeed,
     double captureSpeed,
     double defendSpeed,
-    double repositionSpeed,
     double retreatSpeed,
     double positionReachedDistance,
     double defendRadius,
@@ -34,7 +33,6 @@ public record RobotConfig(
             || chaseSpeed <= 0.0D
             || captureSpeed <= 0.0D
             || defendSpeed <= 0.0D
-            || repositionSpeed <= 0.0D
             || retreatSpeed <= 0.0D
             || positionReachedDistance <= 0.0D
             || defendRadius <= 0.0D

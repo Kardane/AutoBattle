@@ -8,7 +8,11 @@ public record DoctrineNormalizationResult(
     String sourceHash,
     String model,
     DoctrineNormalizationStatus status,
-    String error
+    String error,
+    String promptVersion,
+    int attemptCount,
+    long latencyMs,
+    Integer httpStatus
 ) {
     public DoctrineNormalizationResult {
         normalizedLines = List.copyOf(
@@ -26,5 +30,11 @@ public record DoctrineNormalizationResult(
             "sourceHash"
         );
         status = Objects.requireNonNull(status, "status");
+
+        if (attemptCount < 0 || latencyMs < 0L) {
+            throw new IllegalArgumentException(
+                "Normalization telemetry cannot be negative"
+            );
+        }
     }
 }

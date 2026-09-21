@@ -13,6 +13,7 @@ import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRespawnManager;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
 import dev.kardane.autobattle.robot.RobotZombie;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.jev.JevDecisionService;
 import dev.kardane.autobattle.log.MatchLogService;
 import dev.kardane.autobattle.tactics.PlanExecutor;
@@ -1081,7 +1082,9 @@ public final class MatchManager {
         ).ifPresent(controller -> {
             RobotRuntimeState runtime = controller.runtime();
             runtime.markDamaged(serverTick);
-            controller.requestRedecision();
+            controller.requestRedecision(
+                DecisionTrigger.DAMAGE
+            );
         });
     }
 
@@ -1143,7 +1146,9 @@ public final class MatchManager {
                 if (deadOwnerUuid.equals(
                     plan.targetOwnerUuid()
                 )) {
-                    controller.requestRedecision();
+                    controller.requestRedecision(
+                        DecisionTrigger.TARGET_INVALIDATED
+                    );
                 }
             });
         }

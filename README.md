@@ -40,15 +40,15 @@ The reload command can be used during any phase. It reloads both YAML files atom
 `config.yml` contains the TypeSafe API configuration and the main game tuning values:
 
 - TypeSafe API key, base URL, and model
-- OpenAI Doctrine Normalizer toggle, API key, model, and timeout
+- OpenAI Doctrine Normalizer toggle, API key, model, timeout budget, and retry settings
 - minimum players, round count, round/countdown/respawn/command timing
-- AI decision interval, lock, debounce, timeout, minimum confidence, and RETREAT availability/fallback HP threshold
+- AI decision interval, lock, debounce, timeout, minimum confidence, and emergency fallback RETREAT HP threshold
 - Doctrine maximum line length
 - robot HP, damage, movement/follow range, regeneration
 - tactical movement speeds and leash distances
 - kill/assist/CORE scoring and assist window
 - CORE capture/hold timings
-- dimension, CORE position/radius, robot/viewer spawns, reposition nodes
+- dimension, CORE position/radius, and robot/viewer spawns
 
 Example:
 
@@ -60,7 +60,10 @@ openai:
     api-key: ""
     base-url: "https://api.openai.com"
     model: "gpt-5.6-luna"
-    request-timeout-ms: 2500
+    request-timeout-ms: 5000
+    total-timeout-ms: 6500
+    max-attempts: 2
+    retry-backoff-ms: 200
 
 typesafe:
   api-key: "ts_your_key_here"
@@ -81,8 +84,8 @@ ai:
   decision-debounce-seconds: 0.5
   request-timeout-ms: 1500
   minimum-confidence: 0.35
-  # RETREAT is a valid Jev choice only at or below this ratio,
-  # and server fallback uses the same threshold.
+  # RETREAT is always available to Jev.
+  # This threshold is only for deterministic server fallback.
   fallback-retreat-hp-ratio: 0.25
 
 doctrine:
@@ -134,38 +137,35 @@ Jev decisions remain in:
 logs/autobattle/decisions/<match-id>.jsonl
 ```
 
-The shared match ID makes the two files easy to join during later analysis. Decision rows also record the requested tick and observed tick, selected versus effective plan, request-time HP/max HP/HP ratio, CORE owner/contested state, robot/target/destination coordinates, distance to CORE, distance to the active target, and API error class/message/HTTP status when a request fails.
+The shared match ID makes the two files easy to join during later analysis. Decision-log schema v2 records the decision trigger, request-time and apply-time legal plans, whether the candidate set changed, each decomposed Jev answer with confidence/probabilities, the composed/effective plan, latency, request-time HP/CORE state, positions/distances, and API error information.
 
-Participant snapshots preserve both the player-authored Doctrine (`doctrine`) and the canonical Doctrine sent to Jev (`doctrineNormalized`), plus the normalization hash, model, status, and fallback error when applicable.
+Participant snapshots preserve both the player-authored Doctrine (`doctrine`) and the canonical Doctrine sent to Jev (`doctrineNormalized`), plus normalization hash/model/status, prompt version, attempt count, latency, HTTP status, and fallback error when applicable.
 
 ## TypeSafe Jev
 
 Production AutoBattle uses the TypeSafe System One API with the configured model (default: `jev-latest`).
 
-Jev only selects from server-generated tactical candidates:
+Jev answers three narrow tactical questions in one System One request:
 
 ```text
-ENGAGE_<COLOR>
-CHASE_<COLOR>
-CAPTURE_CORE
-DEFEND_CORE
-RETREAT
-REPOSITION
+strategic_intent: FIGHT | CONTROL_CORE | RETREAT
+combat_target:    <living enemy color>
+pursuit_style:    ENGAGE | CHASE
 ```
 
-Doctrine text is state data, not executable game logic. The server validates every returned plan before applying it.
+Server code deterministically composes those answers into legal plans such as `ENGAGE_<COLOR>`, `CHASE_<COLOR>`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
 
 ## Doctrine normalization
 
 When enabled, AutoBattle normalizes all player Doctrine text—regardless of whether it is Korean, English, or another language—into concise canonical English before TypeSafe Jev sees it. The UI continues to show and edit the player's original text.
 
-Normalization happens only when Doctrine is initially submitted or actually edited. `KEEP` does not call OpenAI. The OpenAI request runs off the Minecraft server thread and only the completed Doctrine state update is marshalled back onto the server thread. A player can have at most one normalization pending at a time, and an initial Doctrine cannot be resubmitted once it has been accepted. A SHA-256 cache reuses prior normalization results for identical three-line Doctrine text, including across different players during the same server process.
+Normalization happens only when Doctrine is initially submitted or actually edited. `KEEP` does not call OpenAI. Requests use `HttpClient.sendAsync`; Minecraft state is touched only after completion is marshalled back onto the server thread. A player can have at most one normalization pending at a time. Identical normalization keys (source hash + model + prompt version) use single-flight deduplication so concurrent players share one upstream OpenAI request, and successful results are cached for later reuse in the same server process.
 
-The normalizer uses the OpenAI Responses API with Structured Outputs. It is instructed to preserve player intent and explicit numeric thresholds, keep the three rules separate, avoid inventing new goals or conditions, and prefer AutoBattle terms such as `CORE`, `ENGAGE`, `CHASE`, `CAPTURE_CORE`, `DEFEND_CORE`, `RETREAT`, `REPOSITION`, and `HP` when they accurately match the source.
+The normalizer uses the OpenAI Responses API with Structured Outputs. It is instructed to preserve player intent and explicit numeric thresholds, keep the three rules separate, avoid inventing new goals or conditions, and prefer AutoBattle terms such as `CORE`, `ENGAGE`, `CHASE`, `CAPTURE_CORE`, `DEFEND_CORE`, `RETREAT`, and `HP` when they accurately match the source.
 
 Only the three Doctrine strings plus fixed game terminology/instructions are sent to OpenAI. Player UUIDs, names, IP addresses, server addresses, TypeSafe credentials, and other match state are not included in the normalizer request. Responses are requested with `store: false`. Any separate OpenAI API data-sharing or promotional-credit setting is controlled at the OpenAI organization/project level rather than by AutoBattle.
 
-If OpenAI is disabled, no API key is available, the request times out, the API returns an error, or the structured result is invalid, AutoBattle falls back to the original three Doctrine lines and continues the game. Set `openai.doctrine-normalizer.api-key` or the `OPENAI_API_KEY` environment variable to enable live normalization.
+Transient OpenAI failures (network/timeout, HTTP 408/429/5xx) may be retried within the configured total deadline. Authentication/request errors are not retried. If normalization still fails, AutoBattle falls back to the original three Doctrine lines and continues the game. Set `openai.doctrine-normalizer.api-key` or the `OPENAI_API_KEY` environment variable to enable live normalization.
 
 ## Native Dialog flow
 

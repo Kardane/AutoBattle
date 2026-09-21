@@ -434,6 +434,22 @@ public final class MatchLogService {
                 "doctrineNormalizationError",
                 doctrine.normalizationError()
             );
+            player.put(
+                "doctrineNormalizationPromptVersion",
+                doctrine.normalizationPromptVersion()
+            );
+            player.put(
+                "doctrineNormalizationAttemptCount",
+                doctrine.normalizationAttemptCount()
+            );
+            player.put(
+                "doctrineNormalizationLatencyMs",
+                doctrine.normalizationLatencyMs()
+            );
+            player.put(
+                "doctrineNormalizationHttpStatus",
+                doctrine.normalizationHttpStatus()
+            );
         });
 
         var score = slot.score();

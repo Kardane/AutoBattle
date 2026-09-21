@@ -126,7 +126,7 @@ public final class DoctrineService {
         CompletableFuture<DoctrineEditResult> result =
             new CompletableFuture<>();
 
-        normalizeOffThread(source).whenComplete(
+        normalizeAsync(source).whenComplete(
             (normalized, throwable) ->
                 server.execute(() -> {
                     pendingNormalization.remove(playerUuid);
@@ -254,7 +254,7 @@ public final class DoctrineService {
         CompletableFuture<DoctrineEditResult> result =
             new CompletableFuture<>();
 
-        normalizeOffThread(source).whenComplete(
+        normalizeAsync(source).whenComplete(
             (normalized, throwable) ->
                 server.execute(() -> {
                     pendingNormalization.remove(playerUuid);
@@ -325,30 +325,19 @@ public final class DoctrineService {
         return result;
     }
 
-    private CompletableFuture<Doctrine> normalizeOffThread(
+    private CompletableFuture<Doctrine> normalizeAsync(
         Doctrine source
     ) {
         DoctrineNormalizer activeNormalizer = normalizer;
 
-        return CompletableFuture.supplyAsync(
-            () -> normalize(
-                source,
-                activeNormalizer
-            )
-        );
-    }
-
-    private Doctrine normalize(
-        Doctrine source,
-        DoctrineNormalizer activeNormalizer
-    ) {
-        DoctrineNormalizationResult normalization =
-            activeNormalizer.normalize(
-                source.lines()
-            );
-
-        logFallback(normalization);
-        return source.withNormalization(normalization);
+        return activeNormalizer
+            .normalizeAsync(source.lines())
+            .thenApply(normalization -> {
+                logFallback(normalization);
+                return source.withNormalization(
+                    normalization
+                );
+            });
     }
 
     private Doctrine fallbackAfterUnexpectedFailure(
@@ -372,7 +361,11 @@ public final class DoctrineService {
                 DoctrineNormalizationStatus.FALLBACK_ERROR,
                 root.getClass().getSimpleName()
                     + ": "
-                    + String.valueOf(root.getMessage())
+                    + String.valueOf(root.getMessage()),
+                null,
+                0,
+                0L,
+                null
             );
 
         logFallback(fallback);

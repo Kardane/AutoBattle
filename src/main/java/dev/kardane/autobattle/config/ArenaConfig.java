@@ -13,8 +13,7 @@ public record ArenaConfig(
     BlockPos corePos,
     double coreRadius,
     List<SpawnPoint> robotSpawns,
-    List<SpawnPoint> viewerSpawns,
-    List<BlockPos> repositionNodes
+    List<SpawnPoint> viewerSpawns
 ) {
     public ArenaConfig {
         Objects.requireNonNull(dimension, "dimension");
@@ -28,7 +27,6 @@ public record ArenaConfig(
 
         robotSpawns = List.copyOf(robotSpawns);
         viewerSpawns = List.copyOf(viewerSpawns);
-        repositionNodes = List.copyOf(repositionNodes);
 
         if (robotSpawns.size() < 4) {
             throw new IllegalArgumentException(
@@ -53,12 +51,6 @@ public record ArenaConfig(
                 new SpawnPoint(-20, 88, 20, 0.0F, 0.0F),
                 new SpawnPoint(-20, 88, -20, 0.0F, 0.0F),
                 new SpawnPoint(20, 88, -20, 0.0F, 0.0F)
-            ),
-            List.of(
-                new BlockPos(8, 80, 8),
-                new BlockPos(-8, 80, 8),
-                new BlockPos(-8, 80, -8),
-                new BlockPos(8, 80, -8)
             )
         );
     }
