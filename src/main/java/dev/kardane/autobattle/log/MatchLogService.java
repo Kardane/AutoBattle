@@ -59,6 +59,15 @@ public final class MatchLogService {
 
         payload.put("mode", "TEAM_BATTLE");
         payload.put(
+            "teamSize",
+            (int) match.players().stream()
+                .filter(slot -> !slot.forfeited())
+                .filter(slot ->
+                    slot.team() == BattleTeam.RED
+                )
+                .count()
+        );
+        payload.put(
             "participants",
             playerSnapshots(server, match)
         );
@@ -256,14 +265,24 @@ public final class MatchLogService {
                 )
                 .toList();
 
+        Map<String, Object> payload =
+            new LinkedHashMap<>();
+
+        payload.put(
+            "winnerTeam",
+            match.winnerTeam()
+                .map(Enum::name)
+                .orElse(null)
+        );
+        payload.put("draw", match.draw());
+        payload.put("teamScores", teamScores(match));
+        payload.put("standings", standings);
+
         append(
             match,
             "match_finished",
             serverTick,
-            Map.of(
-                "standings",
-                standings
-            )
+            payload
         );
     }
 
