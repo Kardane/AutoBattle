@@ -32,7 +32,6 @@ public final class AutoBattleConstants {
     public static final double CHASE_SPEED = 1.20D;
     public static final double CAPTURE_SPEED = 1.05D;
     public static final double DEFEND_SPEED = 1.00D;
-    public static final double REPOSITION_SPEED = 1.10D;
     public static final double RETREAT_SPEED = 1.20D;
     public static final double POSITION_REACHED_DISTANCE = 1.5D;
     public static final double DEFEND_RADIUS = 3.0D;
