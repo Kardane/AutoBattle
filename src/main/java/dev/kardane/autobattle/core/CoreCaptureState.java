@@ -1,15 +1,18 @@
 package dev.kardane.autobattle.core;
 
-import java.util.UUID;
+import dev.kardane.autobattle.match.BattleTeam;
+
+import java.util.Objects;
 
 public record CoreCaptureState(
-    UUID capturingOwnerUuid,
+    BattleTeam capturingTeam,
     int progressTicks
 ) {
     public CoreCaptureState {
-        if (capturingOwnerUuid == null) {
-            throw new NullPointerException("capturingOwnerUuid");
-        }
+        Objects.requireNonNull(
+            capturingTeam,
+            "capturingTeam"
+        );
 
         if (progressTicks < 0) {
             throw new IllegalArgumentException(
@@ -20,7 +23,7 @@ public record CoreCaptureState(
 
     public CoreCaptureState advance() {
         return new CoreCaptureState(
-            capturingOwnerUuid,
+            capturingTeam,
             progressTicks + 1
         );
     }
