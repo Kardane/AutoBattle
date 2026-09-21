@@ -74,7 +74,7 @@ public final class RobotFactory {
 
     public RobotZombie spawnTestRobot(
         ServerPlayer owner,
-        RobotColor color
+        BattleTeam team
     ) {
         Vec3 position = owner.position()
             .add(owner.getLookAngle().scale(3.0D));
@@ -84,10 +84,8 @@ public final class RobotFactory {
             UUID.randomUUID(),
             owner.getUUID(),
             owner.getName(),
-            color == RobotColor.RED
-                ? BattleTeam.RED
-                : BattleTeam.BLUE,
-            color == RobotColor.RED ? "R1" : "B1",
+            team,
+            team.targetId(0),
             position,
             owner.getYRot()
         );
