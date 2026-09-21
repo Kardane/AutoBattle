@@ -7,7 +7,6 @@ import dev.kardane.autobattle.combat.KillResolution;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.SpawnPoint;
 import dev.kardane.autobattle.core.CoreController;
-import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRespawnManager;
@@ -54,6 +53,8 @@ public final class MatchManager {
     private final JevDecisionService decisionService;
     private final UiCoordinator ui;
     private final MatchLogService matchLogs;
+    private final TeamAssignmentService teamAssignments =
+        new TeamAssignmentService();
     private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
@@ -518,15 +519,23 @@ public final class MatchManager {
             return true;
         }
 
-        int slotIndex = nextFreeSlot();
-        RobotColor[] colors = RobotColor.values();
+        TeamAssignmentService.Assignment assignment =
+            teamAssignments.assign(
+                session,
+                config.match()
+            ).orElse(null);
 
-        if (slotIndex < 0 || slotIndex >= colors.length) {
+        if (assignment == null) {
             return false;
         }
 
         session.addPlayer(
-            new PlayerSlot(uuid, colors[slotIndex], slotIndex)
+            new PlayerSlot(
+                uuid,
+                assignment.team(),
+                assignment.memberIndex(),
+                assignment.slotIndex()
+            )
         );
 
         return true;
@@ -584,15 +593,8 @@ public final class MatchManager {
     }
 
     public Optional<Boolean> toggleReady(ServerPlayer player) {
-        return session.player(player.getUUID()).map(slot -> {
-            if (session.phase() != MatchPhase.LOBBY) {
-                return slot.ready();
-            }
-
-            boolean next = !slot.ready();
-            slot.setReady(next);
-            return next;
-        });
+        return session.player(player.getUUID())
+            .map(slot -> true);
     }
 
     public Optional<PlayerSlot> playerSlot(UUID playerUuid) {
@@ -617,10 +619,18 @@ public final class MatchManager {
     }
 
     public boolean canStart() {
-        int activePlayers = activePlayerCount();
+        return teamAssignments.canStart(
+            session,
+            config.match()
+        );
+    }
 
-        return activePlayers >= config.minimumPlayers()
-            && readyCount() == activePlayers;
+    public int teamCount(BattleTeam team) {
+        return teamAssignments.activeCount(session, team);
+    }
+
+    public boolean teamsBalanced() {
+        return teamAssignments.balanced(session);
     }
 
     public boolean beginDoctrineSetupIfReady(
@@ -641,7 +651,7 @@ public final class MatchManager {
     }
 
     public boolean allDoctrinesSubmitted() {
-        return activePlayerCount() >= config.minimumPlayers()
+        return canStart()
             && session.players().stream()
                 .filter(slot -> !slot.forfeited())
                 .allMatch(slot -> slot.doctrine().isPresent());
@@ -744,7 +754,7 @@ public final class MatchManager {
             .count();
 
         if (session.currentRound() == 0) {
-            if (eligiblePlayers < config.minimumPlayers()
+            if (!canStart()
                 || !allDoctrinesSubmitted()) {
                 return false;
             }
@@ -1152,24 +1162,6 @@ public final class MatchManager {
                 }
             });
         }
-    }
-
-    private int nextFreeSlot() {
-        Set<Integer> used = new HashSet<>();
-
-        for (PlayerSlot slot : session.players()) {
-            used.add(slot.slotIndex());
-        }
-
-        for (int index = 0;
-             index < RobotColor.values().length;
-             index++) {
-            if (!used.contains(index)) {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     private record RobotAttackIntent(
