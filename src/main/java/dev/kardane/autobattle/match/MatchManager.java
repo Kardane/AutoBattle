@@ -55,6 +55,8 @@ public final class MatchManager {
     private final MatchLogService matchLogs;
     private final TeamAssignmentService teamAssignments =
         new TeamAssignmentService();
+    private final TeamSpawnResolver teamSpawns =
+        new TeamSpawnResolver();
     private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
@@ -175,6 +177,7 @@ public final class MatchManager {
                 || victim.ownerUuid().equals(
                     attacker.ownerUuid()
                 )
+                || victim.team() == attacker.team()
                 || attacker.distanceToSqr(victim)
                     > ROBOT_ATTACK_RANGE_SQR) {
                 continue;
@@ -789,9 +792,12 @@ public final class MatchManager {
                 continue;
             }
 
-            SpawnPoint spawn = config.arena()
-                .robotSpawns()
-                .get(slot.slotIndex());
+            SpawnPoint spawn = teamSpawns.resolve(
+                config.arena(),
+                slot,
+                teamCount(slot.team()),
+                nextRound
+            );
 
             ServerPlayer owner = server.getPlayerList()
                 .getPlayer(slot.playerUuid());
@@ -808,7 +814,8 @@ public final class MatchManager {
                 session.matchId(),
                 slot.playerUuid(),
                 ownerName,
-                slot.color(),
+                slot.team(),
+                slot.targetId(),
                 spawn.position(),
                 spawn.yaw()
             );
