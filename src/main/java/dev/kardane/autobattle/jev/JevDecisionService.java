@@ -23,6 +23,8 @@ public final class JevDecisionService {
     private final ValidPlanFactory validPlanFactory;
     private final PlanExecutor planExecutor;
     private final DecisionLogRepository logs;
+    private final DecisionComposer composer =
+        new DecisionComposer();
     private AutoBattleConfig config;
 
     public JevDecisionService(
@@ -190,6 +192,9 @@ public final class JevDecisionService {
         long currentTick
     ) {
         DecisionContext context = request.context();
+        String previousPlanId = controller.currentPlan()
+            .map(TacticalPlan::externalId)
+            .orElse(null);
 
         if (!match.matchId().equals(context.matchId())) {
             return logAndReturn(
@@ -198,7 +203,11 @@ public final class JevDecisionService {
                 response,
                 DecisionApplyResult.STALE_MATCH,
                 false,
-                currentTick
+                error,
+                currentTick,
+                List.of(),
+                previousPlanId,
+                null
             );
         }
 
@@ -211,7 +220,11 @@ public final class JevDecisionService {
                 response,
                 DecisionApplyResult.STALE_ROUND,
                 false,
-                currentTick
+                error,
+                currentTick,
+                List.of(),
+                previousPlanId,
+                null
             );
         }
 
@@ -225,7 +238,11 @@ public final class JevDecisionService {
                 response,
                 DecisionApplyResult.STALE_ENTITY,
                 false,
-                currentTick
+                error,
+                currentTick,
+                List.of(),
+                previousPlanId,
+                null
             );
         }
 
@@ -237,7 +254,11 @@ public final class JevDecisionService {
                 response,
                 DecisionApplyResult.STALE_GENERATION,
                 false,
-                currentTick
+                error,
+                currentTick,
+                List.of(),
+                previousPlanId,
+                null
             );
         }
 
@@ -257,7 +278,11 @@ public final class JevDecisionService {
                 response,
                 DecisionApplyResult.STALE_ENTITY,
                 false,
-                currentTick
+                error,
+                currentTick,
+                List.of(),
+                previousPlanId,
+                null
             );
         }
 
@@ -278,7 +303,11 @@ public final class JevDecisionService {
                 response,
                 DecisionApplyResult.STALE_DOCTRINE,
                 false,
-                currentTick
+                error,
+                currentTick,
+                List.of(),
+                previousPlanId,
+                null
             );
         }
 
@@ -294,21 +323,6 @@ public final class JevDecisionService {
 
         List<String> currentIds =
             List.copyOf(byId.keySet());
-
-        if (currentIds.hashCode()
-            != context.candidatesHash()) {
-            finishDecision(controller, context, currentTick);
-            controller.requestRedecision();
-
-            return logAndReturn(
-                controller,
-                request,
-                response,
-                DecisionApplyResult.STALE_CANDIDATES,
-                false,
-                currentTick
-            );
-        }
 
         if (error != null || response == null) {
             DecisionApplyResult result = applyFallback(
@@ -327,13 +341,89 @@ public final class JevDecisionService {
                 result,
                 true,
                 error,
-                currentTick
+                currentTick,
+                currentIds,
+                previousPlanId,
+                null
             );
         }
 
-        TacticalPlan selected = byId.get(
-            response.selectedPlanId()
-        );
+        double minimumConfidence =
+            config.ai().minimumConfidence();
+
+        DecisionComposition requestComposition =
+            composer.compose(
+                response,
+                request.validPlanIds(),
+                previousPlanId,
+                minimumConfidence
+            );
+
+        DecisionComposition currentComposition =
+            composer.compose(
+                response,
+                currentIds,
+                previousPlanId,
+                minimumConfidence
+            );
+
+        String composedPlanId =
+            currentComposition.planId();
+
+        if (composedPlanId == null) {
+            if (currentComposition.targetUnavailable()) {
+                finishDecision(
+                    controller,
+                    context,
+                    currentTick
+                );
+                controller.requestRedecision();
+
+                return logAndReturn(
+                    controller,
+                    request,
+                    response,
+                    DecisionApplyResult.TARGET_UNAVAILABLE,
+                    false,
+                    null,
+                    currentTick,
+                    currentIds,
+                    previousPlanId,
+                    null
+                );
+            }
+
+            DecisionApplyResult fallbackResult =
+                currentComposition.lowConfidence()
+                    ? DecisionApplyResult
+                        .LOW_CONFIDENCE_FALLBACK
+                    : DecisionApplyResult
+                        .UNRESOLVABLE_DECISION;
+
+            DecisionApplyResult result = applyFallback(
+                controller,
+                byId,
+                currentTick,
+                fallbackResult
+            );
+
+            finishDecision(controller, context, currentTick);
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                result,
+                true,
+                null,
+                currentTick,
+                currentIds,
+                previousPlanId,
+                null
+            );
+        }
+
+        TacticalPlan selected = byId.get(composedPlanId);
 
         if (selected == null) {
             DecisionApplyResult result = applyFallback(
@@ -351,27 +441,28 @@ public final class JevDecisionService {
                 response,
                 result,
                 true,
-                currentTick
+                null,
+                currentTick,
+                currentIds,
+                previousPlanId,
+                composedPlanId
             );
         }
 
-        if (response.confidence() < config.ai().minimumConfidence()) {
-            DecisionApplyResult result = applyFallback(
-                controller,
-                byId,
-                currentTick,
-                DecisionApplyResult.LOW_CONFIDENCE_FALLBACK
-            );
-
+        if (composedPlanId.equals(previousPlanId)) {
             finishDecision(controller, context, currentTick);
 
             return logAndReturn(
                 controller,
                 request,
                 response,
-                result,
-                true,
-                currentTick
+                DecisionApplyResult.KEPT_CURRENT_PLAN,
+                currentComposition.lowConfidence(),
+                null,
+                currentTick,
+                currentIds,
+                previousPlanId,
+                composedPlanId
             );
         }
 
@@ -383,22 +474,43 @@ public final class JevDecisionService {
 
         finishDecision(controller, context, currentTick);
 
-        DecisionApplyResult result;
-
         if (!applied) {
             controller.requestRedecision();
-            result = DecisionApplyResult.KEPT_CURRENT_PLAN;
-        } else {
-            result = DecisionApplyResult.APPLIED;
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.KEPT_CURRENT_PLAN,
+                currentComposition.lowConfidence(),
+                null,
+                currentTick,
+                currentIds,
+                previousPlanId,
+                composedPlanId
+            );
         }
+
+        boolean recomposed =
+            requestComposition.planId() != null
+            && !requestComposition.planId()
+                .equals(composedPlanId);
+
+        DecisionApplyResult result = recomposed
+            ? DecisionApplyResult.APPLIED_RECOMPOSED
+            : DecisionApplyResult.APPLIED;
 
         return logAndReturn(
             controller,
             request,
             response,
             result,
-            false,
-            currentTick
+            currentComposition.lowConfidence(),
+            null,
+            currentTick,
+            currentIds,
+            previousPlanId,
+            composedPlanId
         );
     }
 
@@ -466,12 +578,6 @@ public final class JevDecisionService {
             return objective;
         }
 
-        TacticalPlan reposition = byId.get("REPOSITION");
-
-        if (reposition != null) {
-            return reposition;
-        }
-
         return byId.values()
             .stream()
             .findFirst()
@@ -497,27 +603,11 @@ public final class JevDecisionService {
         DecisionResponse response,
         DecisionApplyResult result,
         boolean fallback,
-        long currentTick
-    ) {
-        return logAndReturn(
-            controller,
-            request,
-            response,
-            result,
-            fallback,
-            null,
-            currentTick
-        );
-    }
-
-    private DecisionApplyResult logAndReturn(
-        RobotController controller,
-        DecisionRequest request,
-        DecisionResponse response,
-        DecisionApplyResult result,
-        boolean fallback,
         Throwable error,
-        long currentTick
+        long currentTick,
+        List<String> applyValidPlanIds,
+        String previousPlanId,
+        String composedPlanId
     ) {
         DecisionContext context = request.context();
         RobotSnapshot self = request.snapshot().self();
@@ -549,8 +639,14 @@ public final class JevDecisionService {
                 ? requestError.httpStatus()
                 : null;
 
+        boolean candidateSetChanged =
+            applyValidPlanIds.hashCode()
+                != context.candidatesHash();
+
         logs.append(
             new DecisionLog(
+                2,
+                "DECOMPOSED_V2",
                 context.matchId(),
                 context.round(),
                 context.requestedTick(),
@@ -560,18 +656,22 @@ public final class JevDecisionService {
                 controller.color(),
                 context.doctrineVersion(),
                 request.validPlanIds(),
+                applyValidPlanIds,
+                candidateSetChanged,
+                previousPlanId,
                 response == null
                     ? null
-                    : response.selectedPlanId(),
+                    : response.strategicIntent(),
+                response == null
+                    ? null
+                    : response.combatTarget(),
+                response == null
+                    ? null
+                    : response.pursuitStyle(),
+                composedPlanId,
                 controller.currentPlan()
                     .map(TacticalPlan::externalId)
                     .orElse(null),
-                response == null
-                    ? 0.0D
-                    : response.confidence(),
-                response == null
-                    ? Map.of()
-                    : response.probabilities(),
                 latencyMs,
                 fallback,
                 result,
