@@ -306,12 +306,6 @@ public final class RobotController {
             case DEFEND ->
                 defend(currentPlan.destination());
             case RETREAT -> retreat();
-            case REPOSITION -> moveToPosition(
-                currentPlan.destination(),
-                config.repositionSpeed(),
-                square(config.positionReachedDistance()),
-                true
-            );
         }
     }
 
