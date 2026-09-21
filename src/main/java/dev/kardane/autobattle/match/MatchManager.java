@@ -453,9 +453,14 @@ public final class MatchManager {
         );
 
         resolution.killerOwner().flatMap(session::player).ifPresent(
-            slot -> slot.score().addKill(
-                config.scoring().killScore()
-            )
+            slot -> {
+                slot.score().addKill(
+                    config.scoring().killScore()
+                );
+                session.teamScore(slot.team()).addKill(
+                    config.scoring().killScore()
+                );
+            }
         );
 
         PlayerSlot victimSlot = session.player(
@@ -479,9 +484,14 @@ public final class MatchManager {
 
         for (UUID assistOwner : resolution.assistOwnerUuids()) {
             session.player(assistOwner).ifPresent(
-                slot -> slot.score().addAssist(
-                    config.scoring().assistScore()
-                )
+                slot -> {
+                    slot.score().addAssist(
+                        config.scoring().assistScore()
+                    );
+                    session.teamScore(slot.team()).addAssist(
+                        config.scoring().assistScore()
+                    );
+                }
             );
         }
 
@@ -786,6 +796,10 @@ public final class MatchManager {
             );
 
         session.setCurrentRound(nextRound);
+
+        for (BattleTeam team : BattleTeam.values()) {
+            session.teamScore(team).resetRound();
+        }
 
         for (PlayerSlot slot : session.players()) {
             if (slot.forfeited()) {
