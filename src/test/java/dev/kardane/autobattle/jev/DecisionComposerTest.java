@@ -69,6 +69,30 @@ final class DecisionComposerTest {
         );
     }
 
+
+    @Test
+    void lowConfidenceTargetFallsBackWithoutTargetLoss() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("FIGHT", 0.9D),
+                choice("BLUE", 0.2D),
+                choice("CHASE", 0.9D)
+            ),
+            List.of(
+                "ENGAGE_BLUE",
+                "CHASE_BLUE",
+                "CAPTURE_CORE",
+                "RETREAT"
+            ),
+            "CAPTURE_CORE",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertTrue(result.lowConfidence());
+        assertFalse(result.targetUnavailable());
+    }
+
     @Test
     void unavailableTargetIsNotSilentlyReplaced() {
         DecisionComposition result = composer.compose(
