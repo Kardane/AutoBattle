@@ -59,6 +59,7 @@ public final class JevDecisionService {
         this.client = Objects.requireNonNull(client, "client");
         this.config = Objects.requireNonNull(config, "config");
         this.validPlanFactory.reload(config);
+        this.serializer.reloadConfig(config.robot());
     }
 
     public DecisionLogRepository logs() {
