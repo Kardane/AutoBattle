@@ -177,7 +177,7 @@ public final class MatchManager {
                 || victim.ownerUuid().equals(
                     attacker.ownerUuid()
                 )
-                || victim.team() == attacker.team()
+                || !attacker.team().isEnemy(victim.team())
                 || attacker.distanceToSqr(victim)
                     > ROBOT_ATTACK_RANGE_SQR) {
                 continue;
