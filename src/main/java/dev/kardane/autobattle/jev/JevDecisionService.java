@@ -152,7 +152,15 @@ public final class JevDecisionService {
             return;
         }
 
+        RobotDecisionSnapshot snapshot =
+            serializer.snapshot(
+                match,
+                controller,
+                currentTick
+            );
+
         long generation = controller.nextDecisionGeneration();
+        DecisionTrigger trigger = controller.decisionTrigger();
         int inFlightAtRequest = ++inFlightRequests;
 
         DecisionContext context = new DecisionContext(
@@ -163,16 +171,9 @@ public final class JevDecisionService {
             slot.doctrine().orElseThrow().version(),
             generation,
             currentTick,
-            controller.decisionTrigger(),
+            trigger,
             inFlightAtRequest
         );
-
-        RobotDecisionSnapshot snapshot =
-            serializer.snapshot(
-                match,
-                controller,
-                currentTick
-            );
 
         DecisionRequest request = new DecisionRequest(
             context,
@@ -182,8 +183,28 @@ public final class JevDecisionService {
 
         controller.markDecisionRequested(generation);
 
-        client.decide(request)
-            .orTimeout(
+        java.util.concurrent.CompletableFuture<DecisionResponse> future;
+
+        try {
+            future = client.decide(request);
+        } catch (Throwable error) {
+            inFlightRequests = Math.max(
+                0,
+                inFlightRequests - 1
+            );
+
+            applyResponse(
+                match,
+                controller,
+                request,
+                null,
+                error,
+                currentTick
+            );
+            return;
+        }
+
+        future.orTimeout(
                 config.jevTimeoutMs(),
                 TimeUnit.MILLISECONDS
             )
