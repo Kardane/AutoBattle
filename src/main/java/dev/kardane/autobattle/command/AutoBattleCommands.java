@@ -428,34 +428,19 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager,
         PlanExecutor planExecutor,
-        String rawColor
+        String rawTargetId
     ) {
-        RobotColor color;
-
-        try {
-            color = RobotColor.valueOf(
-                rawColor.toUpperCase(Locale.ROOT)
-            );
-        } catch (IllegalArgumentException exception) {
-            source.sendFailure(
-                message("commands.admin.debug-unknown-color")
-            );
-            return 0;
-        }
-
-        PlayerSlot slot = matchManager.session()
-            .players()
-            .stream()
-            .filter(candidate -> candidate.color() == color)
-            .findFirst()
-            .orElse(null);
+        PlayerSlot slot = findSlotByTargetId(
+            matchManager,
+            rawTargetId
+        );
 
         if (slot == null) {
             source.sendFailure(
                 message(
                     "commands.admin.debug-no-owner",
                     "color",
-                    color.name()
+                    rawTargetId.toUpperCase(Locale.ROOT)
                 )
             );
             return 0;
@@ -505,7 +490,7 @@ public final class AutoBattleCommands {
         Component status = message(
             "commands.admin.debug-status",
             "color",
-            color.name(),
+            slot.targetId(),
             "total",
             score.totalScore(),
             "round",
@@ -543,37 +528,18 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager,
         PlanExecutor planExecutor,
-        String rawColor,
+        String rawTargetId,
         String rawPlan,
-        String rawTargetColor
+        String rawEnemyId
     ) {
-        RobotColor color;
-
-        try {
-            color = RobotColor.valueOf(
-                rawColor.toUpperCase(Locale.ROOT)
-            );
-        } catch (IllegalArgumentException exception) {
-            source.sendFailure(
-                message("commands.admin.debug-unknown-color")
-            );
-            return 0;
-        }
-
-        PlayerSlot slot = matchManager.session()
-            .players()
-            .stream()
-            .filter(candidate -> candidate.color() == color)
-            .findFirst()
-            .orElse(null);
+        PlayerSlot slot = findSlotByTargetId(
+            matchManager,
+            rawTargetId
+        );
 
         if (slot == null) {
             source.sendFailure(
-                message(
-                    "commands.admin.debug-no-owner",
-                    "color",
-                    color.name()
-                )
+                message("commands.admin.debug-unknown-color")
             );
             return 0;
         }
@@ -587,7 +553,7 @@ public final class AutoBattleCommands {
                 message(
                     "commands.admin.debug-robot-not-alive",
                     "color",
-                    color.name()
+                    slot.targetId()
                 )
             );
             return 0;
@@ -601,7 +567,7 @@ public final class AutoBattleCommands {
 
         switch (planName) {
             case "ENGAGE", "CHASE" -> {
-                if (rawTargetColor == null) {
+                if (rawEnemyId == null) {
                     source.sendFailure(
                         message(
                             "commands.admin.debug-plan-requires-target",
@@ -612,33 +578,15 @@ public final class AutoBattleCommands {
                     return 0;
                 }
 
-                RobotColor targetColor;
-
-                try {
-                    targetColor = RobotColor.valueOf(
-                        rawTargetColor.toUpperCase(Locale.ROOT)
-                    );
-                } catch (IllegalArgumentException exception) {
-                    source.sendFailure(
-                        message(
-                            "commands.admin.debug-unknown-target-color"
-                        )
-                    );
-                    return 0;
-                }
-
-                PlayerSlot targetSlot = matchManager.session()
-                    .players()
-                    .stream()
-                    .filter(candidate ->
-                        candidate.color() == targetColor
-                    )
-                    .findFirst()
-                    .orElse(null);
+                PlayerSlot targetSlot = findSlotByTargetId(
+                    matchManager,
+                    rawEnemyId
+                );
 
                 if (targetSlot == null
                     || targetSlot.playerUuid()
-                        .equals(slot.playerUuid())) {
+                        .equals(slot.playerUuid())
+                    || targetSlot.team() == slot.team()) {
                     source.sendFailure(
                         message(
                             "commands.admin.debug-target-invalid"
@@ -647,16 +595,19 @@ public final class AutoBattleCommands {
                     return 0;
                 }
 
+                String externalId =
+                    planName + "_" + targetSlot.targetId();
+
                 plan = planName.equals("ENGAGE")
                     ? TacticalPlan.engage(
                         targetSlot.playerUuid(),
-                        "ENGAGE_" + targetColor.name(),
+                        externalId,
                         currentTick,
                         lockTicks
                     )
                     : TacticalPlan.chase(
                         targetSlot.playerUuid(),
-                        "CHASE_" + targetColor.name(),
+                        externalId,
                         currentTick,
                         lockTicks
                     );
@@ -702,7 +653,7 @@ public final class AutoBattleCommands {
             () -> message(
                 "commands.admin.debug-plan-assigned",
                 "color",
-                color.name(),
+                slot.targetId(),
                 "plan",
                 plan.externalId()
             ),
@@ -710,6 +661,26 @@ public final class AutoBattleCommands {
         );
 
         return 1;
+    }
+
+    private static PlayerSlot findSlotByTargetId(
+        MatchManager matchManager,
+        String rawTargetId
+    ) {
+        if (rawTargetId == null) {
+            return null;
+        }
+
+        return matchManager.session()
+            .players()
+            .stream()
+            .filter(slot ->
+                slot.targetId().equalsIgnoreCase(
+                    rawTargetId.trim()
+                )
+            )
+            .findFirst()
+            .orElse(null);
     }
 
     private static Vec3 coreCenter(
