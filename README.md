@@ -188,7 +188,7 @@ Minecraft 1.21.8 native Dialogs are used for the player-facing training loop:
 ```text
 Players join and are immediately Ready
     ↓
-Operator runs /autobattle admin start when RED and BLUE counts are equal
+Operator runs /autobattle admin start when RED and BLUE counts are equal (`startround` remains a legacy/debug command)
     ↓
 Doctrine Setup Dialog
     - Doctrine 1
