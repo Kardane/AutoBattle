@@ -4,6 +4,7 @@ import dev.kardane.autobattle.core.CoreController;
 import dev.kardane.autobattle.robot.RobotRegistry;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,8 @@ public final class MatchSession {
     private final RobotRegistry robotRegistry;
     private final RoundState roundState = new RoundState();
     private final CoreController coreController;
+    private final EnumMap<BattleTeam, TeamScoreState> teamScores =
+        new EnumMap<>(BattleTeam.class);
 
     private MatchPhase phase = MatchPhase.LOBBY;
     private int currentRound;
@@ -40,6 +43,10 @@ public final class MatchSession {
             coreController,
             "coreController"
         );
+
+        for (BattleTeam team : BattleTeam.values()) {
+            teamScores.put(team, new TeamScoreState());
+        }
     }
 
     public UUID matchId() {
@@ -68,6 +75,12 @@ public final class MatchSession {
 
     public CoreController core() {
         return coreController;
+    }
+
+    public TeamScoreState teamScore(BattleTeam team) {
+        return teamScores.get(
+            Objects.requireNonNull(team, "team")
+        );
     }
 
     public Collection<PlayerSlot> players() {
