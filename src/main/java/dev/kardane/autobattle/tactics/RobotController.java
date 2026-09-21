@@ -388,10 +388,9 @@ public final class RobotController {
             clampToArena(destination);
 
         Optional<RobotZombie> intruder =
-            resolveNearestEnemy().filter(enemy ->
-                enemy.position().distanceToSqr(
-                    boundedDestination
-                ) <= square(config.defendRadius())
+            resolveNearestEnemyNear(
+                boundedDestination,
+                config.defendRadius()
             );
 
         if (intruder.isPresent()) {
@@ -534,6 +533,43 @@ public final class RobotController {
             )
             .filter(target ->
                 insideArena(target.position())
+            )
+            .min(
+                Comparator.comparingDouble(
+                    target ->
+                        entity.distanceToSqr(target)
+                )
+            );
+    }
+
+    private Optional<RobotZombie> resolveNearestEnemyNear(
+        Vec3 center,
+        double radius
+    ) {
+        if (entity == null) {
+            return Optional.empty();
+        }
+
+        double radiusSqr = square(radius);
+
+        return registry.alive().stream()
+            .filter(controller -> controller != this)
+            .filter(controller ->
+                team.isEnemy(controller.team())
+            )
+            .flatMap(
+                controller ->
+                    controller.entity().stream()
+            )
+            .filter(target ->
+                target.matchId().equals(entity.matchId())
+            )
+            .filter(target ->
+                insideArena(target.position())
+            )
+            .filter(target ->
+                target.position().distanceToSqr(center)
+                    <= radiusSqr
             )
             .min(
                 Comparator.comparingDouble(
