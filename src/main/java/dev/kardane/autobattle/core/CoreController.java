@@ -218,11 +218,16 @@ public final class CoreController {
         double deltaX = Math.abs(
             robot.position().x - center.x
         );
+        double deltaY = Math.abs(
+            robot.position().y - center.y
+        );
         double deltaZ = Math.abs(
             robot.position().z - center.z
         );
 
-        return deltaX <= radius && deltaZ <= radius;
+        return deltaX <= radius
+            && deltaY <= radius
+            && deltaZ <= radius;
     }
 
     public double distanceTo(RobotZombie robot) {
