@@ -1,7 +1,8 @@
 package dev.kardane.autobattle;
 
 public final class AutoBattleConstants {
-    public static final int DEFAULT_MIN_PLAYERS = 4;
+    public static final int DEFAULT_MIN_TEAM_SIZE = 1;
+    public static final int DEFAULT_MAX_TEAM_SIZE = 8;
     public static final int DEFAULT_ROUNDS = 5;
 
     public static final int ROUND_DURATION_TICKS = 20 * 90;
