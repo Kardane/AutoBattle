@@ -293,3 +293,8 @@ For production Jev testing, set `typesafe.api-key` in `config/autobattle/config.
 ## License
 
 MIT
+
+
+### Team battle Carpet verification
+
+Use `/autobattle admin test spawn 4`, `/autobattle admin test setup 4`, then `/autobattle admin test verify 4` for 4v4. Repeat with `8` for 8v8. During `ROUND_ACTIVE`, verify also checks robot controller/entity team identity and rejects friendly combat targets.
