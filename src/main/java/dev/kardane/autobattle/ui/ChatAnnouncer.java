@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.config.LanguageService;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.network.chat.Component;
@@ -94,9 +95,13 @@ public final class ChatAnnouncer {
             language.component(
                 "chat.robot-killed",
                 "killer_color",
-                killer.color().name(),
+                killer.team().name(),
+                "killer_id",
+                killer.targetId(),
                 "victim_color",
-                victim.color().name()
+                victim.team().name(),
+                "victim_id",
+                victim.targetId()
             )
         );
     }
@@ -104,14 +109,16 @@ public final class ChatAnnouncer {
     public void coreCaptured(
         MinecraftServer server,
         MatchSession match,
-        PlayerSlot owner
+        BattleTeam owner
     ) {
         broadcastAll(
             server,
             language.component(
                 "chat.core-captured",
                 "color",
-                owner.color().name()
+                owner.name(),
+                "team",
+                owner.name()
             )
         );
     }
@@ -120,6 +127,35 @@ public final class ChatAnnouncer {
         MinecraftServer server,
         MatchSession match
     ) {
+        broadcastAll(
+            server,
+            match.winnerTeam()
+                .map(team ->
+                    language.component(
+                        "chat.team-winner",
+                        "team",
+                        team.name(),
+                        "red_score",
+                        match.teamScore(BattleTeam.RED)
+                            .totalScore(),
+                        "blue_score",
+                        match.teamScore(BattleTeam.BLUE)
+                            .totalScore()
+                    )
+                )
+                .orElseGet(() ->
+                    language.component(
+                        "chat.team-draw",
+                        "red_score",
+                        match.teamScore(BattleTeam.RED)
+                            .totalScore(),
+                        "blue_score",
+                        match.teamScore(BattleTeam.BLUE)
+                            .totalScore()
+                    )
+                )
+        );
+
         broadcastAll(
             server,
             language.component(
@@ -151,7 +187,11 @@ public final class ChatAnnouncer {
                 "rank",
                 index + 1,
                 "color",
-                slot.color().name(),
+                slot.team().name(),
+                "team",
+                slot.team().name(),
+                "id",
+                slot.targetId(),
                 "score",
                 slot.score().totalScore()
             ).copy().withStyle(slot.color().chatColor());

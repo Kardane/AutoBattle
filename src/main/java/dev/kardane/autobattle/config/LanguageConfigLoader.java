@@ -21,8 +21,13 @@ public final class LanguageConfigLoader {
         # Supported placeholders are documented next to each section.
         # Edit this file and run /autobattle admin reload at any time.
 
+        messages-version: 2
+
         sidebar:
           title: "AUTO BATTLE"
+          # {team}, {score}
+          team-entry: "{team}  {score}"
+          # Legacy FFA key retained for migrated files.
           # {rank}, {color}, {score}
           entry: "{rank}. {color}"
 
@@ -42,8 +47,8 @@ public final class LanguageConfigLoader {
           neutral-core: "NEUTRAL"
 
         actionbar:
-          # {status}, {round}, {total_rounds}, {total_score}
-          intermission: "{status} | ROUND {round}/{total_rounds} | TOTAL SCORE {total_score}"
+          # {id}, {team}, {status}, {round}, {total_rounds}, {total_score}
+          intermission: "{id} | {team} | {status} | ROUND {round}/{total_rounds} | TEAM {total_score}"
           status:
             review: "ROUND REVIEW"
             doctrine-edit: "DOCTRINE EDIT"
@@ -54,26 +59,30 @@ public final class LanguageConfigLoader {
           command:
             ready: "READY"
             used: "USED"
-          # {hp}, {max_hp}, {plan}, {command}, {score}
-          alive: "HP {hp}/{max_hp} | {plan} | COMMAND {command} | SCORE {score}"
-          # {respawn_seconds}, {score}
-          dead: "ROBOT DESTROYED | RESPAWN {respawn_seconds}s | SCORE {score}"
+          # {id}, {team}, {hp}, {max_hp}, {plan}, {command}, {score}, {team_score}
+          alive: "{id} | {team} | HP {hp}/{max_hp} | {plan} | COMMAND {command} | TEAM {team_score}"
+          # {id}, {team}, {respawn_seconds}, {score}, {team_score}
+          dead: "{id} | {team} | DESTROYED | RESPAWN {respawn_seconds}s | TEAM {team_score}"
 
         chat:
           # {round}
           round-started: "[AutoBattle] Round {round} started."
           round-ended: "[AutoBattle] Round {round} ended."
-          # {killer_color}, {victim_color}
-          robot-killed: "[AutoBattle] {killer_color} destroyed {victim_color}."
+          # {killer_color}, {killer_id}, {victim_color}, {victim_id}
+          robot-killed: "[AutoBattle] {killer_color} {killer_id} destroyed {victim_color} {victim_id}."
           # {color}
           core-captured: "[AutoBattle] {color} captured CORE."
           # {player}, {round}
           review-completed: "[AutoBattle] {player} completed the review for round {round}."
           # {player}, {round}
           doctrine-edit-completed: "[AutoBattle] {player} completed doctrine editing for round {round}."
-          final-standings-title: "[AutoBattle] Final standings"
-          # {rank}, {color}, {score}
-          final-standing: "{rank}. {color} - {score} points"
+          # {team}, {red_score}, {blue_score}
+          team-winner: "[AutoBattle] {team} TEAM WINS | RED {red_score} - BLUE {blue_score}"
+          # {red_score}, {blue_score}
+          team-draw: "[AutoBattle] DRAW | RED {red_score} - BLUE {blue_score}"
+          final-standings-title: "[AutoBattle] Personal contributions"
+          # {rank}, {team}, {id}, {score}
+          final-standing: "{rank}. {team} {id} - {score} contribution points"
           # {error}
           doctrine-rejected: "Doctrine rejected: {error}"
           # {version}
@@ -95,7 +104,8 @@ public final class LanguageConfigLoader {
           reload-applied: "Reloaded {config} and {messages}."
           # {error}
           reload-error: "Config reload failed: {error}"
-          start-failed: "Unable to start round. Check active participants, submitted doctrines, and arena dimension."
+          start-failed: "Unable to start match. Check balanced team size, active participants, submitted doctrines, and arena dimension."
+          start-invalid-phase: "Match start is only available from the lobby."
           # {round}
           start-success: "Started AutoBattle prototype round {round}."
           stop-failed: "No active AutoBattle round to stop."
@@ -125,7 +135,12 @@ public final class LanguageConfigLoader {
           doctrine-view-title: "{player}'s Doctrine ({color}, version {version})"
           # {line}, {text}
           doctrine-view-line: "  {line}. {text}"
-          join-failed: "Unable to join AutoBattle. The lobby may be closed or full."
+          join-failed: "Unable to join AutoBattle. The lobby may be closed or one team may be full."
+          # {team}, {id}
+          joined-team: "Joined {team} as {id}. You are ready."
+          auto-ready: "Lobby participants are ready automatically after joining."
+          start-unbalanced: "Cannot start: RED and BLUE must have the same number of players (1-8 per team)."
+          # Legacy key kept for migrated custom message files.
           # {color}
           joined: "Joined AutoBattle as {color}."
           leave-failed: "You are not an active AutoBattle participant."
@@ -142,13 +157,13 @@ public final class LanguageConfigLoader {
           # {round}, {score}, {kills}, {deaths}, {assists}
           review-summary: "Round {round} | Score {score} | K/D/A {kills}/{deaths}/{assists}"
           # {core_captures}, {core_hold_seconds}, {damage_dealt}, {damage_taken}
-          review-metrics: "CORE captures {core_captures} | Hold {core_hold_seconds}s | Damage {damage_dealt} dealt / {damage_taken} taken"
+          review-metrics: "TEAM CORE captures {core_captures} | TEAM hold {core_hold_seconds}s | Damage {damage_dealt} dealt / {damage_taken} taken"
           # {plans}
           review-plans: "Plans: {plans}"
           # {importance}, {tick}, {plan}, {confidence}, {result}
           review-critical: "Critical #{importance} @ tick {tick}: {plan} confidence={confidence} result={result}"
-          # {phase}, {round}, {players}, {ready}, {minimum}, {core_owner}
-          status: "phase={phase}, round={round}, players={players}, ready={ready}, minimum={minimum}, coreOwner={core_owner}"
+          # {phase}, {round}, {players}, {red}, {blue}, {balanced}, {maximum}, {core_owner}
+          status: "phase={phase}, round={round}, RED={red}/{maximum}, BLUE={blue}/{maximum}, balanced={balanced}, coreOwner={core_owner}"
           admin:
             # {color}
             debug-no-owner: "No participant owns {color}."
@@ -198,6 +213,10 @@ public final class LanguageConfigLoader {
             cleanup-success: "Cleaned up {cleaned} Carpet test bots."
             # {status}
             match-status: "Test match: {status}"
+            # {team_size}, {phase}, {participants}, {robots_checked}
+            verify-success: "Team battle verification passed: {team_size}v{team_size}, phase={phase}, participants={participants}, robotsChecked={robots_checked}."
+            # {errors}
+            verify-failure: "Team battle verification failed: {errors}"
             # {bot}, {state}, {color}, {ready}, {doctrine}
             bot-status: "{bot}: {state} | color={color} | ready={ready} | doctrine={doctrine}"
             # {bot}, {result}
@@ -209,7 +228,7 @@ public final class LanguageConfigLoader {
             fight-red-name: "Test RED"
             fight-blue-name: "Test BLUE"
             fight-success: "Spawned RED vs BLUE test fight."
-            robot-unknown-color: "Unknown robot color. Use red, blue, green, or yellow."
+            robot-unknown-color: "Unknown team. Use red or blue."
             # {color}, {entity}
             robot-spawned: "Spawned test robot {color} (entity {entity})."
 
@@ -227,7 +246,7 @@ public final class LanguageConfigLoader {
             # {round}, {score}, {kills}, {deaths}, {assists}
             summary: "Round {round} 결과 • Score {score} • K/D/A {kills}/{deaths}/{assists}"
             # {core_captures}, {core_hold_seconds}, {damage_dealt}, {damage_taken}
-            metrics: "CORE Capture {core_captures} • Hold {core_hold_seconds}s • Damage {damage_dealt} dealt / {damage_taken} taken"
+            metrics: "TEAM CORE Capture {core_captures} • TEAM Hold {core_hold_seconds}s • Damage {damage_dealt} dealt / {damage_taken} taken"
             # {plans}
             tactical: "Tactical behavior: {plans}"
             # {plan}, {percent}
@@ -255,8 +274,13 @@ public final class LanguageConfigLoader {
 
           final-result:
             title: "AutoBattle Final Result"
-            # {rank}, {color}, {score}
-            entry: "{rank}. {color} • {score} pts"
+            # {team}
+            team-winner: "{team} TEAM WINS"
+            team-draw: "DRAW"
+            # {red_score}, {blue_score}
+            team-score: "RED {red_score} • BLUE {blue_score}"
+            # {rank}, {team}, {id}, {score}
+            entry: "{rank}. {team} {id} • {score} contribution pts"
             close: "결과 닫기"
         """;
 
@@ -288,37 +312,45 @@ public final class LanguageConfigLoader {
                 path,
                 StandardCharsets.UTF_8
             )) {
-                Map<String, String> values =
-                    new LinkedHashMap<>();
-
                 Object defaultsRaw = yaml.load(
                     DEFAULT_YAML
                 );
 
-                if (!(defaultsRaw instanceof Map<?, ?> defaults)) {
-                    throw new IllegalStateException(
-                        "Default messages YAML root must be a mapping"
+                Map<String, Object> defaults =
+                    stringMap(
+                        defaultsRaw,
+                        "default messages"
                     );
-                }
-
-                flatten(
-                    "",
-                    defaults,
-                    values
-                );
 
                 Object raw = yaml.load(reader);
 
-                if (!(raw instanceof Map<?, ?> map)) {
-                    throw new IllegalArgumentException(
-                        "messages.yml root must be a YAML mapping"
+                Map<String, Object> existing =
+                    stringMap(
+                        raw,
+                        "messages.yml"
                     );
-                }
+
+                LanguageConfigMigrationService migrations =
+                    new LanguageConfigMigrationService();
+
+                LanguageConfigMigrationService.MigrationResult migrated =
+                    migrations.migrate(
+                        existing,
+                        defaults
+                    );
+
+                Map<String, String> values =
+                    new LinkedHashMap<>();
 
                 flatten(
                     "",
-                    map,
+                    migrated.messages(),
                     values
+                );
+
+                migrations.backupAndWrite(
+                    path,
+                    migrated
                 );
 
                 return new LanguageConfig(values);
@@ -344,6 +376,28 @@ public final class LanguageConfigLoader {
     public static Path messagePath() {
         return AutoBattleConfigLoader.configDirectory()
             .resolve(FILE_NAME);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> stringMap(
+        Object value,
+        String path
+    ) {
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException(
+                path + " root must be a YAML mapping"
+            );
+        }
+
+        for (Object key : map.keySet()) {
+            if (!(key instanceof String)) {
+                throw new IllegalArgumentException(
+                    path + " contains a non-string key"
+                );
+            }
+        }
+
+        return (Map<String, Object>) map;
     }
 
     private static void flatten(

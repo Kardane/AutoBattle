@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.jev;
 
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.robot.RobotColor;
 
 import java.util.List;
@@ -11,6 +12,7 @@ public record DecisionLog(
     String decisionMode,
     String modVersion,
     DecisionTrigger trigger,
+    int inFlightAtRequest,
     UUID matchId,
     int round,
     long serverTick,
@@ -18,6 +20,8 @@ public record DecisionLog(
     UUID ownerUuid,
     UUID robotEntityUuid,
     RobotColor color,
+    String targetId,
+    BattleTeam team,
     int doctrineVersion,
     List<String> requestValidPlanIds,
     List<String> applyValidPlanIds,
@@ -34,7 +38,13 @@ public record DecisionLog(
     float hp,
     float maxHp,
     double hpRatio,
-    UUID coreOwnerUuid,
+    int teamScore,
+    int enemyTeamScore,
+    int aliveAllies,
+    int aliveEnemies,
+    int alliesInsideCore,
+    int enemiesInsideCore,
+    BattleTeam coreOwnerTeam,
     boolean coreContested,
     String errorClass,
     String errorMessage,

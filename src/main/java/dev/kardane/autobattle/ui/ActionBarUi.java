@@ -2,6 +2,7 @@ package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
+import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.tactics.RobotController;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,6 +23,7 @@ public final class ActionBarUi {
     public void updateIntermission(
         ServerPlayer player,
         PlayerSlot slot,
+        MatchSession match,
         MatchPhase phase,
         int currentRound,
         int totalRounds
@@ -57,7 +59,11 @@ public final class ActionBarUi {
                 "total_rounds",
                 totalRounds,
                 "total_score",
-                slot.score().totalScore()
+                match.teamScore(slot.team()).totalScore(),
+                "id",
+                slot.targetId(),
+                "team",
+                slot.team().name()
             ),
             true
         );
@@ -66,6 +72,7 @@ public final class ActionBarUi {
     public void updatePlayer(
         ServerPlayer player,
         PlayerSlot slot,
+        MatchSession match,
         RobotController controller,
         long currentTick
     ) {
@@ -111,6 +118,10 @@ public final class ActionBarUi {
 
             text = language.format(
                 "actionbar.alive",
+                "id",
+                slot.targetId(),
+                "team",
+                slot.team().name(),
                 "hp",
                 Math.round(hp),
                 "max_hp",
@@ -120,7 +131,9 @@ public final class ActionBarUi {
                 "command",
                 commandState,
                 "score",
-                slot.score().roundScore()
+                slot.score().roundScore(),
+                "team_score",
+                match.teamScore(slot.team()).roundScore()
             );
         } else {
             long remainingTicks = Math.max(
@@ -137,10 +150,16 @@ public final class ActionBarUi {
 
             text = language.format(
                 "actionbar.dead",
+                "id",
+                slot.targetId(),
+                "team",
+                slot.team().name(),
                 "respawn_seconds",
                 remainingSeconds,
                 "score",
-                slot.score().roundScore()
+                slot.score().roundScore(),
+                "team_score",
+                match.teamScore(slot.team()).roundScore()
             );
         }
 

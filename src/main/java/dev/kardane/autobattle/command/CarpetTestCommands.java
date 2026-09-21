@@ -6,6 +6,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -16,16 +17,20 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 public final class CarpetTestCommands {
+    private static final int DEFAULT_TEST_TEAM_SIZE = 4;
+
     private static final String[] BOT_NAMES = {
-        "ABot1",
-        "ABot2",
-        "ABot3",
-        "ABot4"
+        "ABot1", "ABot2", "ABot3", "ABot4",
+        "ABot5", "ABot6", "ABot7", "ABot8",
+        "ABot9", "ABot10", "ABot11", "ABot12",
+        "ABot13", "ABot14", "ABot15", "ABot16"
     };
 
     private static final String[][] DOCTRINES = {
@@ -96,7 +101,24 @@ public final class CarpetTestCommands {
                                         .executes(context ->
                                             spawnBots(
                                                 context.getSource(),
-                                                language
+                                                language,
+                                                DEFAULT_TEST_TEAM_SIZE
+                                            )
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "teamSize",
+                                                IntegerArgumentType.integer(1, 8)
+                                            )
+                                            .executes(context ->
+                                                spawnBots(
+                                                    context.getSource(),
+                                                    language,
+                                                    IntegerArgumentType.getInteger(
+                                                        context,
+                                                        "teamSize"
+                                                    )
+                                                )
                                             )
                                         )
                                 )
@@ -107,7 +129,26 @@ public final class CarpetTestCommands {
                                                 context.getSource(),
                                                 matchManager,
                                                 doctrineService,
-                                                language
+                                                language,
+                                                DEFAULT_TEST_TEAM_SIZE
+                                            )
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "teamSize",
+                                                IntegerArgumentType.integer(1, 8)
+                                            )
+                                            .executes(context ->
+                                                setupBots(
+                                                    context.getSource(),
+                                                    matchManager,
+                                                    doctrineService,
+                                                    language,
+                                                    IntegerArgumentType.getInteger(
+                                                        context,
+                                                        "teamSize"
+                                                    )
+                                                )
                                             )
                                         )
                                 )
@@ -158,6 +199,34 @@ public final class CarpetTestCommands {
                                                 context.getSource(),
                                                 matchManager,
                                                 language
+                                            )
+                                        )
+                                )
+                                .then(
+                                    Commands.literal("verify")
+                                        .executes(context ->
+                                            verifyTeamBattle(
+                                                context.getSource(),
+                                                matchManager,
+                                                language,
+                                                DEFAULT_TEST_TEAM_SIZE
+                                            )
+                                        )
+                                        .then(
+                                            Commands.argument(
+                                                "teamSize",
+                                                IntegerArgumentType.integer(1, 8)
+                                            )
+                                            .executes(context ->
+                                                verifyTeamBattle(
+                                                    context.getSource(),
+                                                    matchManager,
+                                                    language,
+                                                    IntegerArgumentType.getInteger(
+                                                        context,
+                                                        "teamSize"
+                                                    )
+                                                )
                                             )
                                         )
                                 )
@@ -228,8 +297,10 @@ public final class CarpetTestCommands {
 
     private static int spawnBots(
         CommandSourceStack source,
-        LanguageService language
+        LanguageService language,
+        int teamSize
     ) {
+        int botCount = teamSize * 2;
         var dispatcher = source.getServer()
             .getCommands()
             .getDispatcher();
@@ -247,7 +318,9 @@ public final class CarpetTestCommands {
         int spawned = 0;
         int existing = 0;
 
-        for (String botName : BOT_NAMES) {
+        for (int index = 0; index < botCount; index++) {
+            String botName = BOT_NAMES[index];
+
             if (source.getServer().getPlayerList()
                 .getPlayerByName(botName) != null) {
                 existing++;
@@ -297,8 +370,10 @@ public final class CarpetTestCommands {
         CommandSourceStack source,
         MatchManager matchManager,
         DoctrineService doctrineService,
-        LanguageService language
+        LanguageService language,
+        int teamSize
     ) {
+        int botCount = teamSize * 2;
         MatchPhase phase = matchManager.session().phase();
 
         if (phase != MatchPhase.LOBBY
@@ -315,10 +390,10 @@ public final class CarpetTestCommands {
         }
 
         ServerPlayer[] players =
-            new ServerPlayer[BOT_NAMES.length];
+            new ServerPlayer[botCount];
 
         for (int index = 0;
-             index < BOT_NAMES.length;
+             index < botCount;
              index++) {
             String botName = BOT_NAMES[index];
             ServerPlayer player = source.getServer()
@@ -352,16 +427,6 @@ public final class CarpetTestCommands {
                         )
                     );
                     return 0;
-                }
-            }
-
-            for (ServerPlayer player : players) {
-                PlayerSlot slot = matchManager
-                    .playerSlot(player.getUUID())
-                    .orElseThrow();
-
-                if (!slot.ready()) {
-                    matchManager.toggleReady(player);
                 }
             }
 
@@ -407,7 +472,8 @@ public final class CarpetTestCommands {
                 continue;
             }
 
-            String[] doctrine = DOCTRINES[index];
+            String[] doctrine =
+                DOCTRINES[index % DOCTRINES.length];
 
             CompletableFuture<DoctrineEditResult> future =
                 doctrineService.submitInitialAsync(
@@ -758,9 +824,8 @@ public final class CarpetTestCommands {
         String coreOwner = matchManager.session()
             .core()
             .state()
-            .ownerUuid()
-            .flatMap(matchManager::playerSlot)
-            .map(slot -> slot.color().name())
+            .ownerTeam()
+            .map(Enum::name)
             .orElse("none");
 
         String status = language.format(
@@ -771,10 +836,18 @@ public final class CarpetTestCommands {
             matchManager.session().currentRound(),
             "players",
             matchManager.playerCount(),
-            "ready",
-            matchManager.readyCount(),
-            "minimum",
-            matchManager.config().minimumPlayers(),
+            "red",
+            matchManager.teamCount(
+                dev.kardane.autobattle.match.BattleTeam.RED
+            ),
+            "blue",
+            matchManager.teamCount(
+                dev.kardane.autobattle.match.BattleTeam.BLUE
+            ),
+            "balanced",
+            matchManager.teamsBalanced(),
+            "maximum",
+            matchManager.config().maxTeamSize(),
             "core_owner",
             coreOwner
         );
@@ -821,7 +894,9 @@ public final class CarpetTestCommands {
 
             String color = slot == null
                 ? "-"
-                : slot.color().name();
+                : slot.team().name()
+                    + " "
+                    + slot.targetId();
 
             String ready = slot == null
                 ? "-"
@@ -851,6 +926,237 @@ public final class CarpetTestCommands {
                 false
             );
         }
+
+        return 1;
+    }
+
+    private static int verifyTeamBattle(
+        CommandSourceStack source,
+        MatchManager matchManager,
+        LanguageService language,
+        int expectedTeamSize
+    ) {
+        var match = matchManager.session();
+        List<String> problems = new ArrayList<>();
+
+        List<PlayerSlot> active = match.players()
+            .stream()
+            .filter(slot -> !slot.forfeited())
+            .toList();
+
+        long red = active.stream()
+            .filter(slot -> slot.team() == BattleTeam.RED)
+            .count();
+        long blue = active.stream()
+            .filter(slot -> slot.team() == BattleTeam.BLUE)
+            .count();
+
+        if (red != expectedTeamSize
+            || blue != expectedTeamSize) {
+            problems.add(
+                "team counts RED=" + red
+                    + ", BLUE=" + blue
+                    + ", expected="
+                    + expectedTeamSize
+            );
+        }
+
+        if (active.size() != expectedTeamSize * 2) {
+            problems.add(
+                "active participant count="
+                    + active.size()
+                    + ", expected="
+                    + (expectedTeamSize * 2)
+            );
+        }
+
+        Set<String> ids = new HashSet<>();
+        int robotsChecked = 0;
+
+        for (PlayerSlot slot : active) {
+            String expectedId = slot.team()
+                .targetId(slot.memberIndex());
+
+            if (!slot.targetId().equals(expectedId)) {
+                problems.add(
+                    "slot identity mismatch: "
+                        + slot.targetId()
+                        + " expected "
+                        + expectedId
+                );
+            }
+
+            if (!ids.add(slot.targetId())) {
+                problems.add(
+                    "duplicate targetId "
+                        + slot.targetId()
+                );
+            }
+
+            if (!slot.ready()) {
+                problems.add(
+                    slot.targetId()
+                        + " is not auto-ready"
+                );
+            }
+
+            if (match.phase() != MatchPhase.ROUND_ACTIVE) {
+                continue;
+            }
+
+            ServerPlayer participant = source.getServer()
+                .getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (participant == null) {
+                problems.add(
+                    slot.targetId()
+                        + " participant is offline during active round"
+                );
+            } else {
+                if (participant.gameMode()
+                    != net.minecraft.world.level.GameType.SPECTATOR) {
+                    problems.add(
+                        slot.targetId()
+                            + " participant is not in spectator mode"
+                    );
+                }
+
+                if (slot.runtime().viewOrigin().isEmpty()) {
+                    problems.add(
+                        slot.targetId()
+                            + " has no restorable view origin"
+                    );
+                }
+            }
+
+            var controller = match.robots()
+                .byOwner(slot.playerUuid())
+                .orElse(null);
+
+            if (controller == null) {
+                problems.add(
+                    slot.targetId()
+                        + " has no robot controller"
+                );
+                continue;
+            }
+
+            robotsChecked++;
+
+            if (controller.team() != slot.team()) {
+                problems.add(
+                    slot.targetId()
+                        + " controller team mismatch"
+                );
+            }
+
+            if (!controller.targetId()
+                .equals(slot.targetId())) {
+                problems.add(
+                    slot.targetId()
+                        + " controller targetId mismatch"
+                );
+            }
+
+            var entity = controller.entity().orElse(null);
+
+            if (entity == null || !controller.alive()) {
+                problems.add(
+                    slot.targetId()
+                        + " robot is not alive"
+                );
+            } else {
+                if (entity.team() != slot.team()) {
+                    problems.add(
+                        slot.targetId()
+                            + " entity team mismatch"
+                    );
+                }
+
+                if (!entity.targetId()
+                    .equals(slot.targetId())) {
+                    problems.add(
+                        slot.targetId()
+                            + " entity targetId mismatch"
+                    );
+                }
+            }
+
+            controller.currentPlan().ifPresent(plan -> {
+                if (plan.targetOwnerUuid() == null) {
+                    return;
+                }
+
+                PlayerSlot target = match.player(
+                    plan.targetOwnerUuid()
+                ).orElse(null);
+
+                if (target == null) {
+                    problems.add(
+                        slot.targetId()
+                            + " plan targets missing participant"
+                    );
+                    return;
+                }
+
+                if (target.team() == slot.team()) {
+                    problems.add(
+                        slot.targetId()
+                            + " has friendly combat target "
+                            + target.targetId()
+                    );
+                }
+
+                String externalId = plan.externalId();
+
+                if ((externalId.startsWith("ENGAGE_")
+                    || externalId.startsWith("CHASE_"))
+                    && !externalId.endsWith(
+                        "_" + target.targetId()
+                    )) {
+                    problems.add(
+                        slot.targetId()
+                            + " plan ID/target mismatch: "
+                            + externalId
+                    );
+                }
+            });
+        }
+
+        if (!matchManager.teamsBalanced()) {
+            problems.add("match reports teams as unbalanced");
+        }
+
+        if (!problems.isEmpty()) {
+            source.sendFailure(
+                message(
+                    language,
+                    "commands.test.verify-failure",
+                    "errors",
+                    String.join("; ", problems)
+                )
+            );
+            return 0;
+        }
+
+        int finalRobotsChecked = robotsChecked;
+
+        source.sendSuccess(
+            () -> message(
+                language,
+                "commands.test.verify-success",
+                "team_size",
+                expectedTeamSize,
+                "phase",
+                match.phase().name(),
+                "participants",
+                active.size(),
+                "robots_checked",
+                finalRobotsChecked
+            ),
+            true
+        );
 
         return 1;
     }

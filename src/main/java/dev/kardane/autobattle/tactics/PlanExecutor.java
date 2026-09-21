@@ -56,7 +56,8 @@ public final class PlanExecutor {
             .orElseGet(() -> {
                 RobotController created = new RobotController(
                     robot.ownerUuid(),
-                    robot.robotColor(),
+                    robot.team(),
+                    robot.targetId(),
                     registry,
                     robotConfig,
                     arenaConfig

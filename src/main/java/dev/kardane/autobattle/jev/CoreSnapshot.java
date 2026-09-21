@@ -1,9 +1,9 @@
 package dev.kardane.autobattle.jev;
 
-import java.util.UUID;
+import dev.kardane.autobattle.match.BattleTeam;
 
 public record CoreSnapshot(
-    UUID ownerUuid,
+    BattleTeam ownerTeam,
     boolean contested,
     double distance
 ) {

@@ -5,32 +5,24 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
-import java.util.List;
 import java.util.Objects;
 
 public record ArenaConfig(
     ResourceKey<Level> dimension,
     BlockPos corePos,
     double coreRadius,
-    List<SpawnPoint> robotSpawns,
-    List<SpawnPoint> viewerSpawns
+    TeamSpawnConfig teamSpawns,
+    ViewerSpawnConfig viewerSpawn
 ) {
     public ArenaConfig {
         Objects.requireNonNull(dimension, "dimension");
         Objects.requireNonNull(corePos, "corePos");
+        Objects.requireNonNull(teamSpawns, "teamSpawns");
+        Objects.requireNonNull(viewerSpawn, "viewerSpawn");
 
         if (coreRadius <= 0.0D) {
             throw new IllegalArgumentException(
                 "coreRadius must be positive"
-            );
-        }
-
-        robotSpawns = List.copyOf(robotSpawns);
-        viewerSpawns = List.copyOf(viewerSpawns);
-
-        if (robotSpawns.size() < 4) {
-            throw new IllegalArgumentException(
-                "MVP arena requires at least four robot spawns"
             );
         }
     }
@@ -40,17 +32,16 @@ public record ArenaConfig(
             Level.OVERWORLD,
             new BlockPos(0, 80, 0),
             AutoBattleConstants.CORE_RADIUS,
-            List.of(
-                new SpawnPoint(15, 80, 0, 90.0F, 0.0F),
-                new SpawnPoint(-15, 80, 0, -90.0F, 0.0F),
-                new SpawnPoint(0, 80, 15, 180.0F, 0.0F),
-                new SpawnPoint(0, 80, -15, 0.0F, 0.0F)
+            new TeamSpawnConfig(
+                "x",
+                18.0D,
+                3.0D,
+                80.0D,
+                true
             ),
-            List.of(
-                new SpawnPoint(20, 88, 20, 0.0F, 0.0F),
-                new SpawnPoint(-20, 88, 20, 0.0F, 0.0F),
-                new SpawnPoint(-20, 88, -20, 0.0F, 0.0F),
-                new SpawnPoint(20, 88, -20, 0.0F, 0.0F)
+            new ViewerSpawnConfig(
+                24.0D,
+                88.0D
             )
         );
     }

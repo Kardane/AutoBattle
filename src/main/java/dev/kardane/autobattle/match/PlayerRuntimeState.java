@@ -9,6 +9,7 @@ public final class PlayerRuntimeState {
     private ActiveCommand activeCommand;
     private boolean doctrineEditedThisReview;
     private boolean reviewReady;
+    private PlayerViewOrigin viewOrigin;
 
     public void resetForRound() {
         commandUsed = false;
@@ -51,5 +52,22 @@ public final class PlayerRuntimeState {
 
     public void setReviewReady(boolean reviewReady) {
         this.reviewReady = reviewReady;
+    }
+
+    public Optional<PlayerViewOrigin> viewOrigin() {
+        return Optional.ofNullable(viewOrigin);
+    }
+
+    public void rememberViewOrigin(PlayerViewOrigin origin) {
+        if (viewOrigin == null) {
+            viewOrigin = java.util.Objects.requireNonNull(
+                origin,
+                "origin"
+            );
+        }
+    }
+
+    public void clearViewOrigin() {
+        viewOrigin = null;
     }
 }

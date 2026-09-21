@@ -25,6 +25,9 @@ public final class JevDecisionService {
     private final DecisionLogRepository logs;
     private final DecisionComposer composer =
         new DecisionComposer();
+    private final DecisionIntervalStagger intervalStagger =
+        new DecisionIntervalStagger();
+    private int inFlightRequests;
     private AutoBattleConfig config;
 
     public JevDecisionService(
@@ -86,6 +89,18 @@ public final class JevDecisionService {
                 continue;
             }
 
+            if (controller.decisionTrigger()
+                    == DecisionTrigger.INTERVAL
+                && controller.currentPlan().isPresent()
+                && !intervalStagger.eligible(
+                    match,
+                    controller.ownerUuid(),
+                    currentTick,
+                    config.decisionIntervalTicks()
+                )) {
+                continue;
+            }
+
             requestDecision(
                 server,
                 match,
@@ -137,7 +152,16 @@ public final class JevDecisionService {
             return;
         }
 
+        RobotDecisionSnapshot snapshot =
+            serializer.snapshot(
+                match,
+                controller,
+                currentTick
+            );
+
         long generation = controller.nextDecisionGeneration();
+        DecisionTrigger trigger = controller.decisionTrigger();
+        int inFlightAtRequest = ++inFlightRequests;
 
         DecisionContext context = new DecisionContext(
             match.matchId(),
@@ -147,15 +171,9 @@ public final class JevDecisionService {
             slot.doctrine().orElseThrow().version(),
             generation,
             currentTick,
-            controller.decisionTrigger()
+            trigger,
+            inFlightAtRequest
         );
-
-        RobotDecisionSnapshot snapshot =
-            serializer.snapshot(
-                match,
-                controller,
-                currentTick
-            );
 
         DecisionRequest request = new DecisionRequest(
             context,
@@ -165,13 +183,38 @@ public final class JevDecisionService {
 
         controller.markDecisionRequested(generation);
 
-        client.decide(request)
-            .orTimeout(
+        java.util.concurrent.CompletableFuture<DecisionResponse> future;
+
+        try {
+            future = client.decide(request);
+        } catch (Throwable error) {
+            inFlightRequests = Math.max(
+                0,
+                inFlightRequests - 1
+            );
+
+            applyResponse(
+                match,
+                controller,
+                request,
+                null,
+                error,
+                currentTick
+            );
+            return;
+        }
+
+        future.orTimeout(
                 config.jevTimeoutMs(),
                 TimeUnit.MILLISECONDS
             )
             .whenComplete((response, error) ->
-                server.execute(() ->
+                server.execute(() -> {
+                    inFlightRequests = Math.max(
+                        0,
+                        inFlightRequests - 1
+                    );
+
                     applyResponse(
                         match,
                         controller,
@@ -179,8 +222,8 @@ public final class JevDecisionService {
                         response,
                         error,
                         server.getTickCount()
-                    )
-                )
+                    );
+                })
             );
     }
 
@@ -623,6 +666,8 @@ public final class JevDecisionService {
         DecisionContext context = request.context();
         RobotSnapshot self = request.snapshot().self();
         CoreSnapshot core = request.snapshot().core();
+        TeamContextSnapshot teamContext =
+            request.snapshot().teamContext();
 
         long latencyMs = response != null
             ? response.latencyMs()
@@ -661,10 +706,11 @@ public final class JevDecisionService {
 
         logs.append(
             new DecisionLog(
-                2,
-                "DECOMPOSED_V2",
+                3,
+                "TEAM_DECOMPOSED_V3",
                 modVersion(),
                 context.trigger(),
+                context.inFlightAtRequest(),
                 context.matchId(),
                 context.round(),
                 context.requestedTick(),
@@ -672,6 +718,8 @@ public final class JevDecisionService {
                 context.ownerUuid(),
                 context.robotEntityUuid(),
                 controller.color(),
+                controller.targetId(),
+                controller.team(),
                 context.doctrineVersion(),
                 request.validPlanIds(),
                 applyValidPlanIds,
@@ -696,7 +744,13 @@ public final class JevDecisionService {
                 self.hp(),
                 self.maxHp(),
                 hpRatio,
-                core.ownerUuid(),
+                teamContext.teamScore(),
+                teamContext.enemyTeamScore(),
+                teamContext.aliveAllies(),
+                teamContext.aliveEnemies(),
+                teamContext.alliesInsideCore(),
+                teamContext.enemiesInsideCore(),
+                core.ownerTeam(),
                 core.contested(),
                 errorClass,
                 errorMessage,

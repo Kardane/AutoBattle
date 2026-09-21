@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.robot;
 
+import dev.kardane.autobattle.match.BattleTeam;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
@@ -14,6 +15,8 @@ public final class RobotZombie extends Zombie {
     public static final String ENTITY_TAG = "autobattle_robot";
 
     private final UUID ownerUuid;
+    private final BattleTeam team;
+    private final String targetId;
     private final RobotColor robotColor;
     private final UUID matchId;
 
@@ -26,12 +29,18 @@ public final class RobotZombie extends Zombie {
     public RobotZombie(
         Level level,
         UUID ownerUuid,
-        RobotColor robotColor,
+        BattleTeam team,
+        String targetId,
         UUID matchId
     ) {
         super(EntityType.ZOMBIE, level);
         this.ownerUuid = Objects.requireNonNull(ownerUuid, "ownerUuid");
-        this.robotColor = Objects.requireNonNull(robotColor, "robotColor");
+        this.team = Objects.requireNonNull(team, "team");
+        this.targetId = Objects.requireNonNull(
+            targetId,
+            "targetId"
+        );
+        this.robotColor = team.robotColor();
         this.matchId = Objects.requireNonNull(matchId, "matchId");
     }
 
@@ -76,6 +85,14 @@ public final class RobotZombie extends Zombie {
         return ownerUuid;
     }
 
+    public BattleTeam team() {
+        return team;
+    }
+
+    public String targetId() {
+        return targetId;
+    }
+
     public RobotColor robotColor() {
         return robotColor;
     }
@@ -109,7 +126,7 @@ public final class RobotZombie extends Zombie {
 
         setCustomName(
             Component.literal(
-                "[" + robotColor.name() + "] "
+                "[" + targetId + "] "
             )
             .withStyle(robotColor.chatColor())
             .append(ownerDisplayName.copy())

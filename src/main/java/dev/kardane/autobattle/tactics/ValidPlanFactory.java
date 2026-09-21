@@ -44,7 +44,8 @@ public final class ValidPlanFactory {
         var selfEntity = self.entity().orElseThrow();
 
         for (RobotController enemy : match.robots().alive()) {
-            if (enemy == self) {
+            if (enemy == self
+                || !self.team().isEnemy(enemy.team())) {
                 continue;
             }
 
@@ -64,7 +65,7 @@ public final class ValidPlanFactory {
 
             double distance =
                 selfEntity.distanceTo(enemyEntity);
-            String suffix = enemy.color().name();
+            String suffix = enemy.targetId();
 
             if (distance <= config.robot()
                 .engageLeashDistance()) {
@@ -91,12 +92,12 @@ public final class ValidPlanFactory {
             }
         }
 
-        UUID coreOwner = match.core()
+        var coreOwner = match.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
-        if (self.ownerUuid().equals(coreOwner)) {
+        if (self.team() == coreOwner) {
             plans.add(
                 TacticalPlan.defend(
                     coreCenter(match),

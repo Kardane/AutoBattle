@@ -95,6 +95,7 @@ public final class RoundReviewService {
                 .toList();
 
         var score = slot.score();
+        var teamScore = match.teamScore(slot.team());
 
         return new RoundReviewSummary(
             match.currentRound(),
@@ -102,8 +103,8 @@ public final class RoundReviewService {
             score.roundKills(),
             score.roundDeaths(),
             score.roundAssists(),
-            score.roundCoreCaptures(),
-            score.roundCoreHoldTicks(),
+            teamScore.roundCoreCaptures(),
+            teamScore.roundCoreHoldTicks(),
             score.roundDamageDealt(),
             score.roundDamageTaken(),
             counts,
