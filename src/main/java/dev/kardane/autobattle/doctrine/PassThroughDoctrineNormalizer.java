@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public final class PassThroughDoctrineNormalizer
         implements DoctrineNormalizer {
@@ -15,17 +16,22 @@ public final class PassThroughDoctrineNormalizer
     }
 
     @Override
-    public DoctrineNormalizationResult normalize(
-        List<String> sourceLines
-    ) {
+    public CompletableFuture<DoctrineNormalizationResult>
+    normalizeAsync(List<String> sourceLines) {
         List<String> lines = List.copyOf(sourceLines);
 
-        return new DoctrineNormalizationResult(
-            lines,
-            sourceHash(lines),
-            null,
-            DoctrineNormalizationStatus.FALLBACK_DISABLED,
-            reason
+        return CompletableFuture.completedFuture(
+            new DoctrineNormalizationResult(
+                lines,
+                sourceHash(lines),
+                null,
+                DoctrineNormalizationStatus.FALLBACK_DISABLED,
+                reason,
+                null,
+                0,
+                0L,
+                null
+            )
         );
     }
 
