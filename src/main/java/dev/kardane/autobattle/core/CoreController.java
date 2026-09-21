@@ -108,21 +108,20 @@ public final class CoreController {
 
         long blueInside = inside.size() - redInside;
 
-        if (redInside == 0L && blueInside == 0L) {
-            state.setContested(false);
-        } else if (redInside > 0L && blueInside > 0L) {
-            state.setContested(true);
-        } else {
-            state.setContested(false);
+        CoreOccupancy occupancy = CoreOccupancy.of(
+            redInside,
+            blueInside
+        );
 
+        state.setContested(occupancy.contested());
+
+        occupancy.soleTeam().ifPresent(team ->
             advanceCapture(
                 match,
-                redInside > 0L
-                    ? BattleTeam.RED
-                    : BattleTeam.BLUE,
+                team,
                 currentTick
-            );
-        }
+            )
+        );
 
         tickOwnerHoldScore(match, currentTick);
     }
