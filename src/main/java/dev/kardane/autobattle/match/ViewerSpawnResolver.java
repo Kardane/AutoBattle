@@ -6,17 +6,20 @@ import dev.kardane.autobattle.config.SpawnPoint;
 public final class ViewerSpawnResolver {
     public SpawnPoint resolve(
         ArenaConfig arena,
-        int slotIndex,
+        int ordinal,
         int participantCount
     ) {
-        if (participantCount < 1 || participantCount > 16) {
+        if (participantCount < 1
+            || participantCount > 16
+            || ordinal < 0
+            || ordinal >= participantCount) {
             throw new IllegalArgumentException(
-                "participantCount must be between 1 and 16"
+                "Viewer ordinal must satisfy 0 <= ordinal < participantCount <= 16"
             );
         }
 
         double angle =
-            2.0D * Math.PI * slotIndex / participantCount;
+            2.0D * Math.PI * ordinal / participantCount;
 
         double centerX = arena.corePos().getX() + 0.5D;
         double centerZ = arena.corePos().getZ() + 0.5D;
