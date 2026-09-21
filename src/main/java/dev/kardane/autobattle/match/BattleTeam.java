@@ -29,6 +29,10 @@ public enum BattleTeam {
         return this == RED ? BLUE : RED;
     }
 
+    public boolean isEnemy(BattleTeam other) {
+        return other != null && other != this;
+    }
+
     public String targetId(int memberIndex) {
         if (memberIndex < 0 || memberIndex >= 8) {
             throw new IllegalArgumentException(
