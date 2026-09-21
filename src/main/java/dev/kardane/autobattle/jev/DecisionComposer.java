@@ -75,7 +75,7 @@ public final class DecisionComposer {
             return new DecisionComposition(
                 null,
                 true,
-                target != null
+                false
             );
         }
 
