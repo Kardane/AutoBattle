@@ -3,6 +3,7 @@ package dev.kardane.autobattle.core;
 import dev.kardane.autobattle.config.CoreRulesConfig;
 import dev.kardane.autobattle.config.ScoringConfig;
 import dev.kardane.autobattle.config.ArenaConfig;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.robot.RobotZombie;
@@ -99,15 +100,26 @@ public final class CoreController {
             )
             .toList();
 
-        if (inside.isEmpty()) {
+        long redInside = inside.stream()
+            .filter(controller ->
+                controller.team() == BattleTeam.RED
+            )
+            .count();
+
+        long blueInside = inside.size() - redInside;
+
+        if (redInside == 0L && blueInside == 0L) {
             state.setContested(false);
-        } else if (inside.size() > 1) {
+        } else if (redInside > 0L && blueInside > 0L) {
             state.setContested(true);
         } else {
             state.setContested(false);
+
             advanceCapture(
                 match,
-                inside.getFirst(),
+                redInside > 0L
+                    ? BattleTeam.RED
+                    : BattleTeam.BLUE,
                 currentTick
             );
         }
@@ -213,23 +225,9 @@ public final class CoreController {
 
     public void removeParticipant(UUID ownerUuid) {
         Objects.requireNonNull(ownerUuid, "ownerUuid");
-
-        if (state.ownerUuid()
-            .filter(ownerUuid::equals)
-            .isPresent()) {
-            state.setOwner(null);
-            state.setNextHoldScoreTick(-1L);
-        }
-
-        if (state.captureState()
-            .filter(capture ->
-                capture.capturingOwnerUuid().equals(ownerUuid)
-            )
-            .isPresent()) {
-            state.setCaptureState(null);
-        }
-
-        state.setContested(false);
+        // CORE ownership and capture progress belong to a team,
+        // not an individual participant. The next tick recomputes
+        // occupancy/contested state after a player leaves.
     }
 
     public void reset() {
@@ -238,13 +236,11 @@ public final class CoreController {
 
     private void advanceCapture(
         MatchSession match,
-        RobotController controller,
+        BattleTeam team,
         long currentTick
     ) {
-        UUID ownerUuid = controller.ownerUuid();
-
-        if (state.ownerUuid()
-            .filter(ownerUuid::equals)
+        if (state.ownerTeam()
+            .filter(team::equals)
             .isPresent()) {
             state.setCaptureState(null);
             return;
@@ -252,11 +248,11 @@ public final class CoreController {
 
         CoreCaptureState capture = state.captureState()
             .filter(existing ->
-                existing.capturingOwnerUuid().equals(ownerUuid)
+                existing.capturingTeam() == team
             )
             .map(CoreCaptureState::advance)
             .orElseGet(() ->
-                new CoreCaptureState(ownerUuid, 1)
+                new CoreCaptureState(team, 1)
             );
 
         if (capture.progressTicks() < captureTicks) {
@@ -264,16 +260,14 @@ public final class CoreController {
             return;
         }
 
-        state.setOwner(ownerUuid);
+        state.setOwnerTeam(team);
         state.setCaptureState(null);
         state.setNextHoldScoreTick(
             currentTick + holdScoreIntervalTicks
         );
 
-        match.player(ownerUuid).ifPresent(
-            slot -> slot.score().addCoreCapture(
-                scoring.coreCaptureScore()
-            )
+        match.teamScore(team).addCoreCapture(
+            scoring.coreCaptureScore()
         );
     }
 
@@ -281,30 +275,29 @@ public final class CoreController {
         MatchSession match,
         long currentTick
     ) {
-        state.ownerUuid().ifPresent(ownerUuid ->
-            match.player(ownerUuid).ifPresent(slot -> {
-                slot.score().addCoreHoldTicks(1L);
+        state.ownerTeam().ifPresent(team -> {
+            var teamScore = match.teamScore(team);
+            teamScore.addCoreHoldTicks(1L);
 
-                if (state.nextHoldScoreTick() < 0L) {
-                    state.setNextHoldScoreTick(
-                        currentTick + holdScoreIntervalTicks
-                    );
-                    return;
-                }
-
-                if (currentTick < state.nextHoldScoreTick()) {
-                    return;
-                }
-
-                slot.score().addCoreHoldPoint(
-                    scoring.coreHoldScore()
-                );
-
+            if (state.nextHoldScoreTick() < 0L) {
                 state.setNextHoldScoreTick(
                     currentTick + holdScoreIntervalTicks
                 );
-            })
-        );
+                return;
+            }
+
+            if (currentTick < state.nextHoldScoreTick()) {
+                return;
+            }
+
+            teamScore.addCoreHoldPoint(
+                scoring.coreHoldScore()
+            );
+
+            state.setNextHoldScoreTick(
+                currentTick + holdScoreIntervalTicks
+            );
+        });
     }
 
     private Vec3 center() {
@@ -318,9 +311,8 @@ public final class CoreController {
     private ParticleOptions boundaryParticle(
         MatchSession match
     ) {
-        int color = state.ownerUuid()
-            .flatMap(match::player)
-            .map(slot -> slot.color().rgb())
+        int color = state.ownerTeam()
+            .map(team -> team.robotColor().rgb())
             .orElse(NEUTRAL_CORE_COLOR);
 
         return new DustParticleOptions(
