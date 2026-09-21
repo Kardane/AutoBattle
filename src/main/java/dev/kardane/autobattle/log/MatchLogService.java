@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.command.PlayerCommandType;
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.server.MinecraftServer;
@@ -56,9 +57,23 @@ public final class MatchLogService {
         Map<String, Object> payload =
             new LinkedHashMap<>();
 
+        payload.put("mode", "TEAM_BATTLE");
+        payload.put(
+            "teamSize",
+            (int) match.players().stream()
+                .filter(slot -> !slot.forfeited())
+                .filter(slot ->
+                    slot.team() == BattleTeam.RED
+                )
+                .count()
+        );
         payload.put(
             "participants",
             playerSnapshots(server, match)
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
         );
 
         Map<String, Object> rules =
@@ -112,14 +127,23 @@ public final class MatchLogService {
         MatchSession match,
         long serverTick
     ) {
+        Map<String, Object> payload =
+            new LinkedHashMap<>();
+
+        payload.put(
+            "participants",
+            playerSnapshots(server, match)
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
+        );
+
         append(
             match,
             "round_started",
             serverTick,
-            Map.of(
-                "participants",
-                playerSnapshots(server, match)
-            )
+            payload
         );
     }
 
@@ -128,14 +152,50 @@ public final class MatchLogService {
         MatchSession match,
         long serverTick
     ) {
+        Map<String, Object> payload =
+            new LinkedHashMap<>();
+
+        payload.put(
+            "participants",
+            playerSnapshots(server, match)
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
+        );
+
+        var coreTelemetry = match.core().telemetry();
+        Map<String, Object> core =
+            new LinkedHashMap<>();
+
+        core.put(
+            "emptyTicks",
+            coreTelemetry.emptyTicks()
+        );
+        core.put(
+            "redOnlyTicks",
+            coreTelemetry.redOnlyTicks()
+        );
+        core.put(
+            "blueOnlyTicks",
+            coreTelemetry.blueOnlyTicks()
+        );
+        core.put(
+            "contestedTicks",
+            coreTelemetry.contestedTicks()
+        );
+        core.put(
+            "totalTicks",
+            coreTelemetry.totalTicks()
+        );
+
+        payload.put("coreOccupancy", core);
+
         append(
             match,
             "round_ended",
             serverTick,
-            Map.of(
-                "participants",
-                playerSnapshots(server, match)
-            )
+            payload
         );
     }
 
@@ -153,17 +213,43 @@ public final class MatchLogService {
             "victimOwnerUuid",
             victimOwnerUuid.toString()
         );
+
+        match.player(victimOwnerUuid).ifPresent(slot -> {
+            payload.put("victimTargetId", slot.targetId());
+            payload.put("victimTeam", slot.team().name());
+        });
+
         payload.put(
             "killerOwnerUuid",
             killerOwnerUuid == null
                 ? null
                 : killerOwnerUuid.toString()
         );
+
+        if (killerOwnerUuid != null) {
+            match.player(killerOwnerUuid).ifPresent(slot -> {
+                payload.put("killerTargetId", slot.targetId());
+                payload.put("killerTeam", slot.team().name());
+            });
+        }
+
         payload.put(
             "assistOwnerUuids",
             assistOwnerUuids.stream()
                 .map(UUID::toString)
                 .toList()
+        );
+        payload.put(
+            "assistTargetIds",
+            assistOwnerUuids.stream()
+                .map(match::player)
+                .flatMap(java.util.Optional::stream)
+                .map(PlayerSlot::targetId)
+                .toList()
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
         );
 
         append(
@@ -176,7 +262,7 @@ public final class MatchLogService {
 
     public void coreCaptured(
         MatchSession match,
-        UUID ownerUuid,
+        BattleTeam team,
         long serverTick
     ) {
         append(
@@ -184,8 +270,10 @@ public final class MatchLogService {
             "core_captured",
             serverTick,
             Map.of(
-                "ownerUuid",
-                ownerUuid.toString()
+                "team",
+                team.name(),
+                "teamScore",
+                match.teamScore(team).totalScore()
             )
         );
     }
@@ -203,6 +291,10 @@ public final class MatchLogService {
             Map.of(
                 "ownerUuid",
                 slot.playerUuid().toString(),
+                "targetId",
+                slot.targetId(),
+                "team",
+                slot.team().name(),
                 "color",
                 slot.color().name(),
                 "command",
@@ -223,6 +315,10 @@ public final class MatchLogService {
             Map.of(
                 "ownerUuid",
                 slot.playerUuid().toString(),
+                "targetId",
+                slot.targetId(),
+                "team",
+                slot.team().name(),
                 "color",
                 slot.color().name()
             )
@@ -248,14 +344,24 @@ public final class MatchLogService {
                 )
                 .toList();
 
+        Map<String, Object> payload =
+            new LinkedHashMap<>();
+
+        payload.put(
+            "winnerTeam",
+            match.winnerTeam()
+                .map(Enum::name)
+                .orElse(null)
+        );
+        payload.put("draw", match.draw());
+        payload.put("teamScores", teamScores(match));
+        payload.put("standings", standings);
+
         append(
             match,
             "match_finished",
             serverTick,
-            Map.of(
-                "standings",
-                standings
-            )
+            payload
         );
     }
 
@@ -355,6 +461,44 @@ public final class MatchLogService {
         }
     }
 
+    private Map<String, Object> teamScores(
+        MatchSession match
+    ) {
+        Map<String, Object> result =
+            new LinkedHashMap<>();
+
+        for (BattleTeam team : BattleTeam.values()) {
+            var score = match.teamScore(team);
+            Map<String, Object> snapshot =
+                new LinkedHashMap<>();
+
+            snapshot.put("totalScore", score.totalScore());
+            snapshot.put("roundScore", score.roundScore());
+            snapshot.put("totalKills", score.totalKills());
+            snapshot.put("roundKills", score.roundKills());
+            snapshot.put(
+                "totalAssists",
+                score.totalAssists()
+            );
+            snapshot.put(
+                "roundAssists",
+                score.roundAssists()
+            );
+            snapshot.put(
+                "roundCoreCaptures",
+                score.roundCoreCaptures()
+            );
+            snapshot.put(
+                "roundCoreHoldTicks",
+                score.roundCoreHoldTicks()
+            );
+
+            result.put(team.name(), snapshot);
+        }
+
+        return result;
+    }
+
     private List<Map<String, Object>> playerSnapshots(
         MinecraftServer server,
         MatchSession match
@@ -395,6 +539,12 @@ public final class MatchLogService {
         player.put(
             "color",
             slot.color().name()
+        );
+        player.put("team", slot.team().name());
+        player.put("targetId", slot.targetId());
+        player.put(
+            "memberIndex",
+            slot.memberIndex()
         );
         player.put(
             "slotIndex",

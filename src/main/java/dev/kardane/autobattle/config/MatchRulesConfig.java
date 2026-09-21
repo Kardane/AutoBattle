@@ -1,7 +1,8 @@
 package dev.kardane.autobattle.config;
 
 public record MatchRulesConfig(
-    int minimumPlayers,
+    int minTeamSize,
+    int maxTeamSize,
     int roundCount,
     int roundDurationTicks,
     int countdownTicks,
@@ -9,9 +10,11 @@ public record MatchRulesConfig(
     int commandDurationTicks
 ) {
     public MatchRulesConfig {
-        if (minimumPlayers < 2 || minimumPlayers > 4) {
+        if (minTeamSize < 1
+            || maxTeamSize < minTeamSize
+            || maxTeamSize > 8) {
             throw new IllegalArgumentException(
-                "minimumPlayers must be between 2 and 4"
+                "Team size must satisfy 1 <= min <= max <= 8"
             );
         }
 

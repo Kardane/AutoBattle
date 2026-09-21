@@ -35,6 +35,8 @@ public final class AutoBattleConfigLoader {
         # API keys are stored as plain text in this file. Keep your server
         # config directory private and do not commit this file to Git.
 
+        config-version: 2
+
         openai:
           doctrine-normalizer:
             enabled: true
@@ -56,7 +58,9 @@ public final class AutoBattleConfigLoader {
           model: "jev-latest"
 
         match:
-          minimum-players: 4
+          # Balanced RED vs BLUE matches may start from 1v1 through 8v8.
+          min-team-size: 1
+          max-team-size: 8
           rounds: 5
           round-duration-seconds: 90
           countdown-seconds: 5
@@ -120,17 +124,18 @@ public final class AutoBattleConfigLoader {
             z: 0
             radius: 3.0
 
-          robot-spawns:
-            - { x: 15.0,  y: 80.0, z: 0.0,   yaw: 90.0,  pitch: 0.0 }
-            - { x: -15.0, y: 80.0, z: 0.0,   yaw: -90.0, pitch: 0.0 }
-            - { x: 0.0,   y: 80.0, z: 15.0,  yaw: 180.0, pitch: 0.0 }
-            - { x: 0.0,   y: 80.0, z: -15.0, yaw: 0.0,   pitch: 0.0 }
+          team-spawns:
+            # x = teams face each other from west/east.
+            # z = teams face each other from north/south.
+            axis: "x"
+            distance-from-core: 18.0
+            member-spacing: 3.0
+            y: 80.0
+            swap-sides-each-round: true
 
-          viewer-spawns:
-            - { x: 20.0,  y: 88.0, z: 20.0,  yaw: 0.0, pitch: 0.0 }
-            - { x: -20.0, y: 88.0, z: 20.0,  yaw: 0.0, pitch: 0.0 }
-            - { x: -20.0, y: 88.0, z: -20.0, yaw: 0.0, pitch: 0.0 }
-            - { x: 20.0,  y: 88.0, z: -20.0, yaw: 0.0, pitch: 0.0 }
+          viewer-spawn:
+            radius: 24.0
+            y: 88.0
 
         """;
 
@@ -159,15 +164,44 @@ public final class AutoBattleConfigLoader {
                 new SafeConstructor(options)
             );
 
+            Map<String, Object> defaults = asMap(
+                yaml.load(DEFAULT_YAML),
+                "default root"
+            );
+
+            Map<String, Object> source;
+
             try (Reader reader = Files.newBufferedReader(
                 path,
                 StandardCharsets.UTF_8
             )) {
-                Object raw = yaml.load(reader);
-                return parse(
-                    asMap(raw, "root")
+                source = asMap(
+                    yaml.load(reader),
+                    "root"
                 );
             }
+
+            ConfigMigrationService migrations =
+                new ConfigMigrationService();
+
+            ConfigMigrationService.MigrationResult migrated =
+                migrations.migrate(
+                    source,
+                    defaults
+                );
+
+            // Validate the fully migrated map before touching
+            // the user's on-disk configuration.
+            AutoBattleConfig parsed = parse(
+                migrated.config()
+            );
+
+            migrations.backupAndWrite(
+                path,
+                migrated
+            );
+
+            return parsed;
         } catch (IOException exception) {
             throw new IllegalStateException(
                 "Failed to load AutoBattle config: " + path,
@@ -269,8 +303,13 @@ public final class AutoBattleConfigLoader {
             new MatchRulesConfig(
                 intValue(
                     match,
-                    "minimum-players",
-                    defaults.match().minimumPlayers()
+                    "min-team-size",
+                    defaults.match().minTeamSize()
+                ),
+                intValue(
+                    match,
+                    "max-team-size",
+                    defaults.match().maxTeamSize()
                 ),
                 intValue(
                     match,
@@ -664,68 +703,65 @@ public final class AutoBattleConfigLoader {
             defaults.coreRadius()
         );
 
-        List<SpawnPoint> robotSpawns =
-            spawnPoints(
-                arena.get("robot-spawns"),
-                defaults.robotSpawns(),
-                "arena.robot-spawns"
+        Map<String, Object> teamSpawns =
+            section(arena, "team-spawns");
+
+        TeamSpawnConfig teamSpawnConfig =
+            new TeamSpawnConfig(
+                stringValue(
+                    teamSpawns,
+                    "axis",
+                    defaults.teamSpawns().axis()
+                ),
+                doubleValue(
+                    teamSpawns,
+                    "distance-from-core",
+                    defaults.teamSpawns()
+                        .distanceFromCore()
+                ),
+                doubleValue(
+                    teamSpawns,
+                    "member-spacing",
+                    defaults.teamSpawns()
+                        .memberSpacing()
+                ),
+                doubleValue(
+                    teamSpawns,
+                    "y",
+                    defaults.teamSpawns().y()
+                ),
+                booleanValue(
+                    teamSpawns,
+                    "swap-sides-each-round",
+                    defaults.teamSpawns()
+                        .swapSidesEachRound()
+                )
             );
 
-        List<SpawnPoint> viewerSpawns =
-            spawnPoints(
-                arena.get("viewer-spawns"),
-                defaults.viewerSpawns(),
-                "arena.viewer-spawns"
+        Map<String, Object> viewerSpawn =
+            section(arena, "viewer-spawn");
+
+        ViewerSpawnConfig viewerSpawnConfig =
+            new ViewerSpawnConfig(
+                doubleValue(
+                    viewerSpawn,
+                    "radius",
+                    defaults.viewerSpawn().radius()
+                ),
+                doubleValue(
+                    viewerSpawn,
+                    "y",
+                    defaults.viewerSpawn().y()
+                )
             );
 
         return new ArenaConfig(
             dimension,
             corePos,
             radius,
-            robotSpawns,
-            viewerSpawns
+            teamSpawnConfig,
+            viewerSpawnConfig
         );
-    }
-
-    private static List<SpawnPoint> spawnPoints(
-        Object raw,
-        List<SpawnPoint> fallback,
-        String path
-    ) {
-        if (raw == null) {
-            return fallback;
-        }
-
-        List<?> list = asList(raw, path);
-        List<SpawnPoint> result = new ArrayList<>();
-
-        for (int index = 0; index < list.size(); index++) {
-            Map<String, Object> point =
-                asMap(
-                    list.get(index),
-                    path + "[" + index + "]"
-                );
-
-            result.add(
-                new SpawnPoint(
-                    requiredDouble(point, "x", path),
-                    requiredDouble(point, "y", path),
-                    requiredDouble(point, "z", path),
-                    (float) doubleValue(
-                        point,
-                        "yaw",
-                        0.0D
-                    ),
-                    (float) doubleValue(
-                        point,
-                        "pitch",
-                        0.0D
-                    )
-                )
-            );
-        }
-
-        return List.copyOf(result);
     }
 
     private static Map<String, Object> section(

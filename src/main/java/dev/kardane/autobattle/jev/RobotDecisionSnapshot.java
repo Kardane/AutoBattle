@@ -11,6 +11,7 @@ public record RobotDecisionSnapshot(
     long serverTick,
     int remainingRoundSeconds,
     RobotSnapshot self,
+    TeamContextSnapshot teamContext,
     CoreSnapshot core,
     List<EnemySnapshot> enemies,
     Doctrine doctrine,

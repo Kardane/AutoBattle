@@ -9,6 +9,7 @@ import dev.kardane.autobattle.config.ConfigReloadService;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.DoctrineEditResult;
 import dev.kardane.autobattle.doctrine.DoctrineService;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.review.RoundReviewService;
@@ -272,6 +273,15 @@ public final class AutoBattleCommands {
                                 )
                         )
                         .then(
+                            Commands.literal("start")
+                                .executes(context ->
+                                    startMatch(
+                                        context.getSource(),
+                                        matchManager
+                                    )
+                                )
+                        )
+                        .then(
                             Commands.literal("startround")
                                 .executes(context ->
                                     startPrototypeRound(
@@ -302,7 +312,7 @@ public final class AutoBattleCommands {
                             Commands.literal("debug")
                                 .then(
                                     Commands.argument(
-                                        "color",
+                                        "robotId",
                                         StringArgumentType.word()
                                     )
                                     .executes(context ->
@@ -312,7 +322,7 @@ public final class AutoBattleCommands {
                                             planExecutor,
                                             StringArgumentType.getString(
                                                 context,
-                                                "color"
+                                                "robotId"
                                             )
                                         )
                                     )
@@ -322,7 +332,7 @@ public final class AutoBattleCommands {
                             Commands.literal("plan")
                                 .then(
                                     Commands.argument(
-                                        "color",
+                                        "robotId",
                                         StringArgumentType.word()
                                     )
                                     .then(
@@ -337,7 +347,7 @@ public final class AutoBattleCommands {
                                                 planExecutor,
                                                 StringArgumentType.getString(
                                                     context,
-                                                    "color"
+                                                    "robotId"
                                                 ),
                                                 StringArgumentType.getString(
                                                     context,
@@ -348,7 +358,7 @@ public final class AutoBattleCommands {
                                         )
                                         .then(
                                             Commands.argument(
-                                                "targetColor",
+                                                "targetId",
                                                 StringArgumentType.word()
                                             )
                                             .executes(context ->
@@ -366,7 +376,7 @@ public final class AutoBattleCommands {
                                                     ),
                                                     StringArgumentType.getString(
                                                         context,
-                                                        "targetColor"
+                                                        "targetId"
                                                     )
                                                 )
                                             )
@@ -378,7 +388,7 @@ public final class AutoBattleCommands {
                             Commands.literal("testrobot")
                                 .then(
                                     Commands.argument(
-                                        "color",
+                                        "team",
                                         StringArgumentType.word()
                                     )
                                     .executes(context ->
@@ -389,7 +399,7 @@ public final class AutoBattleCommands {
                                             planExecutor,
                                             StringArgumentType.getString(
                                                 context,
-                                                "color"
+                                                "team"
                                             )
                                         )
                                     )
@@ -427,34 +437,19 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager,
         PlanExecutor planExecutor,
-        String rawColor
+        String rawTargetId
     ) {
-        RobotColor color;
-
-        try {
-            color = RobotColor.valueOf(
-                rawColor.toUpperCase(Locale.ROOT)
-            );
-        } catch (IllegalArgumentException exception) {
-            source.sendFailure(
-                message("commands.admin.debug-unknown-color")
-            );
-            return 0;
-        }
-
-        PlayerSlot slot = matchManager.session()
-            .players()
-            .stream()
-            .filter(candidate -> candidate.color() == color)
-            .findFirst()
-            .orElse(null);
+        PlayerSlot slot = findSlotByTargetId(
+            matchManager,
+            rawTargetId
+        );
 
         if (slot == null) {
             source.sendFailure(
                 message(
                     "commands.admin.debug-no-owner",
                     "color",
-                    color.name()
+                    rawTargetId.toUpperCase(Locale.ROOT)
                 )
             );
             return 0;
@@ -504,7 +499,7 @@ public final class AutoBattleCommands {
         Component status = message(
             "commands.admin.debug-status",
             "color",
-            color.name(),
+            slot.targetId(),
             "total",
             score.totalScore(),
             "round",
@@ -542,37 +537,18 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager,
         PlanExecutor planExecutor,
-        String rawColor,
+        String rawTargetId,
         String rawPlan,
-        String rawTargetColor
+        String rawEnemyId
     ) {
-        RobotColor color;
-
-        try {
-            color = RobotColor.valueOf(
-                rawColor.toUpperCase(Locale.ROOT)
-            );
-        } catch (IllegalArgumentException exception) {
-            source.sendFailure(
-                message("commands.admin.debug-unknown-color")
-            );
-            return 0;
-        }
-
-        PlayerSlot slot = matchManager.session()
-            .players()
-            .stream()
-            .filter(candidate -> candidate.color() == color)
-            .findFirst()
-            .orElse(null);
+        PlayerSlot slot = findSlotByTargetId(
+            matchManager,
+            rawTargetId
+        );
 
         if (slot == null) {
             source.sendFailure(
-                message(
-                    "commands.admin.debug-no-owner",
-                    "color",
-                    color.name()
-                )
+                message("commands.admin.debug-unknown-color")
             );
             return 0;
         }
@@ -586,7 +562,7 @@ public final class AutoBattleCommands {
                 message(
                     "commands.admin.debug-robot-not-alive",
                     "color",
-                    color.name()
+                    slot.targetId()
                 )
             );
             return 0;
@@ -600,7 +576,7 @@ public final class AutoBattleCommands {
 
         switch (planName) {
             case "ENGAGE", "CHASE" -> {
-                if (rawTargetColor == null) {
+                if (rawEnemyId == null) {
                     source.sendFailure(
                         message(
                             "commands.admin.debug-plan-requires-target",
@@ -611,33 +587,15 @@ public final class AutoBattleCommands {
                     return 0;
                 }
 
-                RobotColor targetColor;
-
-                try {
-                    targetColor = RobotColor.valueOf(
-                        rawTargetColor.toUpperCase(Locale.ROOT)
-                    );
-                } catch (IllegalArgumentException exception) {
-                    source.sendFailure(
-                        message(
-                            "commands.admin.debug-unknown-target-color"
-                        )
-                    );
-                    return 0;
-                }
-
-                PlayerSlot targetSlot = matchManager.session()
-                    .players()
-                    .stream()
-                    .filter(candidate ->
-                        candidate.color() == targetColor
-                    )
-                    .findFirst()
-                    .orElse(null);
+                PlayerSlot targetSlot = findSlotByTargetId(
+                    matchManager,
+                    rawEnemyId
+                );
 
                 if (targetSlot == null
                     || targetSlot.playerUuid()
-                        .equals(slot.playerUuid())) {
+                        .equals(slot.playerUuid())
+                    || targetSlot.team() == slot.team()) {
                     source.sendFailure(
                         message(
                             "commands.admin.debug-target-invalid"
@@ -646,16 +604,19 @@ public final class AutoBattleCommands {
                     return 0;
                 }
 
+                String externalId =
+                    planName + "_" + targetSlot.targetId();
+
                 plan = planName.equals("ENGAGE")
                     ? TacticalPlan.engage(
                         targetSlot.playerUuid(),
-                        "ENGAGE_" + targetColor.name(),
+                        externalId,
                         currentTick,
                         lockTicks
                     )
                     : TacticalPlan.chase(
                         targetSlot.playerUuid(),
-                        "CHASE_" + targetColor.name(),
+                        externalId,
                         currentTick,
                         lockTicks
                     );
@@ -701,7 +662,7 @@ public final class AutoBattleCommands {
             () -> message(
                 "commands.admin.debug-plan-assigned",
                 "color",
-                color.name(),
+                slot.targetId(),
                 "plan",
                 plan.externalId()
             ),
@@ -709,6 +670,26 @@ public final class AutoBattleCommands {
         );
 
         return 1;
+    }
+
+    private static PlayerSlot findSlotByTargetId(
+        MatchManager matchManager,
+        String rawTargetId
+    ) {
+        if (rawTargetId == null) {
+            return null;
+        }
+
+        return matchManager.session()
+            .players()
+            .stream()
+            .filter(slot ->
+                slot.targetId().equalsIgnoreCase(
+                    rawTargetId.trim()
+                )
+            )
+            .findFirst()
+            .orElse(null);
     }
 
     private static Vec3 coreCenter(
@@ -755,10 +736,69 @@ public final class AutoBattleCommands {
         return 1;
     }
 
+    private static int startMatch(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) {
+        if (matchManager.session().phase()
+            != dev.kardane.autobattle.match.MatchPhase.LOBBY) {
+            source.sendFailure(
+                message("commands.start-invalid-phase")
+            );
+            return 0;
+        }
+
+        if (!matchManager.beginDoctrineSetupIfReady(
+            source.getServer()
+        )) {
+            source.sendFailure(
+                message(
+                    matchManager.teamsBalanced()
+                        ? "commands.start-failed"
+                        : "commands.start-unbalanced"
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> message(
+                "commands.doctrine-setup-started"
+            ),
+            true
+        );
+
+        return 1;
+    }
+
     private static int startPrototypeRound(
         CommandSourceStack source,
         MatchManager matchManager
     ) {
+        if (matchManager.session().phase()
+            == dev.kardane.autobattle.match.MatchPhase.LOBBY) {
+            if (!matchManager.beginDoctrineSetupIfReady(
+                source.getServer()
+            )) {
+                source.sendFailure(
+                    message(
+                        matchManager.teamsBalanced()
+                            ? "commands.start-failed"
+                            : "commands.start-unbalanced"
+                    )
+                );
+                return 0;
+            }
+
+            source.sendSuccess(
+                () -> message(
+                    "commands.doctrine-setup-started"
+                ),
+                true
+            );
+            return 1;
+        }
+
         if (!matchManager.startPrototypeRound(source.getServer())) {
             source.sendFailure(
                 message("commands.start-failed")
@@ -1097,9 +1137,11 @@ public final class AutoBattleCommands {
 
         source.sendSuccess(
             () -> message(
-                "commands.joined",
-                "color",
-                slot.color().name()
+                "commands.joined-team",
+                "team",
+                slot.team().name(),
+                "id",
+                slot.targetId()
             ),
             false
         );
@@ -1144,22 +1186,9 @@ public final class AutoBattleCommands {
         }
 
         source.sendSuccess(
-            () -> message(
-                ready.get()
-                    ? "commands.ready"
-                    : "commands.not-ready"
-            ),
+            () -> message("commands.auto-ready"),
             false
         );
-
-        if (matchManager.beginDoctrineSetupIfReady(source.getServer())) {
-            source.sendSuccess(
-                () -> message(
-                    "commands.doctrine-setup-started"
-                ),
-                true
-            );
-        }
 
         return 1;
     }
@@ -1359,9 +1388,8 @@ public final class AutoBattleCommands {
         String coreOwner = matchManager.session()
             .core()
             .state()
-            .ownerUuid()
-            .flatMap(matchManager::playerSlot)
-            .map(slot -> slot.color().name())
+            .ownerTeam()
+            .map(Enum::name)
             .orElse("none");
 
         source.sendSuccess(
@@ -1373,10 +1401,14 @@ public final class AutoBattleCommands {
                 matchManager.session().currentRound(),
                 "players",
                 matchManager.playerCount(),
-                "ready",
-                matchManager.readyCount(),
-                "minimum",
-                matchManager.config().minimumPlayers(),
+                "red",
+                matchManager.teamCount(BattleTeam.RED),
+                "blue",
+                matchManager.teamCount(BattleTeam.BLUE),
+                "balanced",
+                matchManager.teamsBalanced(),
+                "maximum",
+                matchManager.config().maxTeamSize(),
                 "core_owner",
                 coreOwner
             ),
@@ -1420,7 +1452,8 @@ public final class AutoBattleCommands {
             testMatchId,
             UUID.randomUUID(),
             message("commands.test.fight-red-name"),
-            RobotColor.RED,
+            BattleTeam.RED,
+            "R1",
             center.add(right.scale(3.0D)),
             player.getYRot()
         );
@@ -1430,7 +1463,8 @@ public final class AutoBattleCommands {
             testMatchId,
             UUID.randomUUID(),
             message("commands.test.fight-blue-name"),
-            RobotColor.BLUE,
+            BattleTeam.BLUE,
+            "B1",
             center.add(right.scale(-3.0D)),
             player.getYRot()
         );
@@ -1445,7 +1479,7 @@ public final class AutoBattleCommands {
             red,
             TacticalPlan.engage(
                 blue.ownerUuid(),
-                "ENGAGE_BLUE",
+                "ENGAGE_B1",
                 currentTick,
                 lockTicks
             ),
@@ -1456,7 +1490,7 @@ public final class AutoBattleCommands {
             blue,
             TacticalPlan.engage(
                 red.ownerUuid(),
-                "ENGAGE_RED",
+                "ENGAGE_R1",
                 currentTick,
                 lockTicks
             ),
@@ -1478,10 +1512,10 @@ public final class AutoBattleCommands {
         PlanExecutor planExecutor,
         String rawColor
     ) throws CommandSyntaxException {
-        RobotColor color;
+        BattleTeam team;
 
         try {
-            color = RobotColor.valueOf(
+            team = BattleTeam.valueOf(
                 rawColor.toUpperCase(Locale.ROOT)
             );
         } catch (IllegalArgumentException exception) {
@@ -1492,14 +1526,14 @@ public final class AutoBattleCommands {
         }
 
         ServerPlayer player = source.getPlayerOrException();
-        RobotZombie robot = robotFactory.spawnTestRobot(player, color);
+        RobotZombie robot = robotFactory.spawnTestRobot(player, team);
         planExecutor.register(robot, matchManager.serverTick());
 
         source.sendSuccess(
             () -> message(
                 "commands.test.robot-spawned",
                 "color",
-                color.name(),
+                team.name(),
                 "entity",
                 robot.getId()
             ),

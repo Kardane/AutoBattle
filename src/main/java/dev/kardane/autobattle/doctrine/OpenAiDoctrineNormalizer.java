@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class OpenAiDoctrineNormalizer
         implements DoctrineNormalizer {
     public static final String PROMPT_VERSION =
-        "autobattle-doctrine-v2";
+        "autobattle-doctrine-v3";
 
     private static final int MAX_NORMALIZED_LINE_LENGTH = 240;
 
@@ -36,7 +36,11 @@ public final class OpenAiDoctrineNormalizer
 
         Rewrite each source rule into one concise English tactical rule optimized for a downstream tactical decision model. Preserve the player's intent. Do not add goals, conditions, priorities, numbers, thresholds, targets, or restrictions that were not present in the source.
 
+        AutoBattle is a RED-vs-BLUE team battle. Each robot has allies on its own team and enemies on the opposing team.
+
         Use AutoBattle terminology when it accurately represents the source:
+        - TEAM / ALLY / ALLIES: the robot's own team or teammates.
+        - ENEMY / ENEMIES: robots on the opposing team.
         - CORE: the central capture objective.
         - ENGAGE: fight a nearby enemy without extended pursuit.
         - CHASE: deliberately pursue an enemy over a longer distance.
@@ -45,7 +49,7 @@ public final class OpenAiDoctrineNormalizer
         - RETREAT: disengage to survive or recover.
         - HP: robot health.
 
-        Do not invent team colors or specific enemies. Do not turn vague language into a numeric threshold. Preserve explicit numeric thresholds exactly. Keep the three rules separate and in the same order. Output only the schema fields.
+        Do not invent a team color, participant ID, or specific enemy/ally that was not present in the source. Do not turn vague language into a numeric threshold. Preserve explicit numeric thresholds exactly. Keep the three rules separate and in the same order. Output only the schema fields.
         """;
 
     private final HttpClient httpClient;

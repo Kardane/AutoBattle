@@ -4,6 +4,7 @@ import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.SpawnPoint;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
+import dev.kardane.autobattle.match.TeamSpawnResolver;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.RobotController;
@@ -18,6 +19,8 @@ public final class RobotRespawnManager {
     private final AutoBattleConfig config;
     private final RobotFactory robotFactory;
     private final PlanExecutor planExecutor;
+    private final TeamSpawnResolver teamSpawns =
+        new TeamSpawnResolver();
 
     public RobotRespawnManager(
         AutoBattleConfig config,
@@ -77,9 +80,20 @@ public final class RobotRespawnManager {
                 continue;
             }
 
-            SpawnPoint spawn = config.arena()
-                .robotSpawns()
-                .get(slot.slotIndex());
+            int teamSize = (int) match.players()
+                .stream()
+                .filter(candidate ->
+                    !candidate.forfeited()
+                        && candidate.team() == slot.team()
+                )
+                .count();
+
+            SpawnPoint spawn = teamSpawns.resolve(
+                config.arena(),
+                slot,
+                teamSize,
+                match.currentRound()
+            );
 
             ServerPlayer owner = server.getPlayerList()
                 .getPlayer(slot.playerUuid());
@@ -93,7 +107,8 @@ public final class RobotRespawnManager {
                 match.matchId(),
                 slot.playerUuid(),
                 ownerName,
-                slot.color(),
+                slot.team(),
+                slot.targetId(),
                 spawn.position(),
                 spawn.yaw()
             );

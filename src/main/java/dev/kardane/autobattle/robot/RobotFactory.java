@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.robot;
 
 import dev.kardane.autobattle.config.RobotConfig;
+import dev.kardane.autobattle.match.BattleTeam;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -29,7 +30,8 @@ public final class RobotFactory {
         UUID matchId,
         UUID ownerUuid,
         Component ownerName,
-        RobotColor color,
+        BattleTeam team,
+        String targetId,
         Vec3 position,
         float yaw
     ) {
@@ -37,13 +39,17 @@ public final class RobotFactory {
         Objects.requireNonNull(matchId, "matchId");
         Objects.requireNonNull(ownerUuid, "ownerUuid");
         Objects.requireNonNull(ownerName, "ownerName");
-        Objects.requireNonNull(color, "color");
+        Objects.requireNonNull(team, "team");
+        Objects.requireNonNull(targetId, "targetId");
         Objects.requireNonNull(position, "position");
+
+        RobotColor color = team.robotColor();
 
         RobotZombie robot = new RobotZombie(
             level,
             ownerUuid,
-            color,
+            team,
+            targetId,
             matchId
         );
 
@@ -68,7 +74,7 @@ public final class RobotFactory {
 
     public RobotZombie spawnTestRobot(
         ServerPlayer owner,
-        RobotColor color
+        BattleTeam team
     ) {
         Vec3 position = owner.position()
             .add(owner.getLookAngle().scale(3.0D));
@@ -78,7 +84,8 @@ public final class RobotFactory {
             UUID.randomUUID(),
             owner.getUUID(),
             owner.getName(),
-            color,
+            team,
+            team.targetId(0),
             position,
             owner.getYRot()
         );

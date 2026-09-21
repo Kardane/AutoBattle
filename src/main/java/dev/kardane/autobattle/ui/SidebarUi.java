@@ -1,8 +1,8 @@
 package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.config.LanguageService;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchSession;
-import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
@@ -11,13 +11,11 @@ import net.minecraft.world.scores.ScoreHolder;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 
 public final class SidebarUi {
     private static final String OBJECTIVE_NAME =
-        "autobattle";
+        "autobattle_team";
 
     private final LanguageService language;
     private Objective objective;
@@ -67,31 +65,10 @@ public final class SidebarUi {
 
         Scoreboard scoreboard = server.getScoreboard();
 
-        List<PlayerSlot> standings = match.players()
-            .stream()
-            .sorted(
-                Comparator
-                    .comparingInt(
-                        (PlayerSlot slot) ->
-                            slot.score().totalScore()
-                    )
-                    .reversed()
-                    .thenComparingInt(
-                        PlayerSlot::slotIndex
-                    )
-            )
-            .toList();
-
-        for (int index = 0;
-             index < standings.size();
-             index++) {
-            PlayerSlot slot = standings.get(index);
-
+        for (BattleTeam team : BattleTeam.values()) {
             ScoreHolder holder = ScoreHolder.forNameOnly(
-                "autobattle_"
-                    + slot.color()
-                        .name()
-                        .toLowerCase()
+                "autobattle_team_"
+                    + team.name().toLowerCase()
             );
 
             ScoreAccess score =
@@ -100,18 +77,18 @@ public final class SidebarUi {
                     objective
                 );
 
-            score.set(slot.score().totalScore());
+            int total = match.teamScore(team).totalScore();
+
+            score.set(total);
             score.display(
                 language.component(
-                    "sidebar.entry",
-                    "rank",
-                    index + 1,
-                    "color",
-                    slot.color().name(),
+                    "sidebar.team-entry",
+                    "team",
+                    team.name(),
                     "score",
-                    slot.score().totalScore()
+                    total
                 ).copy().withStyle(
-                    slot.color().chatColor()
+                    team.robotColor().chatColor()
                 )
             );
         }
