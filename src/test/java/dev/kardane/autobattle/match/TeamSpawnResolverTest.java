@@ -45,8 +45,13 @@ final class TeamSpawnResolverTest {
                 assertTrue(redSpawn.x() < arena.corePos().getX() + 0.5D);
                 assertTrue(blueSpawn.x() > arena.corePos().getX() + 0.5D);
                 assertEquals(
-                    redSpawn.z() + blueSpawn.z(),
-                    (arena.corePos().getZ() + 0.5D) * 2.0D,
+                    (arena.corePos().getX() + 0.5D) * 2.0D,
+                    redSpawn.x() + blueSpawn.x(),
+                    1.0E-9D
+                );
+                assertEquals(
+                    redSpawn.z(),
+                    blueSpawn.z(),
                     1.0E-9D
                 );
 
