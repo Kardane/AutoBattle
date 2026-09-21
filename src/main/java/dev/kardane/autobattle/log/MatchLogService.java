@@ -127,14 +127,23 @@ public final class MatchLogService {
         MatchSession match,
         long serverTick
     ) {
+        Map<String, Object> payload =
+            new LinkedHashMap<>();
+
+        payload.put(
+            "participants",
+            playerSnapshots(server, match)
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
+        );
+
         append(
             match,
             "round_started",
             serverTick,
-            Map.of(
-                "participants",
-                playerSnapshots(server, match)
-            )
+            payload
         );
     }
 
@@ -143,14 +152,23 @@ public final class MatchLogService {
         MatchSession match,
         long serverTick
     ) {
+        Map<String, Object> payload =
+            new LinkedHashMap<>();
+
+        payload.put(
+            "participants",
+            playerSnapshots(server, match)
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
+        );
+
         append(
             match,
             "round_ended",
             serverTick,
-            Map.of(
-                "participants",
-                playerSnapshots(server, match)
-            )
+            payload
         );
     }
 
@@ -168,17 +186,43 @@ public final class MatchLogService {
             "victimOwnerUuid",
             victimOwnerUuid.toString()
         );
+
+        match.player(victimOwnerUuid).ifPresent(slot -> {
+            payload.put("victimTargetId", slot.targetId());
+            payload.put("victimTeam", slot.team().name());
+        });
+
         payload.put(
             "killerOwnerUuid",
             killerOwnerUuid == null
                 ? null
                 : killerOwnerUuid.toString()
         );
+
+        if (killerOwnerUuid != null) {
+            match.player(killerOwnerUuid).ifPresent(slot -> {
+                payload.put("killerTargetId", slot.targetId());
+                payload.put("killerTeam", slot.team().name());
+            });
+        }
+
         payload.put(
             "assistOwnerUuids",
             assistOwnerUuids.stream()
                 .map(UUID::toString)
                 .toList()
+        );
+        payload.put(
+            "assistTargetIds",
+            assistOwnerUuids.stream()
+                .map(match::player)
+                .flatMap(java.util.Optional::stream)
+                .map(PlayerSlot::targetId)
+                .toList()
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
         );
 
         append(
@@ -220,6 +264,10 @@ public final class MatchLogService {
             Map.of(
                 "ownerUuid",
                 slot.playerUuid().toString(),
+                "targetId",
+                slot.targetId(),
+                "team",
+                slot.team().name(),
                 "color",
                 slot.color().name(),
                 "command",
@@ -240,6 +288,10 @@ public final class MatchLogService {
             Map.of(
                 "ownerUuid",
                 slot.playerUuid().toString(),
+                "targetId",
+                slot.targetId(),
+                "team",
+                slot.team().name(),
                 "color",
                 slot.color().name()
             )
