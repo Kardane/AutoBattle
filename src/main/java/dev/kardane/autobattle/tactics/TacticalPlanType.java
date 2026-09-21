@@ -5,6 +5,5 @@ public enum TacticalPlanType {
     CHASE,
     CAPTURE,
     DEFEND,
-    RETREAT,
-    REPOSITION
+    RETREAT
 }
