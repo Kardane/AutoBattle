@@ -262,9 +262,9 @@ public final class TypeSafeJevClient implements JevClient {
 
         for (EnemySnapshot participant : snapshot.enemies()) {
             if (participant.team() == snapshot.self().team()) {
-                allies.add(buildParticipant(participant));
+                allies.add(buildAlly(participant));
             } else {
-                enemies.add(buildParticipant(participant));
+                enemies.add(buildEnemy(participant));
             }
         }
 
@@ -374,7 +374,27 @@ public final class TypeSafeJevClient implements JevClient {
         return json;
     }
 
-    private JsonObject buildParticipant(
+    private JsonObject buildAlly(
+        EnemySnapshot ally
+    ) {
+        JsonObject json = new JsonObject();
+        json.addProperty("id", ally.targetId());
+        json.addProperty("team", ally.team().name());
+        json.addProperty("alive", ally.alive());
+        addFiniteNumber(
+            json,
+            "hp_ratio",
+            ally.hpRatio()
+        );
+        addFiniteNumber(
+            json,
+            "distance",
+            ally.distance()
+        );
+        return json;
+    }
+
+    private JsonObject buildEnemy(
         EnemySnapshot enemy
     ) {
         JsonObject json = new JsonObject();
