@@ -758,9 +758,8 @@ public final class CarpetTestCommands {
         String coreOwner = matchManager.session()
             .core()
             .state()
-            .ownerUuid()
-            .flatMap(matchManager::playerSlot)
-            .map(slot -> slot.color().name())
+            .ownerTeam()
+            .map(Enum::name)
             .orElse("none");
 
         String status = language.format(
@@ -771,10 +770,18 @@ public final class CarpetTestCommands {
             matchManager.session().currentRound(),
             "players",
             matchManager.playerCount(),
-            "ready",
-            matchManager.readyCount(),
-            "minimum",
-            matchManager.config().minimumPlayers(),
+            "red",
+            matchManager.teamCount(
+                dev.kardane.autobattle.match.BattleTeam.RED
+            ),
+            "blue",
+            matchManager.teamCount(
+                dev.kardane.autobattle.match.BattleTeam.BLUE
+            ),
+            "balanced",
+            matchManager.teamsBalanced(),
+            "maximum",
+            matchManager.config().maxTeamSize(),
             "core_owner",
             coreOwner
         );
