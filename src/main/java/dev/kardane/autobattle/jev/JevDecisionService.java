@@ -27,6 +27,7 @@ public final class JevDecisionService {
         new DecisionComposer();
     private final DecisionIntervalStagger intervalStagger =
         new DecisionIntervalStagger();
+    private int inFlightRequests;
     private AutoBattleConfig config;
 
     public JevDecisionService(
@@ -152,6 +153,7 @@ public final class JevDecisionService {
         }
 
         long generation = controller.nextDecisionGeneration();
+        int inFlightAtRequest = ++inFlightRequests;
 
         DecisionContext context = new DecisionContext(
             match.matchId(),
@@ -161,7 +163,8 @@ public final class JevDecisionService {
             slot.doctrine().orElseThrow().version(),
             generation,
             currentTick,
-            controller.decisionTrigger()
+            controller.decisionTrigger(),
+            inFlightAtRequest
         );
 
         RobotDecisionSnapshot snapshot =
@@ -185,7 +188,12 @@ public final class JevDecisionService {
                 TimeUnit.MILLISECONDS
             )
             .whenComplete((response, error) ->
-                server.execute(() ->
+                server.execute(() -> {
+                    inFlightRequests = Math.max(
+                        0,
+                        inFlightRequests - 1
+                    );
+
                     applyResponse(
                         match,
                         controller,
@@ -193,8 +201,8 @@ public final class JevDecisionService {
                         response,
                         error,
                         server.getTickCount()
-                    )
-                )
+                    );
+                })
             );
     }
 
@@ -681,6 +689,7 @@ public final class JevDecisionService {
                 "TEAM_DECOMPOSED_V3",
                 modVersion(),
                 context.trigger(),
+                context.inFlightAtRequest(),
                 context.matchId(),
                 context.round(),
                 context.requestedTick(),
