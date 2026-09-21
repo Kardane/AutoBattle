@@ -523,7 +523,7 @@ public final class RobotController {
         return registry.alive().stream()
             .filter(controller -> controller != this)
             .filter(controller ->
-                controller.team() != team
+                team.isEnemy(controller.team())
             )
             .flatMap(
                 controller ->
@@ -563,7 +563,7 @@ public final class RobotController {
         return registry
             .byOwner(targetOwnerUuid)
             .filter(target -> target != this)
-            .filter(target -> target.team() != team)
+            .filter(target -> team.isEnemy(target.team()))
             .filter(RobotController::alive)
             .flatMap(RobotController::entity)
             .filter(target ->
