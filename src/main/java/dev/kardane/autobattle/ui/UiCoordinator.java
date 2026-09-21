@@ -170,6 +170,7 @@ public final class UiCoordinator {
                 actionBar.updatePlayer(
                     player,
                     slot,
+                    match,
                     controller,
                     currentTick
                 );
@@ -233,6 +234,7 @@ public final class UiCoordinator {
                 actionBar.updateIntermission(
                     player,
                     slot,
+                    match,
                     match.phase(),
                     match.currentRound(),
                     config.roundCount()
