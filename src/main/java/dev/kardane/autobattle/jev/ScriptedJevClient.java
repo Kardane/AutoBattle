@@ -105,6 +105,11 @@ public final class ScriptedJevClient implements JevClient {
             }
         }
 
+        if (snapshot.core().contested()
+            && !living.isEmpty()) {
+            return "FIGHT";
+        }
+
         if (snapshot.core().ownerTeam() == null
             || snapshot.core().ownerTeam()
                 != snapshot.self().team()) {
