@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.command.PlayerCommandType;
 import dev.kardane.autobattle.config.AutoBattleConfig;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.server.MinecraftServer;
@@ -56,9 +57,14 @@ public final class MatchLogService {
         Map<String, Object> payload =
             new LinkedHashMap<>();
 
+        payload.put("mode", "TEAM_BATTLE");
         payload.put(
             "participants",
             playerSnapshots(server, match)
+        );
+        payload.put(
+            "teamScores",
+            teamScores(match)
         );
 
         Map<String, Object> rules =
@@ -176,7 +182,7 @@ public final class MatchLogService {
 
     public void coreCaptured(
         MatchSession match,
-        UUID ownerUuid,
+        BattleTeam team,
         long serverTick
     ) {
         append(
@@ -184,8 +190,10 @@ public final class MatchLogService {
             "core_captured",
             serverTick,
             Map.of(
-                "ownerUuid",
-                ownerUuid.toString()
+                "team",
+                team.name(),
+                "teamScore",
+                match.teamScore(team).totalScore()
             )
         );
     }
@@ -355,6 +363,44 @@ public final class MatchLogService {
         }
     }
 
+    private Map<String, Object> teamScores(
+        MatchSession match
+    ) {
+        Map<String, Object> result =
+            new LinkedHashMap<>();
+
+        for (BattleTeam team : BattleTeam.values()) {
+            var score = match.teamScore(team);
+            Map<String, Object> snapshot =
+                new LinkedHashMap<>();
+
+            snapshot.put("totalScore", score.totalScore());
+            snapshot.put("roundScore", score.roundScore());
+            snapshot.put("totalKills", score.totalKills());
+            snapshot.put("roundKills", score.roundKills());
+            snapshot.put(
+                "totalAssists",
+                score.totalAssists()
+            );
+            snapshot.put(
+                "roundAssists",
+                score.roundAssists()
+            );
+            snapshot.put(
+                "roundCoreCaptures",
+                score.roundCoreCaptures()
+            );
+            snapshot.put(
+                "roundCoreHoldTicks",
+                score.roundCoreHoldTicks()
+            );
+
+            result.put(team.name(), snapshot);
+        }
+
+        return result;
+    }
+
     private List<Map<String, Object>> playerSnapshots(
         MinecraftServer server,
         MatchSession match
@@ -395,6 +441,12 @@ public final class MatchLogService {
         player.put(
             "color",
             slot.color().name()
+        );
+        player.put("team", slot.team().name());
+        player.put("targetId", slot.targetId());
+        player.put(
+            "memberIndex",
+            slot.memberIndex()
         );
         player.put(
             "slotIndex",
