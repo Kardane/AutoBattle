@@ -9,6 +9,8 @@ import java.util.UUID;
 public record DecisionLog(
     int schemaVersion,
     String decisionMode,
+    String modVersion,
+    DecisionTrigger trigger,
     UUID matchId,
     int round,
     long serverTick,
