@@ -759,6 +759,26 @@ public final class AutoBattleCommands {
         CommandSourceStack source,
         MatchManager matchManager
     ) {
+        if (matchManager.session().phase()
+            == dev.kardane.autobattle.match.MatchPhase.LOBBY) {
+            if (!matchManager.beginDoctrineSetupIfReady(
+                source.getServer()
+            )) {
+                source.sendFailure(
+                    message("commands.start-failed")
+                );
+                return 0;
+            }
+
+            source.sendSuccess(
+                () -> message(
+                    "commands.doctrine-setup-started"
+                ),
+                true
+            );
+            return 1;
+        }
+
         if (!matchManager.startPrototypeRound(source.getServer())) {
             source.sendFailure(
                 message("commands.start-failed")
@@ -1144,22 +1164,9 @@ public final class AutoBattleCommands {
         }
 
         source.sendSuccess(
-            () -> message(
-                ready.get()
-                    ? "commands.ready"
-                    : "commands.not-ready"
-            ),
+            () -> message("commands.ready"),
             false
         );
-
-        if (matchManager.beginDoctrineSetupIfReady(source.getServer())) {
-            source.sendSuccess(
-                () -> message(
-                    "commands.doctrine-setup-started"
-                ),
-                true
-            );
-        }
 
         return 1;
     }
