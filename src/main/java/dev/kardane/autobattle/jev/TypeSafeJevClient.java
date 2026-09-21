@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.kardane.autobattle.doctrine.Doctrine;
+import dev.kardane.autobattle.match.BattleTeam;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -179,7 +180,7 @@ public final class TypeSafeJevClient implements JevClient {
 
             for (EnemySnapshot enemy : combatEligible) {
                 targetCriteria.addProperty(
-                    enemy.color().name(),
+                    enemy.targetId(),
                     "Prefer this enemy as the combat target."
                 );
             }
@@ -248,14 +249,26 @@ public final class TypeSafeJevClient implements JevClient {
 
         state.add("self", buildSelf(snapshot.self()));
         state.add(
+            "team_context",
+            buildTeamContext(snapshot.teamContext())
+        );
+        state.add(
             "core",
-            buildCore(snapshot.core(), snapshot.self().ownerUuid())
+            buildCore(snapshot.core(), snapshot.self().team())
         );
 
+        JsonArray allies = new JsonArray();
         JsonArray enemies = new JsonArray();
-        for (EnemySnapshot enemy : snapshot.enemies()) {
-            enemies.add(buildEnemy(enemy));
+
+        for (EnemySnapshot participant : snapshot.enemies()) {
+            if (participant.team() == snapshot.self().team()) {
+                allies.add(buildParticipant(participant));
+            } else {
+                enemies.add(buildParticipant(participant));
+            }
         }
+
+        state.add("allies", allies);
         state.add("enemies", enemies);
 
         state.add(
@@ -283,6 +296,8 @@ public final class TypeSafeJevClient implements JevClient {
 
     private JsonObject buildSelf(RobotSnapshot self) {
         JsonObject json = new JsonObject();
+        json.addProperty("id", self.targetId());
+        json.addProperty("team", self.team().name());
         json.addProperty("color", self.color().name());
         addFiniteNumber(json, "hp", self.hp());
         addFiniteNumber(json, "max_hp", self.maxHp());
@@ -309,19 +324,48 @@ public final class TypeSafeJevClient implements JevClient {
         return json;
     }
 
+    private JsonObject buildTeamContext(
+        TeamContextSnapshot context
+    ) {
+        JsonObject json = new JsonObject();
+        json.addProperty("team", context.team().name());
+        json.addProperty("team_score", context.teamScore());
+        json.addProperty(
+            "enemy_team_score",
+            context.enemyTeamScore()
+        );
+        json.addProperty(
+            "alive_allies",
+            context.aliveAllies()
+        );
+        json.addProperty(
+            "alive_enemies",
+            context.aliveEnemies()
+        );
+        json.addProperty(
+            "allies_inside_core",
+            context.alliesInsideCore()
+        );
+        json.addProperty(
+            "enemies_inside_core",
+            context.enemiesInsideCore()
+        );
+        return json;
+    }
+
     private JsonObject buildCore(
         CoreSnapshot core,
-        java.util.UUID selfOwnerUuid
+        BattleTeam selfTeam
     ) {
         JsonObject json = new JsonObject();
 
         String ownership;
-        if (core.ownerUuid() == null) {
+        if (core.ownerTeam() == null) {
             ownership = "NEUTRAL";
-        } else if (core.ownerUuid().equals(selfOwnerUuid)) {
-            ownership = "SELF";
+        } else if (core.ownerTeam() == selfTeam) {
+            ownership = "SELF_TEAM";
         } else {
-            ownership = "ENEMY";
+            ownership = "ENEMY_TEAM";
         }
 
         json.addProperty("ownership", ownership);
@@ -330,10 +374,12 @@ public final class TypeSafeJevClient implements JevClient {
         return json;
     }
 
-    private JsonObject buildEnemy(
+    private JsonObject buildParticipant(
         EnemySnapshot enemy
     ) {
         JsonObject json = new JsonObject();
+        json.addProperty("id", enemy.targetId());
+        json.addProperty("team", enemy.team().name());
         json.addProperty("color", enemy.color().name());
         json.addProperty("alive", enemy.alive());
         addFiniteNumber(json, "hp", enemy.hp());
@@ -375,13 +421,18 @@ public final class TypeSafeJevClient implements JevClient {
             .enemies()
             .stream()
             .filter(EnemySnapshot::alive)
+            .filter(enemy ->
+                enemy.team() != request.snapshot()
+                    .self()
+                    .team()
+            )
             .filter(enemy -> {
-                String color = enemy.color().name();
+                String targetId = enemy.targetId();
 
                 return request.validPlanIds().contains(
-                    "ENGAGE_" + color
+                    "ENGAGE_" + targetId
                 ) || request.validPlanIds().contains(
-                    "CHASE_" + color
+                    "CHASE_" + targetId
                 );
             })
             .toList();
@@ -452,13 +503,12 @@ public final class TypeSafeJevClient implements JevClient {
 
         ChoiceDecision target = null;
         if (combatEligible.size() == 1) {
-            String color = combatEligible.getFirst()
-                .color()
-                .name();
+            String targetId = combatEligible.getFirst()
+                .targetId();
             target = new ChoiceDecision(
-                color,
+                targetId,
                 1.0D,
-                Map.of(color, 1.0D)
+                Map.of(targetId, 1.0D)
             );
         } else if (combatEligible.size() > 1) {
             target = parseChoice(
