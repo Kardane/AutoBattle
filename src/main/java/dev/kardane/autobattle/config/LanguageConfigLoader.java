@@ -102,6 +102,8 @@ public final class LanguageConfigLoader {
           reload-failure: "{message}"
           # {config}, {messages}
           reload-applied: "Reloaded {config} and {messages}."
+          # {config}, {core_y}, {spawn_y}, {viewer_y}
+          reload-effective: "Reloaded {config} | coreY={core_y} spawnY={spawn_y} viewerY={viewer_y}."
           # {error}
           reload-error: "Config reload failed: {error}"
           start-failed: "Unable to start match. Check balanced team size, active participants, submitted doctrines, and arena dimension."
