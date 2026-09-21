@@ -156,7 +156,7 @@ public final class LanguageConfigLoader {
           # {round}, {score}, {kills}, {deaths}, {assists}
           review-summary: "Round {round} | Score {score} | K/D/A {kills}/{deaths}/{assists}"
           # {core_captures}, {core_hold_seconds}, {damage_dealt}, {damage_taken}
-          review-metrics: "CORE captures {core_captures} | Hold {core_hold_seconds}s | Damage {damage_dealt} dealt / {damage_taken} taken"
+          review-metrics: "TEAM CORE captures {core_captures} | TEAM hold {core_hold_seconds}s | Damage {damage_dealt} dealt / {damage_taken} taken"
           # {plans}
           review-plans: "Plans: {plans}"
           # {importance}, {tick}, {plan}, {confidence}, {result}
@@ -241,7 +241,7 @@ public final class LanguageConfigLoader {
             # {round}, {score}, {kills}, {deaths}, {assists}
             summary: "Round {round} 결과 • Score {score} • K/D/A {kills}/{deaths}/{assists}"
             # {core_captures}, {core_hold_seconds}, {damage_dealt}, {damage_taken}
-            metrics: "CORE Capture {core_captures} • Hold {core_hold_seconds}s • Damage {damage_dealt} dealt / {damage_taken} taken"
+            metrics: "TEAM CORE Capture {core_captures} • TEAM Hold {core_hold_seconds}s • Damage {damage_dealt} dealt / {damage_taken} taken"
             # {plans}
             tactical: "Tactical behavior: {plans}"
             # {plan}, {percent}
