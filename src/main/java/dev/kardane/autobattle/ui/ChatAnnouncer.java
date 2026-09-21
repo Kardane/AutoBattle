@@ -129,6 +129,35 @@ public final class ChatAnnouncer {
     ) {
         broadcastAll(
             server,
+            match.winnerTeam()
+                .map(team ->
+                    language.component(
+                        "chat.team-winner",
+                        "team",
+                        team.name(),
+                        "red_score",
+                        match.teamScore(BattleTeam.RED)
+                            .totalScore(),
+                        "blue_score",
+                        match.teamScore(BattleTeam.BLUE)
+                            .totalScore()
+                    )
+                )
+                .orElseGet(() ->
+                    language.component(
+                        "chat.team-draw",
+                        "red_score",
+                        match.teamScore(BattleTeam.RED)
+                            .totalScore(),
+                        "blue_score",
+                        match.teamScore(BattleTeam.BLUE)
+                            .totalScore()
+                    )
+                )
+        );
+
+        broadcastAll(
+            server,
             language.component(
                 "chat.final-standings-title"
             )
@@ -158,7 +187,11 @@ public final class ChatAnnouncer {
                 "rank",
                 index + 1,
                 "color",
-                slot.color().name(),
+                slot.team().name(),
+                "team",
+                slot.team().name(),
+                "id",
+                slot.targetId(),
                 "score",
                 slot.score().totalScore()
             ).copy().withStyle(slot.color().chatColor());
