@@ -300,9 +300,9 @@ public final class MatchManager {
         respawnManager.tick(server, session, serverTick);
         tickRegen();
 
-        UUID previousCoreOwner = session.core()
+        BattleTeam previousCoreOwner = session.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
         session.core().tick(session, serverTick);
@@ -312,9 +312,9 @@ public final class MatchManager {
             serverTick
         );
 
-        UUID currentCoreOwner = session.core()
+        BattleTeam currentCoreOwner = session.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
         if (currentCoreOwner != null
