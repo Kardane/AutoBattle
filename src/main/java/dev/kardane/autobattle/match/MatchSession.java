@@ -83,6 +83,26 @@ public final class MatchSession {
         );
     }
 
+    public Optional<BattleTeam> winnerTeam() {
+        int red = teamScore(BattleTeam.RED).totalScore();
+        int blue = teamScore(BattleTeam.BLUE).totalScore();
+
+        if (red == blue) {
+            return Optional.empty();
+        }
+
+        return Optional.of(
+            red > blue
+                ? BattleTeam.RED
+                : BattleTeam.BLUE
+        );
+    }
+
+    public boolean draw() {
+        return teamScore(BattleTeam.RED).totalScore()
+            == teamScore(BattleTeam.BLUE).totalScore();
+    }
+
     public Collection<PlayerSlot> players() {
         return List.copyOf(players.values());
     }
