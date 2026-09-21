@@ -3,6 +3,7 @@ package dev.kardane.autobattle.tactics;
 import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.jev.DecisionTrigger;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
@@ -22,6 +23,8 @@ public final class RobotController {
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
 
     private final UUID ownerUuid;
+    private final BattleTeam team;
+    private final String targetId;
     private final RobotColor color;
     private final RobotRegistry registry;
     private RobotConfig config;
@@ -46,7 +49,8 @@ public final class RobotController {
 
     public RobotController(
         UUID ownerUuid,
-        RobotColor color,
+        BattleTeam team,
+        String targetId,
         RobotRegistry registry,
         RobotConfig config,
         ArenaConfig arena
@@ -55,7 +59,12 @@ public final class RobotController {
             ownerUuid,
             "ownerUuid"
         );
-        this.color = Objects.requireNonNull(color, "color");
+        this.team = Objects.requireNonNull(team, "team");
+        this.targetId = Objects.requireNonNull(
+            targetId,
+            "targetId"
+        );
+        this.color = team.robotColor();
         this.registry = Objects.requireNonNull(
             registry,
             "registry"
@@ -91,6 +100,14 @@ public final class RobotController {
 
     public UUID ownerUuid() {
         return ownerUuid;
+    }
+
+    public BattleTeam team() {
+        return team;
+    }
+
+    public String targetId() {
+        return targetId;
     }
 
     public RobotColor color() {
@@ -148,9 +165,10 @@ public final class RobotController {
             );
         }
 
-        if (entity.robotColor() != color) {
+        if (entity.team() != team
+            || !entity.targetId().equals(targetId)) {
             throw new IllegalArgumentException(
-                "Robot entity color does not match controller color."
+                "Robot entity team identity does not match controller."
             );
         }
 
@@ -504,6 +522,9 @@ public final class RobotController {
 
         return registry.alive().stream()
             .filter(controller -> controller != this)
+            .filter(controller ->
+                controller.team() != team
+            )
             .flatMap(
                 controller ->
                     controller.entity().stream()
@@ -542,6 +563,7 @@ public final class RobotController {
         return registry
             .byOwner(targetOwnerUuid)
             .filter(target -> target != this)
+            .filter(target -> target.team() != team)
             .filter(RobotController::alive)
             .flatMap(RobotController::entity)
             .filter(target ->
@@ -758,19 +780,18 @@ public final class RobotController {
         Vec3 center,
         double margin
     ) {
-        double maxRadius = arena.coreRadius();
+        double halfTeamSpan =
+            3.5D * arena.teamSpawns().memberSpacing();
 
-        for (var spawn : arena.robotSpawns()) {
-            maxRadius = Math.max(
-                maxRadius,
-                Math.sqrt(
-                    horizontalDistanceSqr(
-                        center,
-                        spawn.position()
-                    )
-                )
-            );
-        }
+        double spawnRadius = Math.hypot(
+            arena.teamSpawns().distanceFromCore(),
+            halfTeamSpan
+        );
+
+        double maxRadius = Math.max(
+            arena.coreRadius(),
+            spawnRadius
+        );
 
         return maxRadius + Math.max(1.0D, margin);
     }
