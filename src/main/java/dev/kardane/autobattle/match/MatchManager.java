@@ -7,7 +7,6 @@ import dev.kardane.autobattle.combat.KillResolution;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.SpawnPoint;
 import dev.kardane.autobattle.core.CoreController;
-import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRespawnManager;
@@ -27,6 +26,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.level.GameType;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -54,6 +54,12 @@ public final class MatchManager {
     private final JevDecisionService decisionService;
     private final UiCoordinator ui;
     private final MatchLogService matchLogs;
+    private final TeamAssignmentService teamAssignments =
+        new TeamAssignmentService();
+    private final TeamSpawnResolver teamSpawns =
+        new TeamSpawnResolver();
+    private final ViewerSpawnResolver viewerSpawns =
+        new ViewerSpawnResolver();
     private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
@@ -174,6 +180,7 @@ public final class MatchManager {
                 || victim.ownerUuid().equals(
                     attacker.ownerUuid()
                 )
+                || !attacker.team().isEnemy(victim.team())
                 || attacker.distanceToSqr(victim)
                     > ROBOT_ATTACK_RANGE_SQR) {
                 continue;
@@ -296,9 +303,9 @@ public final class MatchManager {
         respawnManager.tick(server, session, serverTick);
         tickRegen();
 
-        UUID previousCoreOwner = session.core()
+        BattleTeam previousCoreOwner = session.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
         session.core().tick(session, serverTick);
@@ -308,9 +315,9 @@ public final class MatchManager {
             serverTick
         );
 
-        UUID currentCoreOwner = session.core()
+        BattleTeam currentCoreOwner = session.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
         if (currentCoreOwner != null
@@ -449,9 +456,14 @@ public final class MatchManager {
         );
 
         resolution.killerOwner().flatMap(session::player).ifPresent(
-            slot -> slot.score().addKill(
-                config.scoring().killScore()
-            )
+            slot -> {
+                slot.score().addKill(
+                    config.scoring().killScore()
+                );
+                session.teamScore(slot.team()).addKill(
+                    config.scoring().killScore()
+                );
+            }
         );
 
         PlayerSlot victimSlot = session.player(
@@ -475,9 +487,14 @@ public final class MatchManager {
 
         for (UUID assistOwner : resolution.assistOwnerUuids()) {
             session.player(assistOwner).ifPresent(
-                slot -> slot.score().addAssist(
-                    config.scoring().assistScore()
-                )
+                slot -> {
+                    slot.score().addAssist(
+                        config.scoring().assistScore()
+                    );
+                    session.teamScore(slot.team()).addAssist(
+                        config.scoring().assistScore()
+                    );
+                }
             );
         }
 
@@ -518,15 +535,23 @@ public final class MatchManager {
             return true;
         }
 
-        int slotIndex = nextFreeSlot();
-        RobotColor[] colors = RobotColor.values();
+        TeamAssignmentService.Assignment assignment =
+            teamAssignments.assign(
+                session,
+                config.match()
+            ).orElse(null);
 
-        if (slotIndex < 0 || slotIndex >= colors.length) {
+        if (assignment == null) {
             return false;
         }
 
         session.addPlayer(
-            new PlayerSlot(uuid, colors[slotIndex], slotIndex)
+            new PlayerSlot(
+                uuid,
+                assignment.team(),
+                assignment.memberIndex(),
+                assignment.slotIndex()
+            )
         );
 
         return true;
@@ -563,6 +588,7 @@ public final class MatchManager {
             return true;
         }
 
+        restorePlayerView(slot, player, server);
         forfeitParticipant(uuid);
 
         if (activePlayerCount() == 0) {
@@ -584,15 +610,8 @@ public final class MatchManager {
     }
 
     public Optional<Boolean> toggleReady(ServerPlayer player) {
-        return session.player(player.getUUID()).map(slot -> {
-            if (session.phase() != MatchPhase.LOBBY) {
-                return slot.ready();
-            }
-
-            boolean next = !slot.ready();
-            slot.setReady(next);
-            return next;
-        });
+        return session.player(player.getUUID())
+            .map(slot -> true);
     }
 
     public Optional<PlayerSlot> playerSlot(UUID playerUuid) {
@@ -617,10 +636,18 @@ public final class MatchManager {
     }
 
     public boolean canStart() {
-        int activePlayers = activePlayerCount();
+        return teamAssignments.canStart(
+            session,
+            config.match()
+        );
+    }
 
-        return activePlayers >= config.minimumPlayers()
-            && readyCount() == activePlayers;
+    public int teamCount(BattleTeam team) {
+        return teamAssignments.activeCount(session, team);
+    }
+
+    public boolean teamsBalanced() {
+        return teamAssignments.balanced(session);
     }
 
     public boolean beginDoctrineSetupIfReady(
@@ -641,7 +668,7 @@ public final class MatchManager {
     }
 
     public boolean allDoctrinesSubmitted() {
-        return activePlayerCount() >= config.minimumPlayers()
+        return canStart()
             && session.players().stream()
                 .filter(slot -> !slot.forfeited())
                 .allMatch(slot -> slot.doctrine().isPresent());
@@ -744,7 +771,7 @@ public final class MatchManager {
             .count();
 
         if (session.currentRound() == 0) {
-            if (eligiblePlayers < config.minimumPlayers()
+            if (!canStart()
                 || !allDoctrinesSubmitted()) {
                 return false;
             }
@@ -774,14 +801,26 @@ public final class MatchManager {
 
         session.setCurrentRound(nextRound);
 
+        positionParticipantsForRound(
+            server,
+            level
+        );
+
+        for (BattleTeam team : BattleTeam.values()) {
+            session.teamScore(team).resetRound();
+        }
+
         for (PlayerSlot slot : session.players()) {
             if (slot.forfeited()) {
                 continue;
             }
 
-            SpawnPoint spawn = config.arena()
-                .robotSpawns()
-                .get(slot.slotIndex());
+            SpawnPoint spawn = teamSpawns.resolve(
+                config.arena(),
+                slot,
+                teamCount(slot.team()),
+                nextRound
+            );
 
             ServerPlayer owner = server.getPlayerList()
                 .getPlayer(slot.playerUuid());
@@ -798,7 +837,8 @@ public final class MatchManager {
                 session.matchId(),
                 slot.playerUuid(),
                 ownerName,
-                slot.color(),
+                slot.team(),
+                slot.targetId(),
                 spawn.position(),
                 spawn.yaw()
             );
@@ -934,6 +974,8 @@ public final class MatchManager {
     public void handleServerStopped(
         MinecraftServer server
     ) {
+        restoreAllPlayerViews(server);
+
         if (session.currentRound() > 0
             && session.phase() != MatchPhase.LOBBY
             && session.phase() != MatchPhase.FINISHED) {
@@ -1030,6 +1072,7 @@ public final class MatchManager {
     private void returnToLobbyAfterSetupAbort(
         MinecraftServer server
     ) {
+        restoreAllPlayerViews(server);
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
@@ -1051,11 +1094,118 @@ public final class MatchManager {
     private void resetToFreshLobby(
         MinecraftServer server
     ) {
+        restoreAllPlayerViews(server);
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
         ui.cleanup(server);
         session = createSession();
+    }
+
+    private void positionParticipantsForRound(
+        MinecraftServer server,
+        ServerLevel arenaLevel
+    ) {
+        List<PlayerSlot> active = session.players()
+            .stream()
+            .filter(slot -> !slot.forfeited())
+            .sorted(
+                Comparator.comparingInt(
+                    PlayerSlot::slotIndex
+                )
+            )
+            .toList();
+
+        for (int ordinal = 0;
+             ordinal < active.size();
+             ordinal++) {
+            PlayerSlot slot = active.get(ordinal);
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player == null) {
+                continue;
+            }
+
+            slot.runtime().rememberViewOrigin(
+                new PlayerViewOrigin(
+                    player.level().dimension(),
+                    player.position(),
+                    player.getYRot(),
+                    player.getXRot(),
+                    player.gameMode()
+                )
+            );
+
+            SpawnPoint viewer = viewerSpawns.resolve(
+                config.arena(),
+                ordinal,
+                active.size()
+            );
+
+            player.setGameMode(GameType.SPECTATOR);
+            player.teleportTo(
+                arenaLevel,
+                viewer.x(),
+                viewer.y(),
+                viewer.z(),
+                Set.of(),
+                viewer.yaw(),
+                viewer.pitch(),
+                false
+            );
+        }
+    }
+
+    private void restoreAllPlayerViews(
+        MinecraftServer server
+    ) {
+        for (PlayerSlot slot : session.players()) {
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null) {
+                restorePlayerView(
+                    slot,
+                    player,
+                    server
+                );
+            }
+        }
+    }
+
+    private void restorePlayerView(
+        PlayerSlot slot,
+        ServerPlayer player,
+        MinecraftServer server
+    ) {
+        PlayerViewOrigin origin = slot.runtime()
+            .viewOrigin()
+            .orElse(null);
+
+        if (origin == null) {
+            return;
+        }
+
+        ServerLevel originalLevel = server.getLevel(
+            origin.dimension()
+        );
+
+        if (originalLevel != null) {
+            player.teleportTo(
+                originalLevel,
+                origin.position().x,
+                origin.position().y,
+                origin.position().z,
+                Set.of(),
+                origin.yaw(),
+                origin.pitch(),
+                false
+            );
+        }
+
+        player.setGameMode(origin.gameMode());
+        slot.runtime().clearViewOrigin();
     }
 
     private void applyRobotDamage(
@@ -1152,24 +1302,6 @@ public final class MatchManager {
                 }
             });
         }
-    }
-
-    private int nextFreeSlot() {
-        Set<Integer> used = new HashSet<>();
-
-        for (PlayerSlot slot : session.players()) {
-            used.add(slot.slotIndex());
-        }
-
-        for (int index = 0;
-             index < RobotColor.values().length;
-             index++) {
-            if (!used.contains(index)) {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     private record RobotAttackIntent(

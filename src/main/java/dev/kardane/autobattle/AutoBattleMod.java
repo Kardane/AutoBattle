@@ -186,10 +186,11 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
         );
 
         LOGGER.info(
-            "AutoBattle initialized (config={}, messages={}, minimumPlayers={}, rounds={})",
+            "AutoBattle initialized (config={}, messages={}, teamSize={}..{}, rounds={})",
             AutoBattleConfigLoader.configPath(),
             LanguageConfigLoader.messagePath(),
-            config.minimumPlayers(),
+            config.minTeamSize(),
+            config.maxTeamSize(),
             config.roundCount()
         );
     }

@@ -51,6 +51,8 @@ public final class RobotStateSerializer {
 
         RobotSnapshot selfSnapshot = new RobotSnapshot(
             self.ownerUuid(),
+            selfSlot.targetId(),
+            selfSlot.team(),
             self.color(),
             selfEntity.getHealth(),
             selfEntity.getMaxHealth(),
@@ -63,7 +65,7 @@ public final class RobotStateSerializer {
         );
 
         CoreSnapshot coreSnapshot = new CoreSnapshot(
-            match.core().state().ownerUuid().orElse(null),
+            match.core().state().ownerTeam().orElse(null),
             match.core().state().contested(),
             match.core().distanceTo(selfEntity)
         );
@@ -115,6 +117,8 @@ public final class RobotStateSerializer {
             enemies.add(
                 new EnemySnapshot(
                     slot.playerUuid(),
+                    slot.targetId(),
+                    slot.team(),
                     slot.color(),
                     alive,
                     hp,
@@ -130,6 +134,51 @@ public final class RobotStateSerializer {
                 )
             );
         }
+
+        int aliveAllies = 0;
+        int aliveEnemies = 0;
+        int alliesInsideCore = 0;
+        int enemiesInsideCore = 0;
+
+        for (RobotController controller :
+            match.robots().alive()) {
+            boolean ally =
+                controller.team() == selfSlot.team();
+
+            if (controller != self) {
+                if (ally) {
+                    aliveAllies++;
+                } else {
+                    aliveEnemies++;
+                }
+            }
+
+            boolean insideCore = controller.entity()
+                .filter(match.core()::isInside)
+                .isPresent();
+
+            if (insideCore) {
+                if (ally) {
+                    alliesInsideCore++;
+                } else {
+                    enemiesInsideCore++;
+                }
+            }
+        }
+
+        TeamContextSnapshot teamContext =
+            new TeamContextSnapshot(
+                selfSlot.team(),
+                match.teamScore(selfSlot.team())
+                    .totalScore(),
+                match.teamScore(
+                    selfSlot.team().opponent()
+                ).totalScore(),
+                aliveAllies,
+                aliveEnemies,
+                alliesInsideCore,
+                enemiesInsideCore
+            );
 
         int remainingSeconds = (int) Math.ceil(
             match.roundState().remainingTicks(currentTick)
@@ -151,6 +200,7 @@ public final class RobotStateSerializer {
             currentTick,
             remainingSeconds,
             selfSnapshot,
+            teamContext,
             coreSnapshot,
             enemies,
             selfSlot.doctrine().orElseThrow(),

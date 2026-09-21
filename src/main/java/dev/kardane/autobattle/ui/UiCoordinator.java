@@ -2,6 +2,7 @@ package dev.kardane.autobattle.ui;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.LanguageService;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.review.RoundReviewService;
@@ -28,7 +29,7 @@ public final class UiCoordinator {
     private final GameSoundService sounds =
         new GameSoundService();
 
-    private UUID lastCoreOwner;
+    private BattleTeam lastCoreOwner;
 
     public UiCoordinator(
         AutoBattleConfig config,
@@ -120,7 +121,7 @@ public final class UiCoordinator {
 
         lastCoreOwner = match.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
         bossBar.updateRound(
@@ -169,15 +170,16 @@ public final class UiCoordinator {
                 actionBar.updatePlayer(
                     player,
                     slot,
+                    match,
                     controller,
                     currentTick
                 );
             }
         }
 
-        UUID currentCoreOwner = match.core()
+        BattleTeam currentCoreOwner = match.core()
             .state()
-            .ownerUuid()
+            .ownerTeam()
             .orElse(null);
 
         if (!Objects.equals(
@@ -185,12 +187,10 @@ public final class UiCoordinator {
             lastCoreOwner
         )) {
             if (currentCoreOwner != null) {
-                match.player(currentCoreOwner).ifPresent(
-                    owner -> chat.coreCaptured(
-                        server,
-                        match,
-                        owner
-                    )
+                chat.coreCaptured(
+                    server,
+                    match,
+                    currentCoreOwner
                 );
                 sounds.coreCaptured(server, match);
             }
@@ -234,6 +234,7 @@ public final class UiCoordinator {
                 actionBar.updateIntermission(
                     player,
                     slot,
+                    match,
                     match.phase(),
                     match.currentRound(),
                     config.roundCount()

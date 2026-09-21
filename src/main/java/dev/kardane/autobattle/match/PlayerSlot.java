@@ -9,18 +9,40 @@ import java.util.UUID;
 
 public final class PlayerSlot {
     private final UUID playerUuid;
-    private final RobotColor color;
+    private final BattleTeam team;
+    private final int memberIndex;
     private final int slotIndex;
     private final ScoreState score = new ScoreState();
     private final PlayerRuntimeState runtime = new PlayerRuntimeState();
 
     private Doctrine doctrine;
-    private boolean ready;
     private boolean forfeited;
 
-    public PlayerSlot(UUID playerUuid, RobotColor color, int slotIndex) {
-        this.playerUuid = Objects.requireNonNull(playerUuid, "playerUuid");
-        this.color = Objects.requireNonNull(color, "color");
+    public PlayerSlot(
+        UUID playerUuid,
+        BattleTeam team,
+        int memberIndex,
+        int slotIndex
+    ) {
+        this.playerUuid = Objects.requireNonNull(
+            playerUuid,
+            "playerUuid"
+        );
+        this.team = Objects.requireNonNull(team, "team");
+
+        if (memberIndex < 0 || memberIndex >= 8) {
+            throw new IllegalArgumentException(
+                "memberIndex must be between 0 and 7"
+            );
+        }
+
+        if (slotIndex < 0 || slotIndex >= 16) {
+            throw new IllegalArgumentException(
+                "slotIndex must be between 0 and 15"
+            );
+        }
+
+        this.memberIndex = memberIndex;
         this.slotIndex = slotIndex;
     }
 
@@ -28,8 +50,20 @@ public final class PlayerSlot {
         return playerUuid;
     }
 
+    public BattleTeam team() {
+        return team;
+    }
+
+    public int memberIndex() {
+        return memberIndex;
+    }
+
+    public String targetId() {
+        return team.targetId(memberIndex);
+    }
+
     public RobotColor color() {
-        return color;
+        return team.robotColor();
     }
 
     public int slotIndex() {
@@ -49,15 +83,24 @@ public final class PlayerSlot {
     }
 
     public void setDoctrine(Doctrine doctrine) {
-        this.doctrine = Objects.requireNonNull(doctrine, "doctrine");
+        this.doctrine = Objects.requireNonNull(
+            doctrine,
+            "doctrine"
+        );
     }
 
+    /**
+     * Lobby participants are ready immediately after joining.
+     */
     public boolean ready() {
-        return ready;
+        return !forfeited;
     }
 
+    /**
+     * Compatibility no-op. Lobby readiness is automatic in team mode.
+     */
     public void setReady(boolean ready) {
-        this.ready = ready;
+        // Intentionally ignored.
     }
 
     public boolean forfeited() {
@@ -66,6 +109,5 @@ public final class PlayerSlot {
 
     public void forfeit() {
         forfeited = true;
-        ready = false;
     }
 }

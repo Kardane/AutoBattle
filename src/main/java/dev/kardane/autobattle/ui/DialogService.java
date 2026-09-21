@@ -424,6 +424,43 @@ public final class DialogService {
     ) {
         List<DialogBody> body = new ArrayList<>();
 
+        int redScore = match.teamScore(
+            dev.kardane.autobattle.match.BattleTeam.RED
+        ).totalScore();
+        int blueScore = match.teamScore(
+            dev.kardane.autobattle.match.BattleTeam.BLUE
+        ).totalScore();
+
+        body.add(
+            line(
+                match.winnerTeam()
+                    .map(team ->
+                        language.format(
+                            "dialogs.final-result.team-winner",
+                            "team",
+                            team.name()
+                        )
+                    )
+                    .orElseGet(() ->
+                        language.text(
+                            "dialogs.final-result.team-draw"
+                        )
+                    )
+            )
+        );
+
+        body.add(
+            line(
+                language.format(
+                    "dialogs.final-result.team-score",
+                    "red_score",
+                    redScore,
+                    "blue_score",
+                    blueScore
+                )
+            )
+        );
+
         List<PlayerSlot> standings = match.players()
             .stream()
             .sorted(
@@ -447,7 +484,11 @@ public final class DialogService {
                         "rank",
                         rank,
                         "color",
-                        slot.color().name(),
+                        slot.team().name(),
+                        "team",
+                        slot.team().name(),
+                        "id",
+                        slot.targetId(),
                         "score",
                         slot.score().totalScore()
                     )

@@ -39,6 +39,8 @@ public final class DamageRules {
         }
 
         return !attackerRobot.ownerUuid()
-            .equals(victimRobot.ownerUuid());
+            .equals(victimRobot.ownerUuid())
+            && attackerRobot.team()
+                .isEnemy(victimRobot.team());
     }
 }

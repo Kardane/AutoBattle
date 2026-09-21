@@ -3,7 +3,6 @@ package dev.kardane.autobattle.ui;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
-import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
@@ -50,9 +49,7 @@ public final class BossBarUi {
 
         String coreOwner = match.core()
             .state()
-            .ownerUuid()
-            .flatMap(match::player)
-            .map(PlayerSlot::color)
+            .ownerTeam()
             .map(Enum::name)
             .orElse(
                 language.text("bossbar.neutral-core")

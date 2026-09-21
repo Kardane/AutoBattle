@@ -1,16 +1,17 @@
 package dev.kardane.autobattle.core;
 
+import dev.kardane.autobattle.match.BattleTeam;
+
 import java.util.Optional;
-import java.util.UUID;
 
 public final class CoreState {
-    private UUID ownerUuid;
+    private BattleTeam ownerTeam;
     private CoreCaptureState captureState;
     private boolean contested;
     private long nextHoldScoreTick = -1L;
 
-    public Optional<UUID> ownerUuid() {
-        return Optional.ofNullable(ownerUuid);
+    public Optional<BattleTeam> ownerTeam() {
+        return Optional.ofNullable(ownerTeam);
     }
 
     public boolean contested() {
@@ -25,8 +26,8 @@ public final class CoreState {
         return nextHoldScoreTick;
     }
 
-    void setOwner(UUID ownerUuid) {
-        this.ownerUuid = ownerUuid;
+    void setOwnerTeam(BattleTeam ownerTeam) {
+        this.ownerTeam = ownerTeam;
     }
 
     void setCaptureState(CoreCaptureState captureState) {
@@ -42,7 +43,7 @@ public final class CoreState {
     }
 
     void reset() {
-        ownerUuid = null;
+        ownerTeam = null;
         captureState = null;
         contested = false;
         nextHoldScoreTick = -1L;
