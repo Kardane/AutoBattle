@@ -26,6 +26,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.level.GameType;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,6 +58,8 @@ public final class MatchManager {
         new TeamAssignmentService();
     private final TeamSpawnResolver teamSpawns =
         new TeamSpawnResolver();
+    private final ViewerSpawnResolver viewerSpawns =
+        new ViewerSpawnResolver();
     private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
@@ -585,6 +588,7 @@ public final class MatchManager {
             return true;
         }
 
+        restorePlayerView(slot, player, server);
         forfeitParticipant(uuid);
 
         if (activePlayerCount() == 0) {
@@ -797,6 +801,11 @@ public final class MatchManager {
 
         session.setCurrentRound(nextRound);
 
+        positionParticipantsForRound(
+            server,
+            level
+        );
+
         for (BattleTeam team : BattleTeam.values()) {
             session.teamScore(team).resetRound();
         }
@@ -965,6 +974,8 @@ public final class MatchManager {
     public void handleServerStopped(
         MinecraftServer server
     ) {
+        restoreAllPlayerViews(server);
+
         if (session.currentRound() > 0
             && session.phase() != MatchPhase.LOBBY
             && session.phase() != MatchPhase.FINISHED) {
@@ -1061,6 +1072,7 @@ public final class MatchManager {
     private void returnToLobbyAfterSetupAbort(
         MinecraftServer server
     ) {
+        restoreAllPlayerViews(server);
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
@@ -1082,11 +1094,118 @@ public final class MatchManager {
     private void resetToFreshLobby(
         MinecraftServer server
     ) {
+        restoreAllPlayerViews(server);
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
         ui.cleanup(server);
         session = createSession();
+    }
+
+    private void positionParticipantsForRound(
+        MinecraftServer server,
+        ServerLevel arenaLevel
+    ) {
+        List<PlayerSlot> active = session.players()
+            .stream()
+            .filter(slot -> !slot.forfeited())
+            .sorted(
+                Comparator.comparingInt(
+                    PlayerSlot::slotIndex
+                )
+            )
+            .toList();
+
+        for (int ordinal = 0;
+             ordinal < active.size();
+             ordinal++) {
+            PlayerSlot slot = active.get(ordinal);
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player == null) {
+                continue;
+            }
+
+            slot.runtime().rememberViewOrigin(
+                new PlayerViewOrigin(
+                    player.level().dimension(),
+                    player.position(),
+                    player.getYRot(),
+                    player.getXRot(),
+                    player.gameMode()
+                )
+            );
+
+            SpawnPoint viewer = viewerSpawns.resolve(
+                config.arena(),
+                ordinal,
+                active.size()
+            );
+
+            player.setGameMode(GameType.SPECTATOR);
+            player.teleportTo(
+                arenaLevel,
+                viewer.x(),
+                viewer.y(),
+                viewer.z(),
+                Set.of(),
+                viewer.yaw(),
+                viewer.pitch(),
+                false
+            );
+        }
+    }
+
+    private void restoreAllPlayerViews(
+        MinecraftServer server
+    ) {
+        for (PlayerSlot slot : session.players()) {
+            ServerPlayer player = server.getPlayerList()
+                .getPlayer(slot.playerUuid());
+
+            if (player != null) {
+                restorePlayerView(
+                    slot,
+                    player,
+                    server
+                );
+            }
+        }
+    }
+
+    private void restorePlayerView(
+        PlayerSlot slot,
+        ServerPlayer player,
+        MinecraftServer server
+    ) {
+        PlayerViewOrigin origin = slot.runtime()
+            .viewOrigin()
+            .orElse(null);
+
+        if (origin == null) {
+            return;
+        }
+
+        ServerLevel originalLevel = server.getLevel(
+            origin.dimension()
+        );
+
+        if (originalLevel != null) {
+            player.teleportTo(
+                originalLevel,
+                origin.position().x,
+                origin.position().y,
+                origin.position().z,
+                Set.of(),
+                origin.yaw(),
+                origin.pitch(),
+                false
+            );
+        }
+
+        player.setGameMode(origin.gameMode());
+        slot.runtime().clearViewOrigin();
     }
 
     private void applyRobotDamage(
