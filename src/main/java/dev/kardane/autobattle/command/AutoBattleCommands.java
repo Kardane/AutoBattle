@@ -273,6 +273,15 @@ public final class AutoBattleCommands {
                                 )
                         )
                         .then(
+                            Commands.literal("start")
+                                .executes(context ->
+                                    startMatch(
+                                        context.getSource(),
+                                        matchManager
+                                    )
+                                )
+                        )
+                        .then(
                             Commands.literal("startround")
                                 .executes(context ->
                                     startPrototypeRound(
@@ -720,6 +729,41 @@ public final class AutoBattleCommands {
                 "commands.reload-success",
                 "message",
                 result.message()
+            ),
+            true
+        );
+
+        return 1;
+    }
+
+    private static int startMatch(
+        CommandSourceStack source,
+        MatchManager matchManager
+    ) {
+        if (matchManager.session().phase()
+            != dev.kardane.autobattle.match.MatchPhase.LOBBY) {
+            source.sendFailure(
+                message("commands.start-invalid-phase")
+            );
+            return 0;
+        }
+
+        if (!matchManager.beginDoctrineSetupIfReady(
+            source.getServer()
+        )) {
+            source.sendFailure(
+                message(
+                    matchManager.teamsBalanced()
+                        ? "commands.start-failed"
+                        : "commands.start-unbalanced"
+                )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+            () -> message(
+                "commands.doctrine-setup-started"
             ),
             true
         );
