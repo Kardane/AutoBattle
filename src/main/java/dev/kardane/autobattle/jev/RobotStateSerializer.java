@@ -51,6 +51,8 @@ public final class RobotStateSerializer {
 
         RobotSnapshot selfSnapshot = new RobotSnapshot(
             self.ownerUuid(),
+            selfSlot.targetId(),
+            selfSlot.team(),
             self.color(),
             selfEntity.getHealth(),
             selfEntity.getMaxHealth(),
@@ -63,7 +65,7 @@ public final class RobotStateSerializer {
         );
 
         CoreSnapshot coreSnapshot = new CoreSnapshot(
-            match.core().state().ownerUuid().orElse(null),
+            match.core().state().ownerTeam().orElse(null),
             match.core().state().contested(),
             match.core().distanceTo(selfEntity)
         );
@@ -115,6 +117,8 @@ public final class RobotStateSerializer {
             enemies.add(
                 new EnemySnapshot(
                     slot.playerUuid(),
+                    slot.targetId(),
+                    slot.team(),
                     slot.color(),
                     alive,
                     hp,
