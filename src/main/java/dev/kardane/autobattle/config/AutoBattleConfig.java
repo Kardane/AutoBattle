@@ -118,7 +118,6 @@ public record AutoBattleConfig(
                 AutoBattleConstants.CHASE_SPEED,
                 AutoBattleConstants.CAPTURE_SPEED,
                 AutoBattleConstants.DEFEND_SPEED,
-                AutoBattleConstants.REPOSITION_SPEED,
                 AutoBattleConstants.RETREAT_SPEED,
                 AutoBattleConstants.POSITION_REACHED_DISTANCE,
                 AutoBattleConstants.DEFEND_RADIUS,
