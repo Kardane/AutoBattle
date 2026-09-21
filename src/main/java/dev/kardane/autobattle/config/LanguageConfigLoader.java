@@ -25,6 +25,9 @@ public final class LanguageConfigLoader {
 
         sidebar:
           title: "AUTO BATTLE"
+          # {team}, {score}
+          team-entry: "{team}  {score}"
+          # Legacy FFA key retained for migrated files.
           # {rank}, {color}, {score}
           entry: "{rank}. {color}"
 
@@ -44,8 +47,8 @@ public final class LanguageConfigLoader {
           neutral-core: "NEUTRAL"
 
         actionbar:
-          # {status}, {round}, {total_rounds}, {total_score}
-          intermission: "{status} | ROUND {round}/{total_rounds} | TOTAL SCORE {total_score}"
+          # {id}, {team}, {status}, {round}, {total_rounds}, {total_score}
+          intermission: "{id} | {team} | {status} | ROUND {round}/{total_rounds} | TEAM {total_score}"
           status:
             review: "ROUND REVIEW"
             doctrine-edit: "DOCTRINE EDIT"
@@ -56,10 +59,10 @@ public final class LanguageConfigLoader {
           command:
             ready: "READY"
             used: "USED"
-          # {hp}, {max_hp}, {plan}, {command}, {score}
-          alive: "HP {hp}/{max_hp} | {plan} | COMMAND {command} | SCORE {score}"
-          # {respawn_seconds}, {score}
-          dead: "ROBOT DESTROYED | RESPAWN {respawn_seconds}s | SCORE {score}"
+          # {id}, {team}, {hp}, {max_hp}, {plan}, {command}, {score}, {team_score}
+          alive: "{id} | {team} | HP {hp}/{max_hp} | {plan} | COMMAND {command} | TEAM {team_score}"
+          # {id}, {team}, {respawn_seconds}, {score}, {team_score}
+          dead: "{id} | {team} | DESTROYED | RESPAWN {respawn_seconds}s | TEAM {team_score}"
 
         chat:
           # {round}
@@ -154,8 +157,8 @@ public final class LanguageConfigLoader {
           review-plans: "Plans: {plans}"
           # {importance}, {tick}, {plan}, {confidence}, {result}
           review-critical: "Critical #{importance} @ tick {tick}: {plan} confidence={confidence} result={result}"
-          # {phase}, {round}, {players}, {ready}, {minimum}, {core_owner}
-          status: "phase={phase}, round={round}, players={players}, ready={ready}, minimum={minimum}, coreOwner={core_owner}"
+          # {phase}, {round}, {players}, {red}, {blue}, {balanced}, {maximum}, {core_owner}
+          status: "phase={phase}, round={round}, RED={red}/{maximum}, BLUE={blue}/{maximum}, balanced={balanced}, coreOwner={core_owner}"
           admin:
             # {color}
             debug-no-owner: "No participant owns {color}."
