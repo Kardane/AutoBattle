@@ -3,6 +3,7 @@ package dev.kardane.autobattle.jev;
 import com.google.gson.JsonObject;
 import dev.kardane.autobattle.doctrine.Doctrine;
 import dev.kardane.autobattle.doctrine.DoctrineNormalizationStatus;
+import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.robot.RobotColor;
 import org.junit.jupiter.api.Test;
 
@@ -21,12 +22,12 @@ final class TypeSafeJevClientTest {
         );
 
     @Test
-    void requestUsesDecomposedQuestionsAndSemanticState() {
+    void requestUsesTeamAwareDecomposedState() {
         DecisionRequest request = request(
             List.of(
-                "ENGAGE_BLUE",
-                "CHASE_BLUE",
-                "CHASE_GREEN",
+                "ENGAGE_B1",
+                "CHASE_B1",
+                "CHASE_B2",
                 "CAPTURE_CORE",
                 "RETREAT"
             )
@@ -47,6 +48,8 @@ final class TypeSafeJevClientTest {
         assertFalse(state.has("server_tick"));
 
         JsonObject self = state.getAsJsonObject("self");
+        assertEquals("R1", self.get("id").getAsString());
+        assertEquals("RED", self.get("team").getAsString());
         assertFalse(self.has("owner_uuid"));
         assertEquals(
             0.75D,
@@ -54,18 +57,43 @@ final class TypeSafeJevClientTest {
             1.0E-9D
         );
 
+        JsonObject teamContext =
+            state.getAsJsonObject("team_context");
+
+        assertEquals(
+            38,
+            teamContext.get("team_score").getAsInt()
+        );
+        assertEquals(
+            41,
+            teamContext.get("enemy_team_score").getAsInt()
+        );
+        assertEquals(
+            1,
+            teamContext.get("alive_allies").getAsInt()
+        );
+        assertEquals(
+            2,
+            teamContext.get("alive_enemies").getAsInt()
+        );
+
         JsonObject core = state.getAsJsonObject("core");
         assertEquals(
-            "ENEMY",
+            "ENEMY_TEAM",
             core.get("ownership").getAsString()
         );
         assertFalse(core.has("owner_uuid"));
+
+        assertEquals(1, state.getAsJsonArray("allies").size());
+        assertEquals(2, state.getAsJsonArray("enemies").size());
 
         JsonObject blue = state
             .getAsJsonArray("enemies")
             .get(0)
             .getAsJsonObject();
 
+        assertEquals("B1", blue.get("id").getAsString());
+        assertEquals("BLUE", blue.get("team").getAsString());
         assertFalse(blue.has("owner_uuid"));
         assertFalse(
             blue.has("kills_against_self_this_round")
@@ -92,11 +120,11 @@ final class TypeSafeJevClientTest {
     }
 
     @Test
-    void singleCombatTargetIsNotAskedAsChoice() {
+    void singleLegalEnemyTargetIsNotAskedAsChoice() {
         DecisionRequest request = request(
             List.of(
-                "ENGAGE_BLUE",
-                "CHASE_BLUE",
+                "ENGAGE_B1",
+                "CHASE_B1",
                 "CAPTURE_CORE",
                 "RETREAT"
             )
@@ -116,11 +144,14 @@ final class TypeSafeJevClientTest {
         UUID self = UUID.fromString(
             "00000000-0000-0000-0000-000000000001"
         );
-        UUID blue = UUID.fromString(
+        UUID blueOne = UUID.fromString(
             "00000000-0000-0000-0000-000000000002"
         );
-        UUID green = UUID.fromString(
+        UUID blueTwo = UUID.fromString(
             "00000000-0000-0000-0000-000000000003"
+        );
+        UUID ally = UUID.fromString(
+            "00000000-0000-0000-0000-000000000004"
         );
 
         Doctrine doctrine = new Doctrine(
@@ -151,6 +182,8 @@ final class TypeSafeJevClientTest {
                 42,
                 new RobotSnapshot(
                     self,
+                    "R1",
+                    BattleTeam.RED,
                     RobotColor.RED,
                     75.0F,
                     100.0F,
@@ -159,14 +192,25 @@ final class TypeSafeJevClientTest {
                     2,
                     "CAPTURE_CORE"
                 ),
+                new TeamContextSnapshot(
+                    BattleTeam.RED,
+                    38,
+                    41,
+                    1,
+                    2,
+                    1,
+                    1
+                ),
                 new CoreSnapshot(
-                    blue,
+                    BattleTeam.BLUE,
                     true,
                     6.5D
                 ),
                 List.of(
                     new EnemySnapshot(
-                        blue,
+                        blueOne,
+                        "B1",
+                        BattleTeam.BLUE,
                         RobotColor.BLUE,
                         true,
                         40.0F,
@@ -181,8 +225,10 @@ final class TypeSafeJevClientTest {
                         false
                     ),
                     new EnemySnapshot(
-                        green,
-                        RobotColor.GREEN,
+                        blueTwo,
+                        "B2",
+                        BattleTeam.BLUE,
+                        RobotColor.BLUE,
                         true,
                         90.0F,
                         100.0F,
@@ -194,6 +240,23 @@ final class TypeSafeJevClientTest {
                         3,
                         1,
                         true
+                    ),
+                    new EnemySnapshot(
+                        ally,
+                        "R2",
+                        BattleTeam.RED,
+                        RobotColor.RED,
+                        true,
+                        65.0F,
+                        100.0F,
+                        0.65D,
+                        4.0D,
+                        DistanceTrend.APPROACHING,
+                        true,
+                        true,
+                        4,
+                        2,
+                        false
                     )
                 ),
                 doctrine,
