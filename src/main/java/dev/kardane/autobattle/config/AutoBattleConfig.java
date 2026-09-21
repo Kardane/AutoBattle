@@ -31,8 +31,12 @@ public record AutoBattleConfig(
         Objects.requireNonNull(arena, "arena");
     }
 
-    public int minimumPlayers() {
-        return match.minimumPlayers();
+    public int minTeamSize() {
+        return match.minTeamSize();
+    }
+
+    public int maxTeamSize() {
+        return match.maxTeamSize();
     }
 
     public int roundCount() {
@@ -79,7 +83,8 @@ public record AutoBattleConfig(
                 TypeSafeJevClient.DEFAULT_MODEL
             ),
             new MatchRulesConfig(
-                AutoBattleConstants.DEFAULT_MIN_PLAYERS,
+                AutoBattleConstants.DEFAULT_MIN_TEAM_SIZE,
+                AutoBattleConstants.DEFAULT_MAX_TEAM_SIZE,
                 AutoBattleConstants.DEFAULT_ROUNDS,
                 AutoBattleConstants.ROUND_DURATION_TICKS,
                 AutoBattleConstants.COUNTDOWN_TICKS,
