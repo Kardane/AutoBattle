@@ -6,9 +6,11 @@ Players do not directly control their fighters. Each player teaches one robot wi
 
 ## MVP
 
-- 4-player FFA baseline
-- One zombie robot per player
-- Dyed leather chestplate for robot identity
+- RED vs BLUE team battle, from 1v1 through 8v8
+- Teams must have equal active player counts before a match can start
+- Joining the lobby marks the player ready immediately; an operator explicitly starts Doctrine setup
+- One zombie robot per player with stable IDs R1..R8 / B1..B8
+- Team-colored leather chestplates
 - Melee-only combat
 - Central CORE objective
 - Five rounds
@@ -27,7 +29,7 @@ config/
    └─ messages.yml
 ```
 
-Existing `config/autobattle.yml` installations are automatically moved to `config/autobattle/config.yml` the first time the new loader runs.
+Existing `config/autobattle.yml` installations are automatically moved to `config/autobattle/config.yml` the first time the new loader runs. Existing v1 `config.yml` / `messages.yml` files are then migrated automatically to schema v2. User API keys and tuning values are preserved, the previous file is backed up, and the migrated file is validated before atomic replacement.
 
 Edit this file and either restart the server or run:
 
@@ -41,14 +43,14 @@ The reload command can be used during any phase. It reloads both YAML files atom
 
 - TypeSafe API key, base URL, and model
 - OpenAI Doctrine Normalizer toggle, API key, model, timeout budget, and retry settings
-- minimum players, round count, round/countdown/respawn/command timing
+- minimum/maximum team size (default 1..8 per team), round count, round/countdown/respawn/command timing
 - AI decision interval, lock, debounce, timeout, minimum confidence, and emergency fallback RETREAT HP threshold
 - Doctrine maximum line length
 - robot HP, damage, movement/follow range, regeneration
 - tactical movement speeds and leash distances
 - kill/assist/CORE scoring and assist window
 - CORE capture/hold timings
-- dimension, CORE position/radius, and robot/viewer spawns
+- dimension, CORE position/radius, symmetric team spawn layout, side swapping, and viewer-ring layout
 
 Example:
 
@@ -70,8 +72,11 @@ typesafe:
   base-url: "https://api.typesafe.ai"
   model: "jev-latest"
 
+config-version: 2
+
 match:
-  minimum-players: 4
+  min-team-size: 1
+  max-team-size: 8
   rounds: 5
   round-duration-seconds: 90
   countdown-seconds: 5
@@ -98,6 +103,15 @@ arena:
     y: 80
     z: 0
     radius: 3.0
+  team-spawns:
+    axis: "x"
+    distance-from-core: 18.0
+    member-spacing: 3.0
+    y: 80.0
+    swap-sides-each-round: true
+  viewer-spawn:
+    radius: 24.0
+    y: 88.0
 ```
 
 The full file is generated with comments and all available options.
@@ -129,7 +143,7 @@ Every started match writes an analysis-friendly JSONL file:
 logs/autobattle/matches/<match-id>.jsonl
 ```
 
-Events include match/round start and end, player commands, robot kills, CORE captures, forfeits, final standings, and aborted matches. Participant snapshots include UUID/name, color, Doctrine version/text, and round/total score metrics.
+Events include match/round start and end, player commands, robot kills, team CORE captures, forfeits, final team results, personal contribution standings, and aborted matches. Participant snapshots include UUID/name, RED/BLUE team, stable target ID, Doctrine version/text, and personal metrics. Match events also record team scores.
 
 Jev decisions remain in:
 
@@ -137,7 +151,7 @@ Jev decisions remain in:
 logs/autobattle/decisions/<match-id>.jsonl
 ```
 
-The shared match ID makes the two files easy to join during later analysis. Decision-log schema v2 records the decision trigger, request-time and apply-time legal plans, whether the candidate set changed, each decomposed Jev answer with confidence/probabilities, the composed/effective plan, latency, request-time HP/CORE state, positions/distances, and API error information.
+The shared match ID makes the two files easy to join during later analysis. Decision-log schema v3 records team/target identity and team context in addition to the decision trigger, request-time and apply-time legal plans, whether the candidate set changed, each decomposed Jev answer with confidence/probabilities, the composed/effective plan, latency, request-time HP/CORE state, positions/distances, and API error information.
 
 Participant snapshots preserve both the player-authored Doctrine (`doctrine`) and the canonical Doctrine sent to Jev (`doctrineNormalized`), plus normalization hash/model/status, prompt version, attempt count, latency, HTTP status, and fallback error when applicable.
 
@@ -149,11 +163,11 @@ Jev answers three narrow tactical questions in one System One request:
 
 ```text
 strategic_intent: FIGHT | CONTROL_CORE | RETREAT
-combat_target:    <living enemy color>
+combat_target:    <living enemy target ID, e.g. B3 or R5>
 pursuit_style:    ENGAGE | CHASE
 ```
 
-Server code deterministically composes those answers into legal plans such as `ENGAGE_<COLOR>`, `CHASE_<COLOR>`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
+Server code deterministically composes those answers into legal plans such as `ENGAGE_B3`, `CHASE_R5`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Same-team robots are never combat candidates. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
 
 ## Doctrine normalization
 
@@ -161,7 +175,7 @@ When enabled, AutoBattle normalizes all player Doctrine text—regardless of whe
 
 Normalization happens only when Doctrine is initially submitted or actually edited. `KEEP` does not call OpenAI. Requests use `HttpClient.sendAsync`; Minecraft state is touched only after completion is marshalled back onto the server thread. A player can have at most one normalization pending at a time. Identical normalization keys (source hash + model + prompt version) use single-flight deduplication so concurrent players share one upstream OpenAI request, and successful results are cached for later reuse in the same server process.
 
-The normalizer uses the OpenAI Responses API with Structured Outputs. It is instructed to preserve player intent and explicit numeric thresholds, keep the three rules separate, avoid inventing new goals or conditions, and prefer AutoBattle terms such as `CORE`, `ENGAGE`, `CHASE`, `CAPTURE_CORE`, `DEFEND_CORE`, `RETREAT`, and `HP` when they accurately match the source.
+The normalizer uses the OpenAI Responses API with Structured Outputs. It is instructed to preserve player intent and explicit numeric thresholds, keep the three rules separate, avoid inventing new goals or conditions, and prefer AutoBattle terms such as `TEAM`, `ALLY`, `ENEMY`, `CORE`, `ENGAGE`, `CHASE`, `CAPTURE_CORE`, `DEFEND_CORE`, `RETREAT`, and `HP` when they accurately match the source.
 
 Only the three Doctrine strings plus fixed game terminology/instructions are sent to OpenAI. Player UUIDs, names, IP addresses, server addresses, TypeSafe credentials, and other match state are not included in the normalizer request. Responses are requested with `store: false`. Any separate OpenAI API data-sharing or promotional-credit setting is controlled at the OpenAI organization/project level rather than by AutoBattle.
 
@@ -172,7 +186,9 @@ Transient OpenAI failures (network/timeout, HTTP 408/429/5xx) may be retried wit
 Minecraft 1.21.8 native Dialogs are used for the player-facing training loop:
 
 ```text
-All players Ready
+Players join and are immediately Ready
+    ↓
+Operator runs /autobattle admin start when RED and BLUE counts are equal
     ↓
 Doctrine Setup Dialog
     - Doctrine 1
@@ -220,15 +236,19 @@ The Doctrine view command requires permission level 2 because it reveals another
 
 ## Carpet bot test harness
 
-Fabric Carpet is optional at runtime. When it is installed, operators can drive a four-player smoke test without four real clients:
+Fabric Carpet is optional at runtime. When it is installed, operators can drive balanced team smoke tests without real clients. The default harness size is 4v4 and the same commands accept a team-size argument up to 8v8:
 
 ```text
 /autobattle admin test spawn
 /autobattle admin test setup
 /autobattle admin test status
+
+# Full 8v8 stress setup
+/autobattle admin test spawn 8
+/autobattle admin test setup 8
 ```
 
-The harness uses Carpet fake players `ABot1` through `ABot4`. `setup` joins them, marks them ready, submits deterministic Doctrine presets, and advances the match to `COUNTDOWN`.
+The harness supports Carpet fake players `ABot1` through `ABot16`. Join order automatically balances RED/BLUE, players are ready on join, and `setup [teamSize]` explicitly enters Doctrine setup, submits deterministic Doctrine presets, and advances the match to `COUNTDOWN`.
 
 During a round:
 
