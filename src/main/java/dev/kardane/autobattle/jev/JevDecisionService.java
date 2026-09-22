@@ -6,6 +6,8 @@ import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.tactics.PlanExecutor;
+import dev.kardane.autobattle.tactics.PlanSource;
+import dev.kardane.autobattle.tactics.ProvisionalPlanPolicy;
 import dev.kardane.autobattle.tactics.RobotController;
 import dev.kardane.autobattle.tactics.TacticalPlan;
 import dev.kardane.autobattle.tactics.ValidPlanFactory;
@@ -28,6 +30,7 @@ public final class JevDecisionService {
         new DecisionComposer();
     private final DecisionIntervalStagger intervalStagger =
         new DecisionIntervalStagger();
+    private final ProvisionalPlanPolicy provisionalPolicy;
     private int inFlightRequests;
     private AutoBattleConfig config;
 
@@ -54,6 +57,8 @@ public final class JevDecisionService {
         );
         this.logs = Objects.requireNonNull(logs, "logs");
         this.config = Objects.requireNonNull(config, "config");
+        this.provisionalPolicy =
+            new ProvisionalPlanPolicy(config);
     }
 
     public void reload(
@@ -64,6 +69,7 @@ public final class JevDecisionService {
         this.config = Objects.requireNonNull(config, "config");
         this.validPlanFactory.reload(config);
         this.serializer.reloadConfig(config.robot());
+        this.provisionalPolicy.reload(config);
     }
 
     public DecisionLogRepository logs() {
@@ -84,6 +90,12 @@ public final class JevDecisionService {
             controller.recoverStalledDecision(
                 currentTick,
                 stalledDecisionTimeoutTicks()
+            );
+
+            ensureProvisionalBehavior(
+                match,
+                controller,
+                currentTick
             );
 
             if (!controller.shouldRequestDecision(
@@ -190,6 +202,13 @@ public final class JevDecisionService {
         controller.markDecisionRequested(
             generation,
             currentTick
+        );
+
+        ensureProvisionalBehavior(
+            match,
+            controller,
+            currentTick,
+            candidates
         );
 
         java.util.concurrent.CompletableFuture<DecisionResponse> future;
@@ -385,6 +404,41 @@ public final class JevDecisionService {
             activeCommandType(request);
 
         if (error != null || response == null) {
+            TacticalPlan provisional =
+                controller.hasProvisionalPlan()
+                    ? controller.currentPlan()
+                        .orElse(null)
+                    : null;
+
+            if (provisional != null
+                && byId.containsKey(
+                    provisional.externalId()
+                )) {
+                finishDecision(
+                    controller,
+                    context,
+                    currentTick,
+                    false
+                );
+                controller.deferDecisionRetryUntil(
+                    currentTick
+                        + apiErrorRetryDelayTicks()
+                );
+
+                return logAndReturn(
+                    controller,
+                    request,
+                    response,
+                    DecisionApplyResult.API_ERROR_FALLBACK,
+                    true,
+                    error,
+                    currentTick,
+                    currentIds,
+                    previousPlanId,
+                    provisional.externalId()
+                );
+            }
+
             DecisionApplyResult result = applyFallback(
                 controller,
                 byId,
@@ -516,7 +570,8 @@ public final class JevDecisionService {
             );
         }
 
-        if (composedPlanId.equals(previousPlanId)) {
+        if (composedPlanId.equals(previousPlanId)
+            && !controller.hasProvisionalPlan()) {
             finishDecision(controller, context, currentTick);
 
             return logAndReturn(
@@ -538,6 +593,8 @@ public final class JevDecisionService {
             selected,
             currentTick,
             commandType != null
+                || controller.hasProvisionalPlan(),
+            PlanSource.AI
         );
 
         finishDecision(controller, context, currentTick);
@@ -606,6 +663,17 @@ public final class JevDecisionService {
                 && commandFallback.externalId().equals(
                     current.externalId()
                 )) {
+                if (controller.hasProvisionalPlan()) {
+                    planExecutor.assignPlan(
+                        controller,
+                        commandFallback,
+                        currentTick,
+                        true,
+                        PlanSource.FALLBACK
+                    );
+                    return fallbackResult;
+                }
+
                 return DecisionApplyResult.KEPT_CURRENT_PLAN;
             }
 
@@ -613,7 +681,8 @@ public final class JevDecisionService {
                 controller,
                 commandFallback,
                 currentTick,
-                true
+                true,
+                PlanSource.FALLBACK
             );
 
             return fallbackResult;
@@ -621,6 +690,20 @@ public final class JevDecisionService {
 
         if (current != null
             && byId.containsKey(current.externalId())) {
+            if (controller.hasProvisionalPlan()) {
+                TacticalPlan promoted =
+                    byId.get(current.externalId());
+
+                planExecutor.assignPlan(
+                    controller,
+                    promoted,
+                    currentTick,
+                    true,
+                    PlanSource.FALLBACK
+                );
+                return fallbackResult;
+            }
+
             return DecisionApplyResult.KEPT_CURRENT_PLAN;
         }
 
@@ -640,7 +723,9 @@ public final class JevDecisionService {
         planExecutor.assignPlan(
             controller,
             fallback,
-            currentTick
+            currentTick,
+            false,
+            PlanSource.FALLBACK
         );
 
         return fallbackResult;
@@ -753,6 +838,66 @@ public final class JevDecisionService {
             .stream()
             .findFirst()
             .orElse(null);
+    }
+
+    private void ensureProvisionalBehavior(
+        MatchSession match,
+        RobotController controller,
+        long currentTick
+    ) {
+        if (!controller.hasPendingDecision()
+            || controller.currentPlan().isPresent()
+            || !controller.alive()) {
+            return;
+        }
+
+        List<TacticalPlan> candidates =
+            validPlanFactory.create(
+                match,
+                controller,
+                currentTick
+            );
+
+        ensureProvisionalBehavior(
+            match,
+            controller,
+            currentTick,
+            candidates
+        );
+    }
+
+    private void ensureProvisionalBehavior(
+        MatchSession match,
+        RobotController controller,
+        long currentTick,
+        List<TacticalPlan> candidates
+    ) {
+        if (!controller.hasPendingDecision()
+            || controller.currentPlan().isPresent()
+            || candidates.isEmpty()) {
+            return;
+        }
+
+        provisionalPolicy.choose(
+                match,
+                controller,
+                candidates,
+                currentTick
+            )
+            .ifPresent(plan ->
+                planExecutor.assignProvisionalPlan(
+                    controller,
+                    plan,
+                    currentTick
+                )
+            );
+    }
+
+    private int apiErrorRetryDelayTicks() {
+        return Math.max(
+            20,
+            config.decisionIntervalTicks()
+        );
     }
 
     private int stalledDecisionTimeoutTicks() {
@@ -952,9 +1097,24 @@ public final class JevDecisionService {
         DecisionContext context,
         long currentTick
     ) {
+        finishDecision(
+            controller,
+            context,
+            currentTick,
+            true
+        );
+    }
+
+    private void finishDecision(
+        RobotController controller,
+        DecisionContext context,
+        long currentTick,
+        boolean recordDecisionTick
+    ) {
         controller.markDecisionCompleted(
             context.generation(),
-            currentTick
+            currentTick,
+            recordDecisionTick
         );
     }
 }
