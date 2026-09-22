@@ -588,6 +588,36 @@ public final class JevDecisionService {
             );
         }
 
+        if (composedPlanId.equals(previousPlanId)
+            && controller.hasProvisionalPlan()
+            && currentComposition.lowConfidence()) {
+            planExecutor.assignPlan(
+                controller,
+                selected,
+                currentTick,
+                true,
+                PlanSource.FALLBACK
+            );
+            finishDecision(
+                controller,
+                context,
+                currentTick
+            );
+
+            return logAndReturn(
+                controller,
+                request,
+                response,
+                DecisionApplyResult.LOW_CONFIDENCE_FALLBACK,
+                true,
+                null,
+                currentTick,
+                currentIds,
+                previousPlanId,
+                composedPlanId
+            );
+        }
+
         boolean applied = planExecutor.assignPlan(
             controller,
             selected,
