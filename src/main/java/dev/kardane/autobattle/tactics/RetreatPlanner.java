@@ -245,6 +245,10 @@ final class RetreatPlanner {
             .findFirst()
             .orElse(null);
 
+        if (current == null) {
+            return Optional.of(best);
+        }
+
         if (best.destination().distanceToSqr(
             current.destination()
         ) < 0.25D) {
