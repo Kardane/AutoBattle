@@ -327,6 +327,20 @@ final class RetreatPlanner {
 
         double minEnemyDistance =
             minimumDistance(candidate, enemies);
+        double minimumSafeCandidateDistance =
+            Math.max(
+                DANGER_DISTANCE,
+                Math.min(
+                    config.engageLeashDistance(),
+                    config.retreatDistance()
+                ) * 0.75D
+            );
+
+        if (minEnemyDistance
+            < minimumSafeCandidateDistance) {
+            return;
+        }
+
         double threatPressure =
             threatPressure(candidate, enemies);
         double edgeMargin =
@@ -484,8 +498,12 @@ final class RetreatPlanner {
         double pressure = 0.0D;
         int nodeCount = path.getNodeCount();
         int stride = Math.max(1, nodeCount / 8);
+        int startIndex = Math.min(
+            Math.max(0, nodeCount - 1),
+            nodeCount / 4
+        );
 
-        for (int index = 0;
+        for (int index = startIndex;
              index < nodeCount;
              index += stride) {
             Vec3 position =
