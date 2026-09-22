@@ -557,7 +557,8 @@ public final class RobotController {
             resolveNearestEnemyNear(
                 entity.position(),
                 CAPTURE_REACTION_RANGE,
-                currentTick
+                currentTick,
+                false
             );
 
         if (nearbyThreat.isPresent()) {
@@ -600,7 +601,8 @@ public final class RobotController {
             resolveNearestEnemyNear(
                 boundedDestination,
                 config.defendRadius(),
-                currentTick
+                currentTick,
+                true
             );
 
         if (intruder.isPresent()) {
@@ -935,7 +937,8 @@ public final class RobotController {
     private Optional<RobotZombie> resolveNearestEnemyNear(
         Vec3 center,
         double radius,
-        long currentTick
+        long currentTick,
+        boolean excludeUnreachable
     ) {
         if (entity == null) {
             return Optional.empty();
@@ -959,11 +962,12 @@ public final class RobotController {
                 insideArena(target.position())
             )
             .filter(target ->
-                !isTargetTemporarilyUnreachable(
-                    target.ownerUuid(),
-                    target.position(),
-                    currentTick
-                )
+                !excludeUnreachable
+                    || !isTargetTemporarilyUnreachable(
+                        target.ownerUuid(),
+                        target.position(),
+                        currentTick
+                    )
             )
             .filter(target ->
                 target.position().distanceToSqr(center)
