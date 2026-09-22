@@ -191,7 +191,9 @@ final class RetreatPlanner {
                     0
                 );
 
-            if (path == null || !path.canReach()) {
+            if (path == null
+                || !path.canReach()
+                || path.getNodeCount() == 0) {
                 continue;
             }
 
