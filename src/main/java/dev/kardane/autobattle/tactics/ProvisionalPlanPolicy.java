@@ -13,23 +13,23 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.ToDoubleFunction;
 
-final class ProvisionalPlanPolicy {
+public final class ProvisionalPlanPolicy {
     private static final double IMMEDIATE_THREAT_RANGE = 4.0D;
 
     private AutoBattleConfig config;
 
-    ProvisionalPlanPolicy(AutoBattleConfig config) {
+    public ProvisionalPlanPolicy(AutoBattleConfig config) {
         reload(config);
     }
 
-    void reload(AutoBattleConfig config) {
+    public void reload(AutoBattleConfig config) {
         this.config = Objects.requireNonNull(
             config,
             "config"
         );
     }
 
-    Optional<TacticalPlan> choose(
+    public Optional<TacticalPlan> choose(
         MatchSession match,
         RobotController controller,
         List<TacticalPlan> candidates,
