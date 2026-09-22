@@ -332,7 +332,9 @@ public final class OpenAiDoctrineNormalizer
                         root
                     )
                 );
-        }).thenCompose(future -> future);
+        })
+            .thenCompose(future -> future)
+            .toCompletableFuture();
     }
 
     private CompletableFuture<UpstreamResult> invokeOnce(
