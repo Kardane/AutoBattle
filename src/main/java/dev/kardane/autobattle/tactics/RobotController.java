@@ -1,9 +1,11 @@
 package dev.kardane.autobattle.tactics;
 
+import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.match.BattleTeam;
+import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.robot.RobotColor;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotRuntimeState;
@@ -14,6 +16,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,12 +26,17 @@ public final class RobotController {
     private static final double INTENT_PARTICLE_SPACING = 0.2D;
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
     private static final double CAPTURE_REACTION_RANGE = 2.0D;
+    private static final double PATH_REQUIRED_DISTANCE = 2.0D;
+    private static final int PATH_FAILURE_THRESHOLD = 3;
+    private static final int UNREACHABLE_COOLDOWN_TICKS = 40;
+    private static final double UNREACHABLE_RESET_DISTANCE_SQR = 9.0D;
 
     private final UUID ownerUuid;
     private final BattleTeam team;
     private final String targetId;
     private final RobotColor color;
     private final RobotRegistry registry;
+    private final PlanValidityPolicy validityPolicy;
     private RobotConfig config;
     private final RobotRuntimeState runtime =
         new RobotRuntimeState();
@@ -49,6 +58,8 @@ public final class RobotController {
     private long decisionGeneration;
     private UUID localCombatTargetUuid;
     private Vec3 retreatPlanDestination;
+    private final Map<UUID, ApproachFailureState>
+        approachFailures = new HashMap<>();
 
     public RobotController(
         UUID ownerUuid,
@@ -56,7 +67,8 @@ public final class RobotController {
         String targetId,
         RobotRegistry registry,
         RobotConfig config,
-        ArenaConfig arena
+        ArenaConfig arena,
+        PlanValidityPolicy validityPolicy
     ) {
         this.ownerUuid = Objects.requireNonNull(
             ownerUuid,
@@ -71,6 +83,10 @@ public final class RobotController {
         this.registry = Objects.requireNonNull(
             registry,
             "registry"
+        );
+        this.validityPolicy = Objects.requireNonNull(
+            validityPolicy,
+            "validityPolicy"
         );
         this.config = Objects.requireNonNull(
             config,
@@ -185,6 +201,7 @@ public final class RobotController {
         clearPlan();
         entity = null;
         localCombatTargetUuid = null;
+        approachFailures.clear();
         decisionPending = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
@@ -205,6 +222,7 @@ public final class RobotController {
 
     private void resetDecisionState(DecisionTrigger trigger) {
         clearPlan();
+        approachFailures.clear();
         decisionPending = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
@@ -402,7 +420,12 @@ public final class RobotController {
             || currentTick - lastDecisionTick >= intervalTicks;
     }
 
-    public void tick(long currentTick) {
+    public void tick(
+        MatchSession match,
+        long currentTick
+    ) {
+        Objects.requireNonNull(match, "match");
+
         if (!alive() || runtime.frozen()) {
             return;
         }
@@ -415,10 +438,12 @@ public final class RobotController {
 
         switch (currentPlan.type()) {
             case ENGAGE -> engage(
-                config.engageLeashDistance()
+                match,
+                currentTick
             );
             case CHASE -> chase(
-                config.chaseLeashDistance()
+                match,
+                currentTick
             );
             case CAPTURE ->
                 capture(currentPlan.destination());
@@ -428,41 +453,77 @@ public final class RobotController {
         }
     }
 
-    private void engage(double leashDistance) {
+    private void engage(
+        MatchSession match,
+        long currentTick
+    ) {
         followCombatTarget(
-            leashDistance,
+            match,
+            currentTick,
             config.engageSpeed()
         );
     }
 
-    private void chase(double leashDistance) {
+    private void chase(
+        MatchSession match,
+        long currentTick
+    ) {
         followCombatTarget(
-            leashDistance,
+            match,
+            currentTick,
             config.chaseSpeed()
         );
     }
 
     private void followCombatTarget(
-        double leashDistance,
+        MatchSession match,
+        long currentTick,
         double speed
     ) {
-        resolvePlanTarget().ifPresentOrElse(
-            target -> {
-                if (!insideArena(target.position())
-                    || entity.distanceToSqr(target)
-                        > square(leashDistance)) {
-                    invalidateCurrentTarget();
-                    return;
-                }
+        PlanValidityResult validity =
+            validityPolicy.validate(
+                match,
+                this,
+                currentPlan,
+                currentTick
+            );
 
-                entity.setTarget(target);
-                entity.getNavigation().moveTo(
-                    target,
-                    speed
-                );
-            },
-            this::invalidateCurrentTarget
+        if (!validity.valid()) {
+            invalidateCurrentTarget(validity.status());
+            return;
+        }
+
+        RobotZombie target = validity.targetEntity()
+            .orElseThrow();
+
+        entity.setTarget(target);
+
+        boolean pathStarted = entity.getNavigation().moveTo(
+            target,
+            speed
         );
+
+        boolean pathRequired =
+            validity.distance() > PATH_REQUIRED_DISTANCE;
+
+        recordApproachAttempt(
+            target.ownerUuid(),
+            target.position(),
+            !pathRequired || pathStarted,
+            currentTick
+        );
+
+        if (pathRequired
+            && !pathStarted
+            && isTargetTemporarilyUnreachable(
+                target.ownerUuid(),
+                target.position(),
+                currentTick
+            )) {
+            invalidateCurrentTarget(
+                PlanValidityStatus.TEMPORARILY_UNREACHABLE
+            );
+        }
     }
 
     private void capture(Vec3 destination) {
@@ -727,10 +788,7 @@ public final class RobotController {
     }
 
     private boolean insideArena(Vec3 position) {
-        return horizontalDistanceSqr(
-            arenaCenter,
-            position
-        ) <= arenaRadiusSqr;
+        return validityPolicy.insideArena(position);
     }
 
     private Vec3 clampToArena(Vec3 position) {
@@ -915,7 +973,91 @@ public final class RobotController {
         return value * value;
     }
 
+    boolean isTargetTemporarilyUnreachable(
+        UUID targetOwnerUuid,
+        Vec3 targetPosition,
+        long currentTick
+    ) {
+        ApproachFailureState state =
+            approachFailures.get(targetOwnerUuid);
+
+        if (state == null) {
+            return false;
+        }
+
+        if (targetPosition.distanceToSqr(
+            state.targetPosition()
+        ) >= UNREACHABLE_RESET_DISTANCE_SQR) {
+            approachFailures.remove(targetOwnerUuid);
+            return false;
+        }
+
+        if (state.excludedUntilTick() < 0L) {
+            return false;
+        }
+
+        if (currentTick >= state.excludedUntilTick()) {
+            approachFailures.remove(targetOwnerUuid);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void recordApproachAttempt(
+        UUID targetOwnerUuid,
+        Vec3 targetPosition,
+        boolean success,
+        long currentTick
+    ) {
+        if (success) {
+            approachFailures.remove(targetOwnerUuid);
+            return;
+        }
+
+        ApproachFailureState previous =
+            approachFailures.get(targetOwnerUuid);
+
+        if (previous != null
+            && targetPosition.distanceToSqr(
+                previous.targetPosition()
+            ) >= UNREACHABLE_RESET_DISTANCE_SQR) {
+            previous = null;
+        }
+
+        int failures = previous == null
+            ? 1
+            : previous.consecutiveFailures() + 1;
+
+        long excludedUntilTick =
+            failures >= PATH_FAILURE_THRESHOLD
+                ? currentTick
+                    + UNREACHABLE_COOLDOWN_TICKS
+                : -1L;
+
+        approachFailures.put(
+            targetOwnerUuid,
+            new ApproachFailureState(
+                failures,
+                excludedUntilTick,
+                targetPosition
+            )
+        );
+    }
+
     private void invalidateCurrentTarget() {
+        invalidateCurrentTarget(
+            PlanValidityStatus.TARGET_MISSING
+        );
+    }
+
+    private void invalidateCurrentTarget(
+        PlanValidityStatus status
+    ) {
+        String invalidPlanId = currentPlan == null
+            ? null
+            : currentPlan.externalId();
+
         if (entity != null && !entity.isRemoved()) {
             entity.setTarget(null);
             entity.getNavigation().stop();
@@ -925,6 +1067,20 @@ public final class RobotController {
         requestRedecision(
             DecisionTrigger.TARGET_INVALIDATED
         );
+
+        AutoBattleMod.LOGGER.debug(
+            "Invalidated robot plan owner={} plan={} reason={}",
+            ownerUuid,
+            invalidPlanId,
+            status
+        );
+    }
+
+    private record ApproachFailureState(
+        int consecutiveFailures,
+        long excludedUntilTick,
+        Vec3 targetPosition
+    ) {
     }
 
     private static double calculateArenaRadius(
