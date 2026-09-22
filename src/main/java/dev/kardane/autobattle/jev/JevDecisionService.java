@@ -81,6 +81,11 @@ public final class JevDecisionService {
 
         for (RobotController controller :
             match.robots().all()) {
+            controller.recoverStalledDecision(
+                currentTick,
+                stalledDecisionTimeoutTicks()
+            );
+
             if (!controller.shouldRequestDecision(
                 currentTick,
                 config.decisionIntervalTicks(),
@@ -182,7 +187,10 @@ public final class JevDecisionService {
             validPlanIds
         );
 
-        controller.markDecisionRequested(generation);
+        controller.markDecisionRequested(
+            generation,
+            currentTick
+        );
 
         java.util.concurrent.CompletableFuture<DecisionResponse> future;
 
@@ -745,6 +753,14 @@ public final class JevDecisionService {
             .stream()
             .findFirst()
             .orElse(null);
+    }
+
+    private int stalledDecisionTimeoutTicks() {
+        int requestTicks = (int) Math.ceil(
+            config.jevTimeoutMs() / 50.0D
+        );
+
+        return Math.max(20, requestTicks + 20);
     }
 
     private Map<String, TacticalPlan> indexCandidates(
