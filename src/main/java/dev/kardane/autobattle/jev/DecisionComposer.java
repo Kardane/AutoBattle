@@ -1,5 +1,7 @@
 package dev.kardane.autobattle.jev;
 
+import dev.kardane.autobattle.command.PlayerCommandType;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -10,8 +12,47 @@ public final class DecisionComposer {
         String currentPlanId,
         double minimumConfidence
     ) {
+        return compose(
+            response,
+            currentPlanIds,
+            currentPlanId,
+            minimumConfidence,
+            null
+        );
+    }
+
+    public DecisionComposition compose(
+        DecisionResponse response,
+        List<String> currentPlanIds,
+        String currentPlanId,
+        double minimumConfidence,
+        PlayerCommandType commandType
+    ) {
         Objects.requireNonNull(response, "response");
         Objects.requireNonNull(currentPlanIds, "currentPlanIds");
+
+        if (commandType != null) {
+            return switch (commandType) {
+                case ATTACK -> composeFight(
+                    response,
+                    currentPlanIds,
+                    currentPlanId,
+                    minimumConfidence
+                );
+                case CAPTURE -> new DecisionComposition(
+                    objectivePlan(currentPlanIds),
+                    false,
+                    false
+                );
+                case SURVIVE -> new DecisionComposition(
+                    currentPlanIds.contains("RETREAT")
+                        ? "RETREAT"
+                        : null,
+                    false,
+                    false
+                );
+            };
+        }
 
         ChoiceDecision intent = response.strategicIntent();
 
