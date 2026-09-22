@@ -78,7 +78,7 @@ public final class PlayerCommandService {
         );
 
         slot.runtime().activateCommand(command);
-        controller.requestRedecision(
+        controller.requestUrgentRedecision(
             DecisionTrigger.PLAYER_COMMAND
         );
 
