@@ -44,6 +44,9 @@ dependencies {
     implementation "com.openai:openai-java:${project.openai_java_version}"
     include "com.openai:openai-java:${project.openai_java_version}"
 
+    implementation "com.github.ben-manes.caffeine:caffeine:${project.caffeine_version}"
+    include "com.github.ben-manes.caffeine:caffeine:${project.caffeine_version}"
+
     testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
 }
