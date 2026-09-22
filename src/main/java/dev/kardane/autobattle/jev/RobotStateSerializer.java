@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.jev;
 
+import dev.kardane.autobattle.AutoBattleConstants;
 import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
@@ -70,6 +71,7 @@ public final class RobotStateSerializer {
             match.core().distanceTo(selfEntity)
         );
 
+        List<AllySnapshot> allies = new ArrayList<>();
         List<EnemySnapshot> enemies = new ArrayList<>();
 
         for (PlayerSlot slot : match.players()) {
@@ -80,6 +82,19 @@ public final class RobotStateSerializer {
             RobotController enemy = match.robots()
                 .byOwner(slot.playerUuid())
                 .orElse(null);
+
+            if (slot.team() == selfSlot.team()) {
+                allies.add(
+                    buildAllySnapshot(
+                        match,
+                        slot,
+                        enemy,
+                        selfEntity,
+                        currentTick
+                    )
+                );
+                continue;
+            }
 
             boolean alive = enemy != null && enemy.alive();
             float hp = 0.0F;
@@ -202,10 +217,86 @@ public final class RobotStateSerializer {
             selfSnapshot,
             teamContext,
             coreSnapshot,
+            allies,
             enemies,
             selfSlot.doctrine().orElseThrow(),
             command
         );
+    }
+
+    private AllySnapshot buildAllySnapshot(
+        MatchSession match,
+        PlayerSlot slot,
+        RobotController ally,
+        RobotZombie selfEntity,
+        long currentTick
+    ) {
+        boolean alive = ally != null && ally.alive();
+        RobotZombie allyEntity = alive
+            ? ally.entity().orElse(null)
+            : null;
+
+        if (allyEntity == null) {
+            alive = false;
+        }
+
+        float hp = alive
+            ? allyEntity.getHealth()
+            : 0.0F;
+        float maxHp = alive
+            ? allyEntity.getMaxHealth()
+            : 0.0F;
+        double hpRatio = maxHp <= 0.0F
+            ? 0.0D
+            : hp / maxHp;
+        Double distance = alive
+            ? (double) selfEntity.distanceTo(allyEntity)
+            : null;
+        String currentPlan = alive && ally != null
+            ? ally.currentPlan()
+                .map(plan -> plan.externalId())
+                .orElse(null)
+            : null;
+        String combatTarget = alive && ally != null
+            ? ally.combatTargetOwnerSnapshot()
+                .flatMap(ownerUuid ->
+                    match.robots().byOwner(ownerUuid)
+                )
+                .map(RobotController::targetId)
+                .orElse(null)
+            : null;
+        boolean insideCore = alive
+            && match.core().isInside(allyEntity);
+        boolean underAttack = alive
+            && isUnderAttack(ally, currentTick);
+
+        return new AllySnapshot(
+            slot.playerUuid(),
+            slot.targetId(),
+            slot.team(),
+            alive,
+            hp,
+            maxHp,
+            hpRatio,
+            distance,
+            currentPlan,
+            combatTarget,
+            insideCore,
+            underAttack
+        );
+    }
+
+    private boolean isUnderAttack(
+        RobotController controller,
+        long currentTick
+    ) {
+        long lastDamageTick = controller.runtime()
+            .lastDamageTick();
+
+        return lastDamageTick != Long.MIN_VALUE
+            && currentTick >= lastDamageTick
+            && currentTick - lastDamageTick
+                <= AutoBattleConstants.UNDER_ATTACK_WINDOW_TICKS;
     }
 
     private DistanceTrend distanceTrend(

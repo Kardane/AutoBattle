@@ -5,6 +5,7 @@ public enum PlanValidityStatus {
     TARGET_MISSING,
     TARGET_DEAD,
     TARGET_INELIGIBLE,
+    ASSIST_CYCLE,
     WRONG_MATCH,
     OUTSIDE_ARENA,
     OUT_OF_RANGE,

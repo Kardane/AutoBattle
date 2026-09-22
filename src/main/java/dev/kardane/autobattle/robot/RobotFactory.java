@@ -70,6 +70,8 @@ public final class RobotFactory {
             );
         }
 
+        robot.attachNameplate();
+
         TeamScoreboard.addRobot(level, robot.getScoreboardName(), team);
 
         return robot;

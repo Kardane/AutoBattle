@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.tactics;
 
+import dev.kardane.autobattle.AutoBattleConstants;
 import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.config.RobotConfig;
@@ -26,6 +27,11 @@ public final class RobotController {
     private static final double INTENT_PARTICLE_SPACING = 0.2D;
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
     private static final double CAPTURE_REACTION_RANGE = 2.0D;
+    private static final double HOLD_REACTION_RANGE = 4.0D;
+    private static final double ASSIST_REACTION_RANGE = 4.0D;
+    private static final double ASSIST_MIN_DISTANCE = 2.0D;
+    private static final double ASSIST_MAX_DISTANCE = 4.0D;
+    private static final double ASSIST_PREFERRED_DISTANCE = 3.0D;
     private static final double PATH_REQUIRED_DISTANCE = 2.0D;
     private static final double DETOUR_FORWARD_DISTANCE = 2.0D;
     private static final double DETOUR_LATERAL_DISTANCE = 3.0D;
@@ -64,6 +70,7 @@ public final class RobotController {
     private Vec3 retreatPlanDestination;
     private RetreatPlanner.RetreatChoice retreatChoice;
     private long nextRetreatEvaluationTick = -1L;
+    private long holdUntilTick = -1L;
     private final List<BlockedRetreatDestination>
         blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
@@ -235,6 +242,11 @@ public final class RobotController {
 
         this.entity = entity;
         this.localCombatTargetUuid = null;
+        entity.setDisplayedPlan(
+            currentPlan == null
+                ? null
+                : currentPlan.type()
+        );
         runtime.markSpawned(currentTick);
         registry.reindexEntity(this);
     }
@@ -344,7 +356,16 @@ public final class RobotController {
             plan.type() == TacticalPlanType.RETREAT
                 ? currentTick
                 : -1L;
+        holdUntilTick =
+            plan.type() == TacticalPlanType.HOLD
+                ? currentTick
+                    + AutoBattleConstants.HOLD_DURATION_TICKS
+                : -1L;
         blockedRetreatDestinations.clear();
+
+        if (entity != null && !entity.isRemoved()) {
+            entity.setDisplayedPlan(plan.type());
+        }
 
         renderPlanIntent(plan);
         return true;
@@ -562,6 +583,11 @@ public final class RobotController {
             return;
         }
 
+        if (!insideArena(entity.position())) {
+            entity.setPos(clampToArena(entity.position()));
+            entity.getNavigation().stop();
+        }
+
         if (currentPlan == null) {
             entity.setTarget(null);
             entity.getNavigation().stop();
@@ -587,6 +613,13 @@ public final class RobotController {
                     currentPlan.destination(),
                     currentTick
                 );
+            case ASSIST -> assist(
+                match,
+                currentTick
+            );
+            case HOLD -> holdPosition(
+                currentTick
+            );
             case RETREAT -> retreat(
                 match,
                 currentTick
@@ -769,6 +802,249 @@ public final class RobotController {
         }
     }
 
+    private void holdPosition(long currentTick) {
+        Optional<RobotZombie> nearbyThreat =
+            resolveNearestEnemyNear(
+                entity.position(),
+                HOLD_REACTION_RANGE,
+                currentTick,
+                false
+            );
+
+        if (nearbyThreat.isPresent()) {
+            RobotZombie target = nearbyThreat.orElseThrow();
+            localCombatTargetUuid = target.ownerUuid();
+            entity.setTarget(target);
+
+            boolean inAttackRange =
+                entity.distanceTo(target)
+                    <= PATH_REQUIRED_DISTANCE;
+
+            if (!navigateWithRecovery(
+                target.position(),
+                config.engageSpeed(),
+                inAttackRange,
+                currentTick
+            )) {
+                stopLocalMovement();
+            }
+        } else {
+            stopLocalMovement();
+            movementRecovery.reset();
+        }
+
+        if (holdUntilTick >= 0L
+            && currentTick >= holdUntilTick) {
+            requestRedecision(
+                DecisionTrigger.HOLD_COMPLETE
+            );
+        }
+    }
+
+    private void assist(
+        MatchSession match,
+        long currentTick
+    ) {
+        PlanValidityResult validity =
+            validityPolicy.validate(
+                match,
+                this,
+                currentPlan,
+                currentTick
+            );
+
+        if (!validity.valid()) {
+            invalidateCurrentTarget(validity.status());
+            return;
+        }
+
+        RobotController ally = match.robots()
+            .byOwner(currentPlan.targetOwnerUuid())
+            .orElse(null);
+
+        if (ally == null || !ally.alive()) {
+            invalidateCurrentTarget(
+                PlanValidityStatus.TARGET_DEAD
+            );
+            return;
+        }
+
+        TacticalPlan allyPlan = ally.currentPlan()
+            .orElse(null);
+
+        if (allyPlan != null
+            && allyPlan.type() == TacticalPlanType.RETREAT) {
+            stopLocalMovement();
+            requestRedecision(
+                DecisionTrigger.TARGET_INVALIDATED
+            );
+            return;
+        }
+
+        if (allyPlan != null
+            && (allyPlan.type() == TacticalPlanType.ENGAGE
+                || allyPlan.type() == TacticalPlanType.CHASE)) {
+            assistCombat(
+                match,
+                ally,
+                allyPlan.type(),
+                currentTick
+            );
+            return;
+        }
+
+        moveNearAlly(
+            ally,
+            currentTick
+        );
+    }
+
+    private void assistCombat(
+        MatchSession match,
+        RobotController ally,
+        TacticalPlanType allyPlanType,
+        long currentTick
+    ) {
+        UUID targetOwnerUuid = ally
+            .combatTargetOwnerSnapshot()
+            .orElse(null);
+
+        if (targetOwnerUuid == null) {
+            moveNearAlly(ally, currentTick);
+            return;
+        }
+
+        PlanValidityResult targetValidity =
+            validityPolicy.validateTarget(
+                match,
+                this,
+                targetOwnerUuid,
+                allyPlanType,
+                currentTick
+            );
+
+        if (!targetValidity.valid()) {
+            moveNearAlly(ally, currentTick);
+            return;
+        }
+
+        RobotZombie target = targetValidity.targetEntity()
+            .orElseThrow();
+        localCombatTargetUuid = target.ownerUuid();
+        entity.setTarget(target);
+
+        boolean inAttackRange =
+            targetValidity.distance() <= PATH_REQUIRED_DISTANCE;
+
+        if (!navigateWithRecovery(
+            target.position(),
+            allyPlanType == TacticalPlanType.CHASE
+                ? config.chaseSpeed()
+                : config.engageSpeed(),
+            inAttackRange,
+            currentTick
+        )) {
+            moveNearAlly(ally, currentTick);
+        }
+    }
+
+    private void moveNearAlly(
+        RobotController ally,
+        long currentTick
+    ) {
+        RobotZombie allyEntity = ally.entity().orElse(null);
+
+        if (allyEntity == null
+            || allyEntity.isRemoved()
+            || !allyEntity.isAlive()) {
+            invalidateCurrentTarget(
+                PlanValidityStatus.TARGET_DEAD
+            );
+            return;
+        }
+
+        Optional<RobotZombie> nearbyThreat =
+            resolveNearestEnemyNear(
+                entity.position(),
+                ASSIST_REACTION_RANGE,
+                currentTick,
+                false
+            );
+
+        if (nearbyThreat.isPresent()) {
+            RobotZombie target = nearbyThreat.orElseThrow();
+            localCombatTargetUuid = target.ownerUuid();
+            entity.setTarget(target);
+
+            boolean inAttackRange =
+                entity.distanceTo(target)
+                    <= PATH_REQUIRED_DISTANCE;
+
+            if (!navigateWithRecovery(
+                target.position(),
+                config.engageSpeed(),
+                inAttackRange,
+                currentTick
+            )) {
+                stopLocalMovement();
+            }
+            return;
+        }
+
+        localCombatTargetUuid = null;
+        entity.setTarget(null);
+
+        double allyDistance = entity.distanceTo(allyEntity);
+        boolean holdingPosition =
+            allyDistance >= ASSIST_MIN_DISTANCE
+                && allyDistance <= ASSIST_MAX_DISTANCE;
+        Vec3 destination = supportPosition(allyEntity);
+
+        if (!navigateWithRecovery(
+            destination,
+            config.captureSpeed(),
+            holdingPosition,
+            currentTick
+        )) {
+            suppressCurrentPlanAndRedecide(
+                destination,
+                currentTick
+            );
+        }
+    }
+
+    private Vec3 supportPosition(RobotZombie ally) {
+        Vec3 offset = entity.position().subtract(
+            ally.position()
+        );
+        Vec3 horizontal = new Vec3(
+            offset.x,
+            0.0D,
+            offset.z
+        );
+
+        if (horizontal.lengthSqr() < 1.0E-4D) {
+            horizontal = new Vec3(1.0D, 0.0D, 0.0D);
+        } else {
+            horizontal = horizontal.normalize();
+        }
+
+        return clampToArena(
+            ally.position().add(
+                horizontal.scale(ASSIST_PREFERRED_DISTANCE)
+            )
+        );
+    }
+
+    private void stopLocalMovement() {
+        localCombatTargetUuid = null;
+
+        if (entity != null && !entity.isRemoved()) {
+            entity.setTarget(null);
+            entity.getNavigation().stop();
+        }
+    }
+
     private void retreat(
         MatchSession match,
         long currentTick
@@ -780,7 +1056,7 @@ public final class RobotController {
             match,
             this
         )) {
-            completeRetreatSafely();
+            holdRetreatSafely();
             return;
         }
 
@@ -899,19 +1175,24 @@ public final class RobotController {
         return true;
     }
 
-    private void completeRetreatSafely() {
-        Vec3 completedDestination =
-            retreatPlanDestination;
+    private void holdRetreatSafely() {
+        localCombatTargetUuid = null;
+        retreatPlanDestination = null;
+        retreatChoice = null;
+        nextRetreatEvaluationTick = -1L;
+        holdUntilTick = -1L;
+        blockedRetreatDestinations.clear();
+        movementRecovery.reset();
 
-        clearPlan();
-        requestRedecision(
-            DecisionTrigger.RETREAT_SAFE
-        );
+        if (entity != null && !entity.isRemoved()) {
+            entity.setDisplayedPlan(null);
+            entity.setTarget(null);
+            entity.getNavigation().stop();
+        }
 
         AutoBattleMod.LOGGER.debug(
-            "Retreat reached safe state owner={} destination={}",
-            ownerUuid,
-            completedDestination
+            "Retreat holding safe state owner={}",
+            ownerUuid
         );
     }
 
@@ -1208,6 +1489,26 @@ public final class RobotController {
             );
     }
 
+    private Optional<RobotZombie> resolveOwnerTarget(
+        UUID targetOwnerUuid
+    ) {
+        if (targetOwnerUuid == null) {
+            return Optional.empty();
+        }
+
+        return registry
+            .byOwner(targetOwnerUuid)
+            .filter(target -> target != this)
+            .filter(RobotController::alive)
+            .flatMap(RobotController::entity)
+            .filter(target ->
+                entity != null
+                    && target.matchId().equals(
+                        entity.matchId()
+                    )
+            );
+    }
+
     private boolean insideArena(Vec3 position) {
         return validityPolicy.insideArena(position);
     }
@@ -1240,6 +1541,38 @@ public final class RobotController {
         return Optional.of(entity.position());
     }
 
+    public Optional<UUID> combatTargetOwnerSnapshot() {
+        if (entity == null || entity.isRemoved()) {
+            return Optional.empty();
+        }
+
+        if (entity.getTarget() instanceof RobotZombie target
+            && target.isAlive()
+            && !target.isRemoved()
+            && target.matchId().equals(entity.matchId())
+            && team.isEnemy(target.team())) {
+            return Optional.of(target.ownerUuid());
+        }
+
+        if (localCombatTargetUuid != null
+            && resolveTarget(localCombatTargetUuid).isPresent()) {
+            return Optional.of(localCombatTargetUuid);
+        }
+
+        if (currentPlan != null
+            && (currentPlan.type() == TacticalPlanType.ENGAGE
+                || currentPlan.type() == TacticalPlanType.CHASE)
+            && resolveTarget(
+                currentPlan.targetOwnerUuid()
+            ).isPresent()) {
+            return Optional.of(
+                currentPlan.targetOwnerUuid()
+            );
+        }
+
+        return Optional.empty();
+    }
+
     public Optional<Vec3> targetPositionSnapshot() {
         if (entity == null || entity.isRemoved()) {
             return Optional.empty();
@@ -1257,9 +1590,16 @@ public final class RobotController {
 
         if (currentPlan != null
             && currentPlan.targetOwnerUuid() != null) {
-            return resolveTarget(
-                currentPlan.targetOwnerUuid()
-            ).map(RobotZombie::position);
+            Optional<RobotZombie> target =
+                currentPlan.type() == TacticalPlanType.ASSIST
+                    ? resolveOwnerTarget(
+                        currentPlan.targetOwnerUuid()
+                    )
+                    : resolveTarget(
+                        currentPlan.targetOwnerUuid()
+                    );
+
+            return target.map(RobotZombie::position);
         }
 
         return Optional.empty();
@@ -1281,7 +1621,7 @@ public final class RobotController {
                 Optional.ofNullable(
                     retreatPlanDestination
                 );
-            case ENGAGE, CHASE ->
+            case ENGAGE, CHASE, ASSIST, HOLD ->
                 Optional.empty();
         };
     }
@@ -1317,6 +1657,11 @@ public final class RobotController {
                     .orElse(null);
             case CAPTURE, DEFEND ->
                 clampToArena(plan.destination());
+            case ASSIST ->
+                resolveOwnerTarget(plan.targetOwnerUuid())
+                    .map(this::entityAimPoint)
+                    .orElse(null);
+            case HOLD -> null;
             case RETREAT ->
                 retreatPlanDestination;
         };
@@ -1467,27 +1812,6 @@ public final class RobotController {
         }
     }
 
-    private static double calculateArenaRadius(
-        ArenaConfig arena,
-        Vec3 center,
-        double margin
-    ) {
-        double halfTeamSpan =
-            3.5D * arena.teamSpawns().memberSpacing();
-
-        double spawnRadius = Math.hypot(
-            arena.teamSpawns().distanceFromCore(),
-            halfTeamSpan
-        );
-
-        double maxRadius = Math.max(
-            arena.coreRadius(),
-            spawnRadius
-        );
-
-        return maxRadius + Math.max(1.0D, margin);
-    }
-
     private void configureArena(ArenaConfig arena) {
         BlockPos core = arena.corePos();
 
@@ -1496,11 +1820,7 @@ public final class RobotController {
             core.getY(),
             core.getZ() + 0.5D
         );
-        this.arenaRadius = calculateArenaRadius(
-            arena,
-            arenaCenter,
-            config.positionReachedDistance()
-        );
+        this.arenaRadius = arena.arenaRadius();
         this.arenaRadiusSqr =
             arenaRadius * arenaRadius;
     }

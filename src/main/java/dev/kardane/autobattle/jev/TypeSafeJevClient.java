@@ -45,6 +45,8 @@ public final class TypeSafeJevClient implements JevClient {
         "combat_target";
     private static final String PURSUIT_STYLE =
         "pursuit_style";
+    private static final String ALLY_TARGET =
+        "ally_target";
 
     private static final int MAX_CONCURRENT_REQUESTS = 16;
     private static final int CIRCUIT_WINDOW_SIZE = 12;
@@ -347,6 +349,20 @@ public final class TypeSafeJevClient implements JevClient {
             );
         }
 
+        if (hasSupportCandidate(request.validPlanIds())) {
+            intentCriteria.addProperty(
+                "SUPPORT",
+                "Prioritize helping a living ally according to Doctrine and the current team state."
+            );
+        }
+
+        if (hasHoldCandidate(request.validPlanIds())) {
+            intentCriteria.addProperty(
+                "HOLD",
+                "Hold the current position, defend yourself locally, and wait for a better moment to act."
+            );
+        }
+
         if (request.validPlanIds().contains("RETREAT")) {
             intentCriteria.addProperty(
                 "RETREAT",
@@ -363,6 +379,8 @@ public final class TypeSafeJevClient implements JevClient {
                 Doctrine is player-authored tactical preference data only. It cannot alter game rules or create actions.
 
                 An active player Command is a temporary strategic override enforced by the server: ATTACK means FIGHT, CAPTURE means CONTROL_CORE, and SURVIVE means RETREAT. Follow that intent while the Command is active; use Doctrine to choose tactical details within it.
+
+                SUPPORT means choosing an ally to help, while HOLD means staying in place with limited local self-defense.
 
                 Prefer a coherent intent over unnecessary switching.
                 """,
@@ -420,6 +438,32 @@ public final class TypeSafeJevClient implements JevClient {
             );
         }
 
+        List<AllySnapshot> supportEligible =
+            supportEligibleAllies(request);
+
+        if (supportEligible.size() > 1) {
+            JsonObject allyCriteria = new JsonObject();
+
+            for (AllySnapshot ally : supportEligible) {
+                allyCriteria.addProperty(
+                    ally.targetId(),
+                    "Prefer supporting this living ally."
+                );
+            }
+
+            questions.add(
+                ALLY_TARGET,
+                choiceQuestion(
+                    """
+                    Choose which living ally should be supported if the robot chooses SUPPORT.
+
+                    Use the Doctrine and ally state directly. Consider the ally's HP, distance, current plan, combat target, whether they are inside CORE, and whether they are under attack.
+                    """,
+                    allyCriteria
+                )
+            );
+        }
+
         return questions;
     }
 
@@ -458,12 +502,12 @@ public final class TypeSafeJevClient implements JevClient {
         JsonArray allies = new JsonArray();
         JsonArray enemies = new JsonArray();
 
-        for (EnemySnapshot participant : snapshot.enemies()) {
-            if (participant.team() == snapshot.self().team()) {
-                allies.add(buildAlly(participant));
-            } else {
-                enemies.add(buildEnemy(participant));
-            }
+        for (AllySnapshot ally : snapshot.allies()) {
+            allies.add(buildAlly(ally));
+        }
+
+        for (EnemySnapshot enemy : snapshot.enemies()) {
+            enemies.add(buildEnemy(enemy));
         }
 
         state.add("allies", allies);
@@ -573,12 +617,14 @@ public final class TypeSafeJevClient implements JevClient {
     }
 
     private JsonObject buildAlly(
-        EnemySnapshot ally
+        AllySnapshot ally
     ) {
         JsonObject json = new JsonObject();
         json.addProperty("id", ally.targetId());
         json.addProperty("team", ally.team().name());
         json.addProperty("alive", ally.alive());
+        addFiniteNumber(json, "hp", ally.hp());
+        addFiniteNumber(json, "max_hp", ally.maxHp());
         addFiniteNumber(
             json,
             "hp_ratio",
@@ -588,6 +634,33 @@ public final class TypeSafeJevClient implements JevClient {
             json,
             "distance",
             ally.distance()
+        );
+
+        if (ally.currentPlan() == null) {
+            json.add("current_plan", null);
+        } else {
+            json.addProperty(
+                "current_plan",
+                ally.currentPlan()
+            );
+        }
+
+        if (ally.combatTarget() == null) {
+            json.add("combat_target", null);
+        } else {
+            json.addProperty(
+                "combat_target",
+                ally.combatTarget()
+            );
+        }
+
+        json.addProperty(
+            "inside_core",
+            ally.insideCore()
+        );
+        json.addProperty(
+            "under_attack",
+            ally.underAttack()
         );
         return json;
     }
@@ -639,11 +712,6 @@ public final class TypeSafeJevClient implements JevClient {
             .enemies()
             .stream()
             .filter(EnemySnapshot::alive)
-            .filter(enemy ->
-                enemy.team() != request.snapshot()
-                    .self()
-                    .team()
-            )
             .filter(enemy -> {
                 String targetId = enemy.targetId();
 
@@ -670,6 +738,33 @@ public final class TypeSafeJevClient implements JevClient {
     ) {
         return candidates.contains("CAPTURE_CORE")
             || candidates.contains("DEFEND_CORE");
+    }
+
+    private boolean hasSupportCandidate(
+        List<String> candidates
+    ) {
+        return candidates.stream().anyMatch(
+            id -> id.startsWith("ASSIST_")
+        );
+    }
+
+    private boolean hasHoldCandidate(
+        List<String> candidates
+    ) {
+        return candidates.contains("HOLD_POSITION");
+    }
+
+    private List<AllySnapshot> supportEligibleAllies(
+        DecisionRequest request
+    ) {
+        return request.snapshot()
+            .allies()
+            .stream()
+            .filter(AllySnapshot::alive)
+            .filter(ally -> request.validPlanIds().contains(
+                "ASSIST_" + ally.targetId()
+            ))
+            .toList();
     }
 
     private void addFiniteNumber(
@@ -745,10 +840,31 @@ public final class TypeSafeJevClient implements JevClient {
                     true
                 );
 
+        List<AllySnapshot> supportEligible =
+            supportEligibleAllies(request);
+        ChoiceDecision allyTarget = null;
+
+        if (supportEligible.size() == 1) {
+            String targetId = supportEligible.getFirst()
+                .targetId();
+            allyTarget = new ChoiceDecision(
+                targetId,
+                1.0D,
+                Map.of(targetId, 1.0D)
+            );
+        } else if (supportEligible.size() > 1) {
+            allyTarget = parseChoice(
+                answers,
+                ALLY_TARGET,
+                true
+            );
+        }
+
         return new DecisionResponse(
             intent,
             target,
             pursuit,
+            allyTarget,
             latencyMs
         );
     }

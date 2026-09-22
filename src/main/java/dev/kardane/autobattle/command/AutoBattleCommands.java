@@ -368,7 +368,7 @@ public final class AutoBattleCommands {
                                                     planExecutor,
                                                     StringArgumentType.getString(
                                                         context,
-                                                        "color"
+                                                        "robotId"
                                                     ),
                                                     StringArgumentType.getString(
                                                         context,
@@ -638,6 +638,49 @@ public final class AutoBattleCommands {
                 currentTick,
                 lockTicks
             );
+
+            case "HOLD", "HOLD_POSITION" -> plan =
+                TacticalPlan.hold(
+                    currentTick,
+                    lockTicks
+                );
+
+            case "ASSIST" -> {
+                if (rawEnemyId == null) {
+                    source.sendFailure(
+                        message(
+                            "commands.admin.debug-plan-requires-target",
+                            "plan",
+                            planName
+                        )
+                    );
+                    return 0;
+                }
+
+                PlayerSlot allySlot = findSlotByTargetId(
+                    matchManager,
+                    rawEnemyId
+                );
+
+                if (allySlot == null
+                    || allySlot.playerUuid()
+                        .equals(slot.playerUuid())
+                    || allySlot.team() != slot.team()) {
+                    source.sendFailure(
+                        message(
+                            "commands.admin.debug-target-invalid"
+                        )
+                    );
+                    return 0;
+                }
+
+                plan = TacticalPlan.assist(
+                    allySlot.playerUuid(),
+                    "ASSIST_" + allySlot.targetId(),
+                    currentTick,
+                    lockTicks
+                );
+            }
 
             default -> {
                 source.sendFailure(

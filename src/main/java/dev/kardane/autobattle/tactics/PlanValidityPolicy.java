@@ -10,6 +10,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 public final class PlanValidityPolicy {
@@ -39,6 +41,23 @@ public final class PlanValidityPolicy {
         Objects.requireNonNull(self, "self");
         Objects.requireNonNull(plan, "plan");
 
+        if (plan.type() == TacticalPlanType.ASSIST) {
+            if (self.isPlanTemporarilyUnreachable(
+                plan,
+                currentTick
+            )) {
+                return PlanValidityResult.invalid(
+                    PlanValidityStatus.TEMPORARILY_UNREACHABLE
+                );
+            }
+
+            return validateAlly(
+                match,
+                self,
+                plan.targetOwnerUuid()
+            );
+        }
+
         if (plan.type() != TacticalPlanType.ENGAGE
             && plan.type() != TacticalPlanType.CHASE) {
             return self.isPlanTemporarilyUnreachable(
@@ -59,6 +78,133 @@ public final class PlanValidityPolicy {
             plan.type(),
             currentTick
         );
+    }
+
+    private PlanValidityResult validateAlly(
+        MatchSession match,
+        RobotController self,
+        UUID allyOwnerUuid
+    ) {
+        if (allyOwnerUuid == null) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.TARGET_MISSING
+            );
+        }
+
+        RobotController ally = match.robots()
+            .byOwner(allyOwnerUuid)
+            .orElse(null);
+
+        if (ally == null
+            || ally == self
+            || ally.team() != self.team()) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.TARGET_INELIGIBLE
+            );
+        }
+
+        PlayerSlot allySlot = match.player(
+            allyOwnerUuid
+        ).orElse(null);
+
+        if (allySlot == null || allySlot.forfeited()) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.TARGET_INELIGIBLE
+            );
+        }
+
+        if (!self.alive() || !ally.alive()) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.TARGET_DEAD
+            );
+        }
+
+        RobotZombie selfEntity = self.entity().orElse(null);
+        RobotZombie allyEntity = ally.entity().orElse(null);
+
+        if (selfEntity == null
+            || allyEntity == null
+            || !selfEntity.isAlive()
+            || !allyEntity.isAlive()
+            || allyEntity.isRemoved()) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.TARGET_DEAD
+            );
+        }
+
+        if (!match.matchId().equals(
+                selfEntity.matchId()
+            )
+            || !match.matchId().equals(
+                allyEntity.matchId()
+            )) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.WRONG_MATCH
+            );
+        }
+
+        if (!insideArena(allyEntity.position())) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.OUTSIDE_ARENA
+            );
+        }
+
+        TacticalPlan allyPlan = ally.currentPlan()
+            .orElse(null);
+
+        if (allyPlan != null
+            && allyPlan.type() == TacticalPlanType.RETREAT) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.TARGET_INELIGIBLE
+            );
+        }
+
+        if (createsAssistCycle(match, self, ally)) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.ASSIST_CYCLE
+            );
+        }
+
+        return PlanValidityResult.valid(
+            allyEntity,
+            selfEntity.distanceTo(allyEntity)
+        );
+    }
+
+    private boolean createsAssistCycle(
+        MatchSession match,
+        RobotController self,
+        RobotController ally
+    ) {
+        Set<UUID> visited = new HashSet<>();
+        RobotController cursor = ally;
+
+        while (cursor != null
+            && visited.add(cursor.ownerUuid())) {
+            TacticalPlan plan = cursor.currentPlan()
+                .orElse(null);
+
+            if (plan == null
+                || plan.type() != TacticalPlanType.ASSIST) {
+                return false;
+            }
+
+            UUID nextOwnerUuid = plan.targetOwnerUuid();
+
+            if (nextOwnerUuid == null) {
+                return false;
+            }
+
+            if (nextOwnerUuid.equals(self.ownerUuid())) {
+                return true;
+            }
+
+            cursor = match.robots()
+                .byOwner(nextOwnerUuid)
+                .orElse(null);
+        }
+
+        return cursor != null;
     }
 
     public PlanValidityResult validateTarget(
@@ -210,35 +356,10 @@ public final class PlanValidityPolicy {
             core.getZ() + 0.5D
         );
 
-        this.arenaRadius = calculateArenaRadius(
-            arena,
-            arenaCenter,
-            robotConfig.positionReachedDistance()
-        );
+        this.arenaRadius = arena.arenaRadius();
 
         this.arenaRadiusSqr =
             arenaRadius * arenaRadius;
-    }
-
-    private static double calculateArenaRadius(
-        ArenaConfig arena,
-        Vec3 center,
-        double margin
-    ) {
-        double halfTeamSpan =
-            3.5D * arena.teamSpawns().memberSpacing();
-
-        double spawnRadius = Math.hypot(
-            arena.teamSpawns().distanceFromCore(),
-            halfTeamSpan
-        );
-
-        double maxRadius = Math.max(
-            arena.coreRadius(),
-            spawnRadius
-        );
-
-        return maxRadius + Math.max(1.0D, margin);
     }
 
     private static double horizontalDistanceSqr(

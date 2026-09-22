@@ -31,7 +31,7 @@ public record TacticalPlan(
         }
 
         switch (type) {
-            case ENGAGE, CHASE ->
+            case ENGAGE, CHASE, ASSIST ->
                 Objects.requireNonNull(
                     targetOwnerUuid,
                     type + " requires targetOwnerUuid"
@@ -43,6 +43,9 @@ public record TacticalPlan(
                 );
             case RETREAT -> {
                 // RETREAT chooses the nearest threat at execution time.
+            }
+            case HOLD -> {
+                // HOLD_POSITION has neither a target nor a destination.
             }
         }
     }
@@ -71,6 +74,21 @@ public record TacticalPlan(
         return targeted(
             TacticalPlanType.CHASE,
             targetOwnerUuid,
+            externalId,
+            currentTick,
+            lockTicks
+        );
+    }
+
+    public static TacticalPlan assist(
+        UUID allyOwnerUuid,
+        String externalId,
+        long currentTick,
+        long lockTicks
+    ) {
+        return targeted(
+            TacticalPlanType.ASSIST,
+            allyOwnerUuid,
             externalId,
             currentTick,
             lockTicks
@@ -118,6 +136,22 @@ public record TacticalPlan(
             "DEFEND_CORE",
             currentTick,
             lockTicks
+        );
+    }
+
+    public static TacticalPlan hold(
+        long currentTick,
+        long lockTicks
+    ) {
+        validateLockTicks(lockTicks);
+
+        return new TacticalPlan(
+            TacticalPlanType.HOLD,
+            null,
+            null,
+            "HOLD_POSITION",
+            currentTick,
+            currentTick + lockTicks
         );
     }
 

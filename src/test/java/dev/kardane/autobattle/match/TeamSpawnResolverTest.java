@@ -5,6 +5,7 @@ import dev.kardane.autobattle.config.SpawnPoint;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,13 +34,15 @@ final class TeamSpawnResolverTest {
                     arena,
                     red,
                     teamSize,
-                    1
+                    1,
+                    new Random(1000L + teamSize * 100L + member)
                 );
                 SpawnPoint blueSpawn = resolver.resolve(
                     arena,
                     blue,
                     teamSize,
-                    1
+                    1,
+                    new Random(1000L + teamSize * 100L + member)
                 );
 
                 assertTrue(redSpawn.x() < arena.corePos().getX() + 0.5D);
@@ -74,14 +77,38 @@ final class TeamSpawnResolverTest {
         PlayerSlot blue = slot(BattleTeam.BLUE, 0, 8);
 
         SpawnPoint redRoundOne =
-            resolver.resolve(arena, red, 4, 1);
+            resolver.resolve(
+                arena,
+                red,
+                4,
+                1,
+                new Random(10L)
+            );
         SpawnPoint blueRoundOne =
-            resolver.resolve(arena, blue, 4, 1);
+            resolver.resolve(
+                arena,
+                blue,
+                4,
+                1,
+                new Random(10L)
+            );
 
         SpawnPoint redRoundTwo =
-            resolver.resolve(arena, red, 4, 2);
+            resolver.resolve(
+                arena,
+                red,
+                4,
+                2,
+                new Random(10L)
+            );
         SpawnPoint blueRoundTwo =
-            resolver.resolve(arena, blue, 4, 2);
+            resolver.resolve(
+                arena,
+                blue,
+                4,
+                2,
+                new Random(10L)
+            );
 
         assertTrue(redRoundOne.x() < 0.5D);
         assertTrue(blueRoundOne.x() > 0.5D);
@@ -93,26 +120,58 @@ final class TeamSpawnResolverTest {
     }
 
     @Test
-    void adjacentMembersUseConfiguredSpacing() {
+    void randomizedSpawnsStayWithinConfiguredRegion() {
         ArenaConfig arena = ArenaConfig.defaults();
 
         SpawnPoint first = resolver.resolve(
             arena,
             slot(BattleTeam.RED, 0, 0),
             8,
-            1
+            1,
+            new Random(20L)
         );
         SpawnPoint second = resolver.resolve(
             arena,
             slot(BattleTeam.RED, 1, 1),
             8,
-            1
+            1,
+            new Random(21L)
         );
 
-        assertEquals(
-            arena.teamSpawns().memberSpacing(),
-            Math.abs(second.z() - first.z()),
-            1.0E-9D
+        double centerX = arena.corePos().getX() + 0.5D;
+        double centerZ = arena.corePos().getZ() + 0.5D;
+        double radius = arena.teamSpawns().randomRadius();
+        double distance = arena.teamSpawns().distanceFromCore();
+        double firstMemberOffset =
+            (0 - (8 - 1) / 2.0D)
+                * arena.teamSpawns().memberSpacing();
+        double secondMemberOffset =
+            (1 - (8 - 1) / 2.0D)
+                * arena.teamSpawns().memberSpacing();
+
+        assertTrue(
+            Math.abs(
+                Math.abs(first.x() - centerX) - distance
+            ) <= radius
+        );
+        assertTrue(
+            Math.abs(
+                first.z() - centerZ - firstMemberOffset
+            ) <= radius
+        );
+        assertTrue(
+            Math.abs(
+                Math.abs(second.x() - centerX) - distance
+            ) <= radius
+        );
+        assertTrue(
+            Math.abs(
+                second.z() - centerZ - secondMemberOffset
+            ) <= radius
+        );
+        assertNotEquals(
+            key(first),
+            key(second)
         );
     }
 

@@ -228,6 +228,97 @@ final class DecisionComposerTest {
     }
 
     @Test
+    void supportIntentComposesAssistPlan() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("SUPPORT", 0.9D),
+                null,
+                null,
+                choice("R2", 0.9D)
+            ),
+            List.of(
+                "ASSIST_R2",
+                "ASSIST_R3",
+                "HOLD_POSITION",
+                "RETREAT"
+            ),
+            "HOLD_POSITION",
+            0.35D
+        );
+
+        assertEquals("ASSIST_R2", result.planId());
+        assertFalse(result.lowConfidence());
+        assertFalse(result.targetUnavailable());
+    }
+
+    @Test
+    void supportWithOneLegalAllyCanBeResolvedWithoutAllyAnswer() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("SUPPORT", 0.9D),
+                null,
+                null,
+                null
+            ),
+            List.of(
+                "ASSIST_R2",
+                "HOLD_POSITION",
+                "RETREAT"
+            ),
+            "HOLD_POSITION",
+            0.35D
+        );
+
+        assertEquals("ASSIST_R2", result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
+    void lowConfidenceSupportKeepsCurrentAssistPlan() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("SUPPORT", 0.9D),
+                null,
+                null,
+                choice("R3", 0.2D)
+            ),
+            List.of(
+                "ASSIST_R2",
+                "ASSIST_R3",
+                "HOLD_POSITION"
+            ),
+            "ASSIST_R2",
+            0.35D
+        );
+
+        assertEquals("ASSIST_R2", result.planId());
+        assertTrue(result.lowConfidence());
+        assertFalse(result.targetUnavailable());
+    }
+
+    @Test
+    void holdIntentComposesHoldPosition() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("HOLD", 0.9D),
+                null,
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION",
+                "RETREAT"
+            ),
+            "CAPTURE_CORE",
+            0.35D
+        );
+
+        assertEquals("HOLD_POSITION", result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
     void lowConfidenceIntentKeepsLegalCurrentPlan() {
         DecisionComposition result = composer.compose(
             response(
@@ -250,15 +341,50 @@ final class DecisionComposerTest {
         assertTrue(result.lowConfidence());
     }
 
+    @Test
+    void lowConfidenceIntentWithoutCurrentPlanDoesNotThrow() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.2D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "RETREAT"
+            ),
+            null,
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertTrue(result.lowConfidence());
+    }
+
     private DecisionResponse response(
         ChoiceDecision intent,
         ChoiceDecision target,
         ChoiceDecision pursuit
     ) {
+        return response(
+            intent,
+            target,
+            pursuit,
+            null
+        );
+    }
+
+    private DecisionResponse response(
+        ChoiceDecision intent,
+        ChoiceDecision target,
+        ChoiceDecision pursuit,
+        ChoiceDecision allyTarget
+    ) {
         return new DecisionResponse(
             intent,
             target,
             pursuit,
+            allyTarget,
             10L
         );
     }

@@ -96,6 +96,29 @@ public final class ValidPlanFactory {
             }
         }
 
+        for (RobotController ally : match.robots().all()) {
+            if (ally == self
+                || ally.team() != self.team()) {
+                continue;
+            }
+
+            TacticalPlan assist = TacticalPlan.assist(
+                ally.ownerUuid(),
+                "ASSIST_" + ally.targetId(),
+                currentTick,
+                lockTicks
+            );
+
+            if (validityPolicy.validate(
+                match,
+                self,
+                assist,
+                currentTick
+            ).valid()) {
+                plans.add(assist);
+            }
+        }
+
         var coreOwner = match.core()
             .state()
             .ownerTeam()
@@ -121,6 +144,20 @@ public final class ValidPlanFactory {
             currentTick
         ).valid()) {
             plans.add(objective);
+        }
+
+        TacticalPlan hold = TacticalPlan.hold(
+            currentTick,
+            lockTicks
+        );
+
+        if (validityPolicy.validate(
+            match,
+            self,
+            hold,
+            currentTick
+        ).valid()) {
+            plans.add(hold);
         }
 
         TacticalPlan retreat =

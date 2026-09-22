@@ -32,7 +32,6 @@ final class ProvisionalPlanPolicyTest {
                 PlayerCommandType.CAPTURE,
                 0.10D,
                 0.25D,
-                true,
                 ignored -> Double.POSITIVE_INFINITY
             ).orElseThrow().externalId()
         );
@@ -52,7 +51,6 @@ final class ProvisionalPlanPolicyTest {
                 PlayerCommandType.SURVIVE,
                 1.0D,
                 0.25D,
-                false,
                 ignored -> Double.POSITIVE_INFINITY
             ).orElseThrow().externalId()
         );
@@ -78,29 +76,16 @@ final class ProvisionalPlanPolicyTest {
                 PlayerCommandType.ATTACK,
                 1.0D,
                 0.25D,
-                false,
                 distance
             ).orElseThrow().externalId()
         );
     }
 
     @Test
-    void lowHealthRetreatRequiresNearbyDanger() {
+    void lowHealthRetreatDoesNotRequireNearbyDanger() {
         List<TacticalPlan> candidates = List.of(
             capture(),
             retreat()
-        );
-
-        assertEquals(
-            "CAPTURE_CORE",
-            ProvisionalPlanPolicy.chooseCandidate(
-                candidates,
-                null,
-                0.10D,
-                0.25D,
-                false,
-                ignored -> Double.POSITIVE_INFINITY
-            ).orElseThrow().externalId()
         );
 
         assertEquals(
@@ -110,7 +95,6 @@ final class ProvisionalPlanPolicyTest {
                 null,
                 0.10D,
                 0.25D,
-                true,
                 ignored -> Double.POSITIVE_INFINITY
             ).orElseThrow().externalId()
         );
@@ -130,7 +114,6 @@ final class ProvisionalPlanPolicyTest {
                 null,
                 1.0D,
                 0.25D,
-                false,
                 ignored -> 3.5D
             ).orElseThrow().externalId()
         );
@@ -150,7 +133,6 @@ final class ProvisionalPlanPolicyTest {
                 null,
                 1.0D,
                 0.25D,
-                false,
                 ignored -> 6.0D
             ).orElseThrow().externalId()
         );

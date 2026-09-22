@@ -29,15 +29,27 @@ public final class ScriptedJevClient implements JevClient {
                 );
             })
             .toList();
+        List<AllySnapshot> supportCandidates =
+            snapshot.allies()
+                .stream()
+                .filter(AllySnapshot::alive)
+                .filter(ally -> request.validPlanIds()
+                    .contains("ASSIST_" + ally.targetId()))
+                .toList();
 
         String intentChoice = chooseIntent(
             request,
-            living
+            living,
+            supportCandidates
         );
 
         ChoiceDecision intent = deterministic(
             intentChoice,
-            availableIntents(request, living)
+            availableIntents(
+                request,
+                living,
+                supportCandidates
+            )
         );
 
         ChoiceDecision target = null;
@@ -64,11 +76,26 @@ public final class ScriptedJevClient implements JevClient {
             );
         }
 
+        ChoiceDecision allyTarget = null;
+
+        if (!supportCandidates.isEmpty()) {
+            String targetId = chooseSupportTarget(
+                supportCandidates
+            );
+            allyTarget = deterministic(
+                targetId,
+                supportCandidates.stream()
+                    .map(AllySnapshot::targetId)
+                    .toList()
+            );
+        }
+
         return CompletableFuture.completedFuture(
             new DecisionResponse(
                 intent,
                 target,
                 pursuit,
+                allyTarget,
                 0L
             )
         );
@@ -76,7 +103,8 @@ public final class ScriptedJevClient implements JevClient {
 
     private String chooseIntent(
         DecisionRequest request,
-        List<EnemySnapshot> living
+        List<EnemySnapshot> living,
+        List<AllySnapshot> supportCandidates
     ) {
         RobotDecisionSnapshot snapshot = request.snapshot();
 
@@ -105,6 +133,20 @@ public final class ScriptedJevClient implements JevClient {
             }
         }
 
+        if (!supportCandidates.isEmpty()
+            && supportCandidates.stream().anyMatch(
+                ally -> ally.underAttack()
+                    || ally.hpRatio() <= 0.4D
+            )) {
+            return "SUPPORT";
+        }
+
+        if (request.validPlanIds().contains("HOLD_POSITION")
+            && snapshot.teamContext().aliveEnemies()
+                > snapshot.teamContext().aliveAllies() + 1) {
+            return "HOLD";
+        }
+
         if (snapshot.core().contested()
             && !living.isEmpty()) {
             return "FIGHT";
@@ -123,7 +165,8 @@ public final class ScriptedJevClient implements JevClient {
 
     private List<String> availableIntents(
         DecisionRequest request,
-        List<EnemySnapshot> living
+        List<EnemySnapshot> living,
+        List<AllySnapshot> supportCandidates
     ) {
         java.util.ArrayList<String> result =
             new java.util.ArrayList<>();
@@ -141,6 +184,14 @@ public final class ScriptedJevClient implements JevClient {
             result.add("RETREAT");
         }
 
+        if (!supportCandidates.isEmpty()) {
+            result.add("SUPPORT");
+        }
+
+        if (request.validPlanIds().contains("HOLD_POSITION")) {
+            result.add("HOLD");
+        }
+
         return List.copyOf(result);
     }
 
@@ -155,6 +206,27 @@ public final class ScriptedJevClient implements JevClient {
                         enemy.distance() == null
                             ? Double.MAX_VALUE
                             : enemy.distance()
+                    )
+            )
+            .orElseThrow()
+            .targetId();
+    }
+
+    private String chooseSupportTarget(
+        List<AllySnapshot> allies
+    ) {
+        return allies.stream()
+            .min(
+                java.util.Comparator
+                    .comparing(AllySnapshot::underAttack)
+                    .reversed()
+                    .thenComparingDouble(
+                        AllySnapshot::hpRatio
+                    )
+                    .thenComparingDouble(ally ->
+                        ally.distance() == null
+                            ? Double.MAX_VALUE
+                            : ally.distance()
                     )
             )
             .orElseThrow()

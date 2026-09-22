@@ -250,6 +250,132 @@ final class TypeSafeJevClientTest {
         assertTrue(questions.has("pursuit_style"));
     }
 
+    @Test
+    void supportQuestionUsesEnrichedAllySnapshot() {
+        DecisionRequest base = request(
+            List.of(
+                "ASSIST_R2",
+                "ASSIST_R3",
+                "HOLD_POSITION",
+                "CAPTURE_CORE",
+                "RETREAT"
+            )
+        );
+
+        AllySnapshot original = base.snapshot()
+            .allies()
+            .getFirst();
+        AllySnapshot r2 = new AllySnapshot(
+            original.ownerUuid(),
+            original.targetId(),
+            original.team(),
+            original.alive(),
+            original.hp(),
+            original.maxHp(),
+            original.hpRatio(),
+            original.distance(),
+            "ENGAGE_B1",
+            "B1",
+            false,
+            true
+        );
+        AllySnapshot r3 = new AllySnapshot(
+            UUID.fromString(
+                "00000000-0000-0000-0000-000000000005"
+            ),
+            "R3",
+            BattleTeam.RED,
+            true,
+            90.0F,
+            100.0F,
+            0.9D,
+            8.0D,
+            "CAPTURE_CORE",
+            null,
+            true,
+            false
+        );
+
+        RobotDecisionSnapshot originalSnapshot =
+            base.snapshot();
+        RobotDecisionSnapshot snapshot =
+            new RobotDecisionSnapshot(
+                originalSnapshot.matchId(),
+                originalSnapshot.round(),
+                originalSnapshot.serverTick(),
+                originalSnapshot.remainingRoundSeconds(),
+                originalSnapshot.self(),
+                originalSnapshot.teamContext(),
+                originalSnapshot.core(),
+                List.of(r2, r3),
+                originalSnapshot.enemies(),
+                originalSnapshot.doctrine(),
+                originalSnapshot.command()
+            );
+        DecisionRequest supportRequest = new DecisionRequest(
+            base.context(),
+            snapshot,
+            base.validPlanIds()
+        );
+
+        JsonObject body = client.buildRequestBody(
+            supportRequest
+        );
+        JsonObject questions = body
+            .getAsJsonObject("questions");
+
+        assertTrue(
+            questions.getAsJsonObject("strategic_intent")
+                .getAsJsonObject("criteria")
+                .has("SUPPORT")
+        );
+        assertTrue(
+            questions.getAsJsonObject("strategic_intent")
+                .getAsJsonObject("criteria")
+                .has("HOLD")
+        );
+        assertTrue(questions.has("ally_target"));
+
+        JsonObject ally = body
+            .getAsJsonObject("state")
+            .getAsJsonArray("allies")
+            .get(0)
+            .getAsJsonObject();
+
+        assertEquals(
+            "ENGAGE_B1",
+            ally.get("current_plan").getAsString()
+        );
+        assertEquals(
+            "B1",
+            ally.get("combat_target").getAsString()
+        );
+        assertFalse(ally.get("inside_core").getAsBoolean());
+        assertTrue(ally.get("under_attack").getAsBoolean());
+    }
+
+    @Test
+    void singleLegalAllyTargetIsNotAskedAsChoice() {
+        JsonObject questions = client
+            .buildRequestBody(
+                request(
+                    List.of(
+                        "ASSIST_R2",
+                        "HOLD_POSITION",
+                        "RETREAT"
+                    )
+                )
+            )
+            .getAsJsonObject("questions");
+
+        assertTrue(
+            questions.getAsJsonObject("strategic_intent")
+                .getAsJsonObject("criteria")
+                .has("SUPPORT")
+        );
+        assertFalse(questions.has("ally_target"));
+    }
+
     private TypeSafeJevClient localClient(int timeoutMs) {
         return new TypeSafeJevClient(
             "test-key",

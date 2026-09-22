@@ -124,6 +124,9 @@ public final class AutoBattleConfigLoader {
             z: 0
             radius: 3.0
 
+          # Circular movement boundary centered on the CORE.
+          radius: 32.0
+
           team-spawns:
             # x = teams face each other from west/east.
             # z = teams face each other from north/south.
@@ -132,6 +135,8 @@ public final class AutoBattleConfigLoader {
             member-spacing: 3.0
             y: 80.0
             swap-sides-each-round: true
+            # Each robot is randomized within this radius of its team lane.
+            random-radius: 4.0
 
           viewer-spawn:
             radius: 24.0
@@ -703,6 +708,13 @@ public final class AutoBattleConfigLoader {
             defaults.coreRadius()
         );
 
+        boolean hasArenaRadius = arena.containsKey("radius");
+        double arenaRadius = doubleValue(
+            arena,
+            "radius",
+            defaults.arenaRadius()
+        );
+
         Map<String, Object> teamSpawns =
             section(arena, "team-spawns");
 
@@ -735,8 +747,27 @@ public final class AutoBattleConfigLoader {
                     "swap-sides-each-round",
                     defaults.teamSpawns()
                         .swapSidesEachRound()
+                ),
+                doubleValue(
+                    teamSpawns,
+                    "random-radius",
+                    defaults.teamSpawns().randomRadius()
                 )
             );
+
+        if (!hasArenaRadius) {
+            arenaRadius = Math.max(arenaRadius, radius);
+            arenaRadius = Math.max(
+                arenaRadius,
+                Math.hypot(
+                    teamSpawnConfig.distanceFromCore()
+                        + teamSpawnConfig.randomRadius(),
+                    (8 - 1) / 2.0D
+                        * teamSpawnConfig.memberSpacing()
+                        + teamSpawnConfig.randomRadius()
+                )
+            );
+        }
 
         Map<String, Object> viewerSpawn =
             section(arena, "viewer-spawn");
@@ -759,6 +790,7 @@ public final class AutoBattleConfigLoader {
             dimension,
             corePos,
             radius,
+            arenaRadius,
             teamSpawnConfig,
             viewerSpawnConfig
         );

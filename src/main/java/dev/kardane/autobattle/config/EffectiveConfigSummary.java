@@ -22,6 +22,8 @@ public final class EffectiveConfigSummary {
             + core.getZ()
             + "), coreRadius="
             + arena.coreRadius()
+            + ", arenaRadius="
+            + arena.arenaRadius()
             + ", teamSpawn={axis="
             + spawns.axis()
             + ", y="
@@ -30,6 +32,8 @@ public final class EffectiveConfigSummary {
             + spawns.distanceFromCore()
             + ", spacing="
             + spawns.memberSpacing()
+            + ", randomRadius="
+            + spawns.randomRadius()
             + ", swap="
             + spawns.swapSidesEachRound()
             + "}, viewer={y="

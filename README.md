@@ -52,7 +52,7 @@ The reload command can be used during any phase. It reloads both YAML files atom
 - tactical movement speeds and leash distances
 - kill/assist/CORE scoring and assist window
 - CORE capture/hold timings
-- dimension, CORE position/radius, symmetric team spawn layout, side swapping, and viewer-ring layout
+- dimension, CORE position/radius, configurable arena radius, randomized team spawn regions, side swapping, and viewer-ring layout
 
 Example:
 
@@ -105,16 +105,22 @@ arena:
     y: 80
     z: 0
     radius: 3.0
+  # Circular robot movement boundary centered on the CORE.
+  radius: 32.0
   team-spawns:
     axis: "x"
     distance-from-core: 18.0
     member-spacing: 3.0
     y: 80.0
     swap-sides-each-round: true
+    # Random spawn offset around each team's lane, in blocks.
+    random-radius: 4.0
   viewer-spawn:
     radius: 24.0
     y: 88.0
 ```
+
+`arena.radius` is the circular boundary used by robot movement, target validity, and retreat planning. `core.radius` remains the separate CORE capture radius. Each robot spawn is randomized within `team-spawns.random-radius` of its team's configured lane; the same resolver is used for round starts and respawns.
 
 The full file is generated with comments and all available options.
 
@@ -153,7 +159,7 @@ Jev decisions remain in:
 logs/autobattle/decisions/<match-id>.jsonl
 ```
 
-The shared match ID makes the two files easy to join during later analysis. Decision-log schema v3 records team/target identity and team context in addition to the decision trigger, request-time and apply-time legal plans, whether the candidate set changed, each decomposed Jev answer with confidence/probabilities, the composed/effective plan, latency, request-time HP/CORE state, positions/distances, and API error information.
+The shared match ID makes the two files easy to join during later analysis. Decision-log schema v4 records team/target identity and team context in addition to the decision trigger, request-time and apply-time legal plans, whether the candidate set changed, each decomposed Jev answer with confidence/probabilities (including the selected ally for `SUPPORT`), the composed/effective plan, latency, request-time HP/CORE state, positions/distances, and API error information.
 
 Participant snapshots preserve both the player-authored Doctrine (`doctrine`) and the canonical Doctrine sent to Jev (`doctrineNormalized`), plus normalization hash/model/status, prompt version, attempt count, latency, HTTP status, and fallback error when applicable.
 
@@ -161,15 +167,20 @@ Participant snapshots preserve both the player-authored Doctrine (`doctrine`) an
 
 Production AutoBattle uses the TypeSafe System One API with the configured model (default: `jev-latest`).
 
-Jev answers three narrow tactical questions in one System One request:
+Jev answers four narrow tactical questions in one System One request; `combat_target`, `pursuit_style`, and `ally_target` are included only when their candidate set requires them:
 
 ```text
-strategic_intent: FIGHT | CONTROL_CORE | RETREAT
+strategic_intent: FIGHT | SUPPORT | HOLD | CONTROL_CORE | RETREAT
 combat_target:    <living enemy target ID, e.g. B3 or R5>
 pursuit_style:    ENGAGE | CHASE
+ally_target:      <living ally target ID when SUPPORT>
 ```
 
-Server code deterministically composes those answers into legal plans such as `ENGAGE_B3`, `CHASE_R5`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Same-team robots are never combat candidates. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
+Server code deterministically composes those answers into legal plans such as `ENGAGE_B3`, `CHASE_R5`, `ASSIST_R2`, `HOLD_POSITION`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Same-team robots are never combat candidates, and ASSIST candidates are limited to living same-team allies. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
+
+When a robot is below the fallback retreat HP threshold, provisional behavior prefers `RETREAT` even when enemies are already far away. After the retreat planner reaches a safe distance, `RobotController` keeps the `RETREAT` plan, stops navigation, and waits for the normal decision interval instead of immediately switching back to `CAPTURE_CORE` or `DEFEND_CORE`.
+
+Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` stops at the current position for up to four seconds, still allowing local self-defense, and then requests a fresh decision. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
 
 ## Doctrine normalization
 
@@ -240,19 +251,24 @@ The Doctrine view command requires permission level 2 because it reveals another
 
 ## Carpet bot test harness
 
-Fabric Carpet is optional at runtime. When it is installed, operators can drive balanced team smoke tests without real clients. The default harness size is 4v4 and the same commands accept a team-size argument up to 8v8:
+Fabric Carpet is optional at runtime. When it is installed, operators can drive balanced team smoke tests without real clients. The default harness size is 4v4 and the same commands accept a team-size argument from 1v1 through 8v8. The argument is the number of bots on each team:
 
 ```text
 /autobattle admin test spawn
 /autobattle admin test setup
 /autobattle admin test status
 
+# 2v2 smoke test
+/autobattle admin test spawn 2
+/autobattle admin test setup 2
+/autobattle admin test verify 2
+
 # Full 8v8 stress setup
 /autobattle admin test spawn 8
 /autobattle admin test setup 8
 ```
 
-The harness supports Carpet fake players `ABot1` through `ABot16`. Join order automatically balances RED/BLUE, players are ready on join, and `setup [teamSize]` explicitly enters Doctrine setup, submits deterministic Doctrine presets, and advances the match to `COUNTDOWN`.
+The harness supports Carpet fake players `ABot1` through `ABot16`. Join order automatically balances RED/BLUE, players are ready on join, and `setup [teamSize]` explicitly enters Doctrine setup, randomly selects three distinct lines from a pool of ten strategy lines for each bot, and advances the match to `COUNTDOWN`. Each bot receives its own random three-line combination; RED/BLUE strategies are not mirrored. Run `cleanup` before switching an existing test match to another team size.
 
 During a round:
 
@@ -301,4 +317,4 @@ MIT
 
 ### Team battle Carpet verification
 
-Use `/autobattle admin test spawn 4`, `/autobattle admin test setup 4`, then `/autobattle admin test verify 4` for 4v4. Repeat with `8` for 8v8. During `ROUND_ACTIVE`, verify also checks robot controller/entity team identity and rejects friendly combat targets.
+Use `/autobattle admin test spawn 2`, `/autobattle admin test setup 2`, then `/autobattle admin test verify 2` for 2v2. Use `4` for 4v4 or `8` for 8v8. During `ROUND_ACTIVE`, verify also checks robot controller/entity team identity and rejects friendly combat targets.

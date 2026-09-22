@@ -59,7 +59,7 @@ public final class DecisionComposer {
         if (intent == null
             || intent.confidence() < minimumConfidence) {
             return new DecisionComposition(
-                currentPlanIds.contains(currentPlanId)
+                containsPlan(currentPlanIds, currentPlanId)
                     ? currentPlanId
                     : null,
                 true,
@@ -80,6 +80,19 @@ public final class DecisionComposer {
                 false,
                 false
             );
+            case "SUPPORT" -> composeSupport(
+                response,
+                currentPlanIds,
+                currentPlanId,
+                minimumConfidence
+            );
+            case "HOLD" -> new DecisionComposition(
+                currentPlanIds.contains("HOLD_POSITION")
+                    ? "HOLD_POSITION"
+                    : null,
+                false,
+                false
+            );
             case "FIGHT" -> composeFight(
                 response,
                 currentPlanIds,
@@ -94,6 +107,72 @@ public final class DecisionComposer {
         };
     }
 
+    private DecisionComposition composeSupport(
+        DecisionResponse response,
+        List<String> currentPlanIds,
+        String currentPlanId,
+        double minimumConfidence
+    ) {
+        ChoiceDecision allyTarget = response.allyTarget();
+
+        if (allyTarget == null) {
+            String soleTarget = currentPlanIds.stream()
+                .filter(planId -> planId.startsWith("ASSIST_"))
+                .findFirst()
+                .orElse(null);
+
+            boolean onlyOneSupportTarget = currentPlanIds
+                .stream()
+                .filter(planId -> planId.startsWith("ASSIST_"))
+                .count() == 1L;
+
+            if (onlyOneSupportTarget) {
+                return new DecisionComposition(
+                    soleTarget,
+                    false,
+                    false
+                );
+            }
+        }
+
+        if (allyTarget == null
+            || allyTarget.confidence() < minimumConfidence) {
+            if (isAssistPlan(currentPlanId)
+                && containsPlan(currentPlanIds, currentPlanId)) {
+                return new DecisionComposition(
+                    currentPlanId,
+                    true,
+                    false
+                );
+            }
+
+            return new DecisionComposition(
+                null,
+                true,
+                false
+            );
+        }
+
+        String choice = allyTarget.choice();
+        String planId = choice.startsWith("ASSIST_")
+            ? choice
+            : "ASSIST_" + choice;
+
+        if (currentPlanIds.contains(planId)) {
+            return new DecisionComposition(
+                planId,
+                false,
+                false
+            );
+        }
+
+        return new DecisionComposition(
+            null,
+            false,
+            true
+        );
+    }
+
     private DecisionComposition composeFight(
         DecisionResponse response,
         List<String> currentPlanIds,
@@ -105,7 +184,7 @@ public final class DecisionComposer {
         if (target == null
             || target.confidence() < minimumConfidence) {
             if (isCombatPlan(currentPlanId)
-                && currentPlanIds.contains(currentPlanId)) {
+                && containsPlan(currentPlanIds, currentPlanId)) {
                 return new DecisionComposition(
                     currentPlanId,
                     true,
@@ -183,9 +262,18 @@ public final class DecisionComposer {
         return null;
     }
 
+    private boolean containsPlan(List<String> planIds, String planId) {
+        return planId != null && planIds.contains(planId);
+    }
+
     private boolean isCombatPlan(String planId) {
         return planId != null
             && (planId.startsWith("ENGAGE_")
                 || planId.startsWith("CHASE_"));
+    }
+
+    private boolean isAssistPlan(String planId) {
+        return planId != null
+            && planId.startsWith("ASSIST_");
     }
 }

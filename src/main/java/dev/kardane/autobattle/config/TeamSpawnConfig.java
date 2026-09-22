@@ -8,8 +8,26 @@ public record TeamSpawnConfig(
     double distanceFromCore,
     double memberSpacing,
     double y,
-    boolean swapSidesEachRound
+    boolean swapSidesEachRound,
+    double randomRadius
 ) {
+    public TeamSpawnConfig(
+        String axis,
+        double distanceFromCore,
+        double memberSpacing,
+        double y,
+        boolean swapSidesEachRound
+    ) {
+        this(
+            axis,
+            distanceFromCore,
+            memberSpacing,
+            y,
+            swapSidesEachRound,
+            0.0D
+        );
+    }
+
     public TeamSpawnConfig {
         axis = Objects.requireNonNull(axis, "axis")
             .trim()
@@ -23,7 +41,9 @@ public record TeamSpawnConfig(
 
         if (distanceFromCore <= 0.0D
             || memberSpacing <= 0.0D
-            || !Double.isFinite(y)) {
+            || !Double.isFinite(y)
+            || !Double.isFinite(randomRadius)
+            || randomRadius < 0.0D) {
             throw new IllegalArgumentException(
                 "Invalid team spawn configuration"
             );

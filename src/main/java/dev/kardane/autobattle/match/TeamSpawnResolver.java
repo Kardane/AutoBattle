@@ -4,6 +4,10 @@ import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.config.SpawnPoint;
 import dev.kardane.autobattle.config.TeamSpawnConfig;
 
+import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.random.RandomGenerator;
+
 public final class TeamSpawnResolver {
     public SpawnPoint resolve(
         ArenaConfig arena,
@@ -11,6 +15,26 @@ public final class TeamSpawnResolver {
         int teamSize,
         int round
     ) {
+        return resolve(
+            arena,
+            slot,
+            teamSize,
+            round,
+            ThreadLocalRandom.current()
+        );
+    }
+
+    public SpawnPoint resolve(
+        ArenaConfig arena,
+        PlayerSlot slot,
+        int teamSize,
+        int round,
+        RandomGenerator random
+    ) {
+        Objects.requireNonNull(arena, "arena");
+        Objects.requireNonNull(slot, "slot");
+        Objects.requireNonNull(random, "random");
+
         if (teamSize < 1 || teamSize > 8) {
             throw new IllegalArgumentException(
                 "teamSize must be between 1 and 8"
@@ -21,9 +45,15 @@ public final class TeamSpawnResolver {
 
         double centerX = arena.corePos().getX() + 0.5D;
         double centerZ = arena.corePos().getZ() + 0.5D;
-        double offset =
+        double forwardOffset = randomOffset(
+            random,
+            config.randomRadius()
+        );
+        double memberOffset =
             (slot.memberIndex() - (teamSize - 1) / 2.0D)
                 * config.memberSpacing();
+        double lateralOffset = memberOffset
+            + randomOffset(random, config.randomRadius());
 
         boolean swapped =
             config.swapSidesEachRound()
@@ -43,12 +73,16 @@ public final class TeamSpawnResolver {
         float yaw;
 
         if (config.axis().equals("x")) {
-            x += side * config.distanceFromCore();
-            z += offset;
+            x += side * (
+                config.distanceFromCore() + forwardOffset
+            );
+            z += lateralOffset;
             yaw = negativeSide ? -90.0F : 90.0F;
         } else {
-            x += offset;
-            z += side * config.distanceFromCore();
+            x += lateralOffset;
+            z += side * (
+                config.distanceFromCore() + forwardOffset
+            );
             yaw = negativeSide ? 0.0F : 180.0F;
         }
 
@@ -59,5 +93,16 @@ public final class TeamSpawnResolver {
             yaw,
             0.0F
         );
+    }
+
+    private double randomOffset(
+        RandomGenerator random,
+        double radius
+    ) {
+        if (radius <= 0.0D) {
+            return 0.0D;
+        }
+
+        return random.nextDouble(-radius, radius);
     }
 }

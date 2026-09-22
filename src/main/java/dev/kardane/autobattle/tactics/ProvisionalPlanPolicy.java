@@ -74,21 +74,11 @@ public final class ProvisionalPlanPolicy {
                 )
                 .orElse(Double.POSITIVE_INFINITY);
 
-        boolean retreatDangerPresent =
-            nearestEnemyDistance(
-                match,
-                controller
-            ) < Math.max(
-                config.robot().engageLeashDistance(),
-                config.robot().retreatDistance()
-            );
-
         return chooseCandidate(
             candidates,
             command,
             hpRatio,
             config.ai().fallbackRetreatHpRatio(),
-            retreatDangerPresent,
             distanceToTarget
         );
     }
@@ -98,7 +88,6 @@ public final class ProvisionalPlanPolicy {
         PlayerCommandType command,
         double hpRatio,
         double dangerousHpRatio,
-        boolean retreatDangerPresent,
         ToDoubleFunction<UUID> distanceToTarget
     ) {
         Objects.requireNonNull(candidates, "candidates");
@@ -127,8 +116,7 @@ public final class ProvisionalPlanPolicy {
             }
         }
 
-        if (hpRatio <= dangerousHpRatio
-            && retreatDangerPresent) {
+        if (hpRatio <= dangerousHpRatio) {
             Optional<TacticalPlan> retreat =
                 byId(candidates, "RETREAT");
 
@@ -216,44 +204,4 @@ public final class ProvisionalPlanPolicy {
             .findFirst();
     }
 
-    private double nearestEnemyDistance(
-        MatchSession match,
-        RobotController self
-    ) {
-        RobotZombie selfEntity = self.entity()
-            .orElse(null);
-
-        if (selfEntity == null) {
-            return Double.POSITIVE_INFINITY;
-        }
-
-        double nearest = Double.POSITIVE_INFINITY;
-
-        for (RobotController controller :
-            match.robots().alive()) {
-            if (controller == self
-                || !self.team().isEnemy(
-                    controller.team()
-                )) {
-                continue;
-            }
-
-            RobotZombie enemy =
-                controller.entity().orElse(null);
-
-            if (enemy == null
-                || !enemy.matchId().equals(
-                    selfEntity.matchId()
-                )) {
-                continue;
-            }
-
-            nearest = Math.min(
-                nearest,
-                selfEntity.distanceTo(enemy)
-            );
-        }
-
-        return nearest;
-    }
 }

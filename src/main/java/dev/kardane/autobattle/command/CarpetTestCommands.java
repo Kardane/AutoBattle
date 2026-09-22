@@ -17,11 +17,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class CarpetTestCommands {
     private static final int DEFAULT_TEST_TEAM_SIZE = 4;
@@ -33,27 +36,22 @@ public final class CarpetTestCommands {
         "ABot13", "ABot14", "ABot15", "ABot16"
     };
 
-    private static final String[][] DOCTRINES = {
-        {
-            "Prioritize capturing CORE when it is neutral.",
-            "Engage nearby enemies when the objective is secure.",
-            "Retreat when health is low."
-        },
-        {
-            "Defend CORE when our side controls it.",
-            "Attack enemies contesting the objective.",
-            "Retreat when health is low."
-        },
-        {
-            "Pressure nearby enemies aggressively.",
-            "Chase vulnerable targets that disengage.",
-            "Capture CORE when no enemy is in immediate range."
-        },
-        {
-            "Stay close to CORE and deny captures.",
-            "Engage enemies that enter the objective area.",
-            "Do not chase enemies too far; prefer ENGAGE over CHASE."
-        }
+    private static final int MIN_TEST_TEAM_SIZE = 1;
+    private static final int MAX_TEST_TEAM_SIZE = BOT_NAMES.length / 2;
+
+    private static final int DOCTRINE_LINE_COUNT = 3;
+
+    private static final String[] DOCTRINE_LINE_PRESETS = {
+        "Capture a neutral CORE before taking unnecessary fights.",
+        "Defend our CORE whenever our team controls it.",
+        "Pressure the nearest enemy immediately.",
+        "Stay close to CORE and deny enemy captures.",
+        "Move with an ally and focus the same enemy.",
+        "Target the weakest visible enemy.",
+        "Advance toward the enemy CORE when our CORE is safe.",
+        "Counterattack enemies that overextend.",
+        "Contest the enemy CORE aggressively.",
+        "Prioritize survival and safe positioning."
     };
 
     private CarpetTestCommands() {
@@ -108,7 +106,10 @@ public final class CarpetTestCommands {
                                         .then(
                                             Commands.argument(
                                                 "teamSize",
-                                                IntegerArgumentType.integer(1, 8)
+                                                IntegerArgumentType.integer(
+                                                    MIN_TEST_TEAM_SIZE,
+                                                    MAX_TEST_TEAM_SIZE
+                                                )
                                             )
                                             .executes(context ->
                                                 spawnBots(
@@ -136,7 +137,10 @@ public final class CarpetTestCommands {
                                         .then(
                                             Commands.argument(
                                                 "teamSize",
-                                                IntegerArgumentType.integer(1, 8)
+                                                IntegerArgumentType.integer(
+                                                    MIN_TEST_TEAM_SIZE,
+                                                    MAX_TEST_TEAM_SIZE
+                                                )
                                             )
                                             .executes(context ->
                                                 setupBots(
@@ -215,7 +219,10 @@ public final class CarpetTestCommands {
                                         .then(
                                             Commands.argument(
                                                 "teamSize",
-                                                IntegerArgumentType.integer(1, 8)
+                                                IntegerArgumentType.integer(
+                                                    MIN_TEST_TEAM_SIZE,
+                                                    MAX_TEST_TEAM_SIZE
+                                                )
                                             )
                                             .executes(context ->
                                                 verifyTeamBattle(
@@ -472,17 +479,18 @@ public final class CarpetTestCommands {
                 continue;
             }
 
-            String[] doctrine =
-                DOCTRINES[index % DOCTRINES.length];
+            List<String> doctrine = randomizedDoctrineLines(
+                ThreadLocalRandom.current()
+            );
 
             CompletableFuture<DoctrineEditResult> future =
                 doctrineService.submitInitialAsync(
                     source.getServer(),
                     matchManager.session(),
                     player,
-                    doctrine[0],
-                    doctrine[1],
-                    doctrine[2]
+                    doctrine.get(0),
+                    doctrine.get(1),
+                    doctrine.get(2)
                 );
 
             if (future.isDone()) {
@@ -579,6 +587,32 @@ public final class CarpetTestCommands {
         );
 
         return 1;
+    }
+
+    static List<String> randomizedDoctrineLines(
+        Random random
+    ) {
+        Objects.requireNonNull(random, "random");
+
+        if (DOCTRINE_LINE_PRESETS.length < DOCTRINE_LINE_COUNT) {
+            throw new IllegalArgumentException(
+                "at least three doctrine line presets are required"
+            );
+        }
+
+        List<String> lines = new ArrayList<>(
+            List.of(DOCTRINE_LINE_PRESETS)
+        );
+
+        Collections.shuffle(lines, random);
+
+        return List.copyOf(
+            lines.subList(0, DOCTRINE_LINE_COUNT)
+        );
+    }
+
+    static int doctrineLinePresetCount() {
+        return DOCTRINE_LINE_PRESETS.length;
     }
 
     private static int reviewBots(

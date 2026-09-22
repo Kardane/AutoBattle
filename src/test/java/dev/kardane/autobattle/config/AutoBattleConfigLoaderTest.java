@@ -14,6 +14,7 @@ final class AutoBattleConfigLoaderTest {
 
         Map<String, Object> arena = new LinkedHashMap<>();
         arena.put("dimension", "minecraft:overworld");
+        arena.put("radius", 30.0D);
 
         Map<String, Object> core = new LinkedHashMap<>();
         core.put("x", 0);
@@ -29,6 +30,7 @@ final class AutoBattleConfigLoaderTest {
         teamSpawns.put("member-spacing", 3.0D);
         teamSpawns.put("y", -59.0D);
         teamSpawns.put("swap-sides-each-round", true);
+        teamSpawns.put("random-radius", 2.5D);
         arena.put("team-spawns", teamSpawns);
 
         Map<String, Object> viewer =
@@ -46,6 +48,14 @@ final class AutoBattleConfigLoaderTest {
         assertEquals(
             -59.0D,
             parsed.arena().teamSpawns().y()
+        );
+        assertEquals(
+            30.0D,
+            parsed.arena().arenaRadius()
+        );
+        assertEquals(
+            2.5D,
+            parsed.arena().teamSpawns().randomRadius()
         );
         assertEquals(
             -53.0D,

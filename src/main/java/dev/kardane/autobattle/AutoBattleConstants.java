@@ -13,6 +13,8 @@ public final class AutoBattleConstants {
     public static final int DECISION_INTERVAL_TICKS = 20 * 3;
     public static final int DECISION_LOCK_TICKS = 20 * 2;
     public static final int DECISION_DEBOUNCE_TICKS = 10;
+    public static final int HOLD_DURATION_TICKS = 20 * 4;
+    public static final int UNDER_ATTACK_WINDOW_TICKS = 20 * 2;
     public static final int JEV_TIMEOUT_MS = 1500;
     public static final double JEV_MIN_CONFIDENCE = 0.35D;
     public static final double JEV_FALLBACK_RETREAT_HP_RATIO = 0.25D;

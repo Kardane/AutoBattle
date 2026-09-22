@@ -30,6 +30,7 @@ public record DecisionLog(
     ChoiceDecision strategicIntent,
     ChoiceDecision combatTarget,
     ChoiceDecision pursuitStyle,
+    ChoiceDecision allyTarget,
     String composedPlanId,
     String effectivePlanId,
     long latencyMs,

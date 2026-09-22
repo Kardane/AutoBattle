@@ -1006,8 +1006,8 @@ public final class JevDecisionService {
 
         logs.append(
             new DecisionLog(
-                3,
-                "TEAM_DECOMPOSED_V3",
+                4,
+                "TEAM_DECOMPOSED_V4",
                 modVersion(),
                 context.trigger(),
                 context.inFlightAtRequest(),
@@ -1034,6 +1034,9 @@ public final class JevDecisionService {
                 response == null
                     ? null
                     : response.pursuitStyle(),
+                response == null
+                    ? null
+                    : response.allyTarget(),
                 composedPlanId,
                 controller.currentPlan()
                     .map(TacticalPlan::externalId)
