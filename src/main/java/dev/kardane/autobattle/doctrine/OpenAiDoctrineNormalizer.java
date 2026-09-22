@@ -1,6 +1,8 @@
 package dev.kardane.autobattle.doctrine;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.benmanes.caffeine.cache.AsyncCache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.openai.client.OpenAIClientAsync;
@@ -17,11 +19,9 @@ import dev.kardane.autobattle.config.DoctrineNormalizerConfig;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -31,6 +31,9 @@ public final class OpenAiDoctrineNormalizer
         "autobattle-doctrine-v3";
 
     private static final int MAX_NORMALIZED_LINE_LENGTH = 240;
+    private static final long CACHE_MAX_ENTRIES = 4_096L;
+    private static final Duration CACHE_EXPIRE_AFTER_ACCESS =
+        Duration.ofHours(6);
 
     private static final String INSTRUCTIONS = """
         You normalize player-authored tactical doctrine for a Minecraft AutoBattle robot.
@@ -62,12 +65,13 @@ public final class OpenAiDoctrineNormalizer
     private final int maxAttempts;
     private final int retryBackoffMs;
 
-    private final Map<NormalizationKey, List<String>> cache =
-        new ConcurrentHashMap<>();
-    private final Map<
+    private final AsyncCache<
         NormalizationKey,
-        CompletableFuture<UpstreamResult>
-    > inFlight = new ConcurrentHashMap<>();
+        UpstreamResult
+    > normalizationCache = Caffeine.newBuilder()
+        .maximumSize(CACHE_MAX_ENTRIES)
+        .expireAfterAccess(CACHE_EXPIRE_AFTER_ACCESS)
+        .buildAsync();
 
     public OpenAiDoctrineNormalizer(
         DoctrineNormalizerConfig config,
@@ -118,19 +122,44 @@ public final class OpenAiDoctrineNormalizer
             PROMPT_VERSION
         );
 
-        List<String> cached = cache.get(key);
+        CompletableFuture<UpstreamResult> existing =
+            normalizationCache.getIfPresent(key);
 
-        if (cached != null) {
-            return CompletableFuture.completedFuture(
-                success(
-                    cached,
+        if (existing != null) {
+            if (existing.isDone()
+                && !existing.isCompletedExceptionally()
+                && !existing.isCancelled()) {
+                UpstreamResult cached =
+                    existing.getNow(null);
+
+                if (cached != null) {
+                    return CompletableFuture.completedFuture(
+                        success(
+                            cached.normalizedLines(),
+                            hash,
+                            DoctrineNormalizationStatus.CACHE_HIT,
+                            0,
+                            0L,
+                            null
+                        )
+                    );
+                }
+            }
+
+            if (!existing.isCompletedExceptionally()
+                && !existing.isCancelled()) {
+                return mapSharedResult(
+                    existing,
+                    source,
                     hash,
-                    DoctrineNormalizationStatus.CACHE_HIT,
-                    0,
-                    0L,
-                    null
-                )
-            );
+                    DoctrineNormalizationStatus
+                        .SHARED_INFLIGHT,
+                    System.nanoTime()
+                );
+            }
+
+            normalizationCache.synchronous()
+                .invalidate(key);
         }
 
         long startedNanos = System.nanoTime();
@@ -142,9 +171,9 @@ public final class OpenAiDoctrineNormalizer
         AtomicBoolean owner = new AtomicBoolean(false);
 
         CompletableFuture<UpstreamResult> shared =
-            inFlight.computeIfAbsent(
+            normalizationCache.get(
                 key,
-                ignored -> {
+                (ignored, executor) -> {
                     owner.set(true);
                     return attempt(
                         source,
@@ -155,25 +184,34 @@ public final class OpenAiDoctrineNormalizer
                 }
             );
 
-        shared.whenComplete((upstream, error) -> {
-            if (error == null && upstream != null) {
-                cache.put(
-                    key,
-                    upstream.normalizedLines()
-                );
-            }
+        DoctrineNormalizationStatus status =
+            owner.get()
+                ? DoctrineNormalizationStatus.NORMALIZED
+                : DoctrineNormalizationStatus.SHARED_INFLIGHT;
 
-            inFlight.remove(key, shared);
-        });
+        return mapSharedResult(
+            shared,
+            source,
+            hash,
+            status,
+            startedNanos
+        );
+    }
 
+    private CompletableFuture<DoctrineNormalizationResult>
+    mapSharedResult(
+        CompletableFuture<UpstreamResult> shared,
+        List<String> source,
+        String hash,
+        DoctrineNormalizationStatus status,
+        long startedNanos
+    ) {
         return shared.handle((upstream, error) -> {
             if (error == null && upstream != null) {
                 return success(
                     upstream.normalizedLines(),
                     hash,
-                    owner.get()
-                        ? DoctrineNormalizationStatus.NORMALIZED
-                        : DoctrineNormalizationStatus.SHARED_INFLIGHT,
+                    status,
                     upstream.attemptCount(),
                     upstream.latencyMs(),
                     upstream.httpStatus()
