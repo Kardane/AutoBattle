@@ -14,6 +14,15 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    // Loom's include configuration is non-transitive by default.
+    // The OpenAI SDK needs its client/core/transport runtime graph
+    // inside the distributable server mod.
+    include {
+        transitive = true
+    }
+}
+
 loom {
     runs {
         server {
@@ -31,6 +40,9 @@ dependencies {
 
     implementation "org.yaml:snakeyaml:2.7"
     include "org.yaml:snakeyaml:2.7"
+
+    implementation "com.openai:openai-java:${project.openai_java_version}"
+    include "com.openai:openai-java:${project.openai_java_version}"
 
     testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"

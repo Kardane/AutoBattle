@@ -1,17 +1,20 @@
 package dev.kardane.autobattle.doctrine;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.openai.client.OpenAIClientAsync;
+import com.openai.client.okhttp.OpenAIOkHttpClientAsync;
+import com.openai.errors.OpenAIIoException;
+import com.openai.errors.OpenAIRetryableException;
+import com.openai.errors.OpenAIServiceException;
+import com.openai.models.Reasoning;
+import com.openai.models.ReasoningEffort;
+import com.openai.models.responses.ResponseCreateParams;
+import com.openai.models.responses.StructuredResponse;
+import com.openai.models.responses.StructuredResponseCreateParams;
 import dev.kardane.autobattle.config.DoctrineNormalizerConfig;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -52,9 +55,7 @@ public final class OpenAiDoctrineNormalizer
         Do not invent a team color, participant ID, or specific enemy/ally that was not present in the source. Do not turn vague language into a numeric threshold. Preserve explicit numeric thresholds exactly. Keep the three rules separate and in the same order. Output only the schema fields.
         """;
 
-    private final HttpClient httpClient;
-    private final String apiKey;
-    private final String baseUrl;
+    private final OpenAIClientAsync client;
     private final String model;
     private final int requestTimeoutMs;
     private final int totalTimeoutMs;
@@ -73,22 +74,25 @@ public final class OpenAiDoctrineNormalizer
         String resolvedApiKey
     ) {
         Objects.requireNonNull(config, "config");
-        this.apiKey = Objects.requireNonNull(
+
+        String apiKey = Objects.requireNonNull(
             resolvedApiKey,
             "resolvedApiKey"
         ).trim();
-        this.baseUrl = stripTrailingSlash(
-            config.baseUrl()
-        );
+
         this.model = config.model();
         this.requestTimeoutMs = config.requestTimeoutMs();
         this.totalTimeoutMs = config.totalTimeoutMs();
         this.maxAttempts = config.maxAttempts();
         this.retryBackoffMs = config.retryBackoffMs();
-        this.httpClient = HttpClient.newBuilder()
-            .connectTimeout(
-                Duration.ofMillis(requestTimeoutMs)
-            )
+
+        this.client = OpenAIOkHttpClientAsync.builder()
+            .apiKey(apiKey)
+            .baseUrl(sdkBaseUrl(config.baseUrl()))
+            .timeout(Duration.ofMillis(requestTimeoutMs))
+            // Keep AutoBattle's current attempt/backoff semantics until
+            // the planned Resilience4j migration. Avoid double retries.
+            .maxRetries(0)
             .build();
     }
 
@@ -201,7 +205,7 @@ public final class OpenAiDoctrineNormalizer
                         + truncate(root.getMessage(), 512),
                 0,
                 latencyMs,
-                null
+                httpStatus(root)
             );
         });
     }
@@ -234,82 +238,28 @@ public final class OpenAiDoctrineNormalizer
             )
         );
 
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + "/v1/responses"))
-            .timeout(Duration.ofMillis(timeoutMs))
-            .header(
-                "Authorization",
-                "Bearer " + apiKey
-            )
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header(
-                "User-Agent",
-                "AutoBattle/0.2"
-            )
-            .POST(
-                HttpRequest.BodyPublishers.ofString(
-                    buildRequest(source).toString()
+        StructuredResponseCreateParams<NormalizedDoctrine>
+            request = buildRequest(source);
+
+        return client.responses()
+            .withOptions(options ->
+                options.timeout(
+                    Duration.ofMillis(timeoutMs)
                 )
             )
-            .build();
-
-        return httpClient.sendAsync(
-                request,
-                HttpResponse.BodyHandlers.ofString()
-            )
+            .create(request)
             .handle((response, error) -> {
-                if (error != null) {
-                    Throwable root = unwrap(error);
-
-                    if (isTransient(root)
-                        && canRetry(
-                            attemptNumber,
-                            deadlineNanos
-                        )) {
-                        return retryAfterDelay(
-                            source,
-                            attemptNumber + 1,
-                            startedNanos,
-                            deadlineNanos
-                        );
-                    }
-
-                    return CompletableFuture
-                        .<UpstreamResult>failedFuture(
-                            failure(
-                                root == null
-                                    ? "OpenAI request failed"
-                                    : root.getClass()
-                                        .getSimpleName()
-                                        + ": "
-                                        + truncate(
-                                            root.getMessage(),
-                                            512
-                                        ),
-                                attemptNumber,
-                                startedNanos,
-                                null,
-                                root
-                            )
-                        );
-                }
-
-                int status = response.statusCode();
-
-                if (status >= 200 && status < 300) {
+                if (error == null && response != null) {
                     try {
                         List<String> normalized =
-                            parseResponse(
-                                response.body()
-                            );
+                            parseResponse(response);
 
                         return CompletableFuture.completedFuture(
                             new UpstreamResult(
                                 normalized,
                                 attemptNumber,
                                 elapsedMs(startedNanos),
-                                status
+                                200
                             )
                         );
                     } catch (RuntimeException exception) {
@@ -323,14 +273,17 @@ public final class OpenAiDoctrineNormalizer
                                         ),
                                     attemptNumber,
                                     startedNanos,
-                                    status,
+                                    200,
                                     exception
                                 )
                             );
                     }
                 }
 
-                if (isRetryableStatus(status)
+                Throwable root = unwrap(error);
+                Integer status = httpStatus(root);
+
+                if (isTransient(root, status)
                     && canRetry(
                         attemptNumber,
                         deadlineNanos
@@ -346,17 +299,19 @@ public final class OpenAiDoctrineNormalizer
                 return CompletableFuture
                     .<UpstreamResult>failedFuture(
                         failure(
-                            "OpenAI HTTP "
-                                + status
-                                + ": "
-                                + truncate(
-                                    response.body(),
-                                    512
-                                ),
+                            root == null
+                                ? "OpenAI request failed"
+                                : root.getClass()
+                                    .getSimpleName()
+                                    + ": "
+                                    + truncate(
+                                        root.getMessage(),
+                                        512
+                                    ),
                             attemptNumber,
                             startedNanos,
                             status,
-                            null
+                            root
                         )
                     );
             })
@@ -416,9 +371,22 @@ public final class OpenAiDoctrineNormalizer
             || status >= 500;
     }
 
-    private boolean isTransient(Throwable error) {
-        return error instanceof HttpTimeoutException
-            || error instanceof IOException;
+    private boolean isTransient(
+        Throwable error,
+        Integer status
+    ) {
+        if (status != null) {
+            return isRetryableStatus(status);
+        }
+
+        return error instanceof OpenAIIoException
+            || error instanceof OpenAIRetryableException;
+    }
+
+    private Integer httpStatus(Throwable error) {
+        return error instanceof OpenAIServiceException service
+            ? service.statusCode()
+            : null;
     }
 
     private DoctrineNormalizationResult success(
@@ -479,22 +447,8 @@ public final class OpenAiDoctrineNormalizer
         );
     }
 
-    private JsonObject buildRequest(
-        List<String> sourceLines
-    ) {
-        JsonObject root = new JsonObject();
-        root.addProperty("model", model);
-        root.addProperty("store", false);
-        root.addProperty("instructions", INSTRUCTIONS);
-        root.addProperty(
-            "max_output_tokens",
-            256
-        );
-
-        JsonObject reasoning = new JsonObject();
-        reasoning.addProperty("effort", "none");
-        root.add("reasoning", reasoning);
-
+    private StructuredResponseCreateParams<NormalizedDoctrine>
+    buildRequest(List<String> sourceLines) {
         JsonObject source = new JsonObject();
         JsonArray rules = new JsonArray();
 
@@ -503,136 +457,54 @@ public final class OpenAiDoctrineNormalizer
         }
 
         source.add("source_rules", rules);
-        root.addProperty(
-            "input",
-            source.toString()
-        );
 
-        JsonObject schema = new JsonObject();
-        schema.addProperty("type", "object");
-        schema.addProperty(
-            "additionalProperties",
-            false
-        );
-
-        JsonObject properties = new JsonObject();
-
-        for (int index = 1; index <= 3; index++) {
-            JsonObject rule = new JsonObject();
-            rule.addProperty("type", "string");
-            properties.add("rule_" + index, rule);
-        }
-
-        schema.add("properties", properties);
-
-        JsonArray required = new JsonArray();
-        required.add("rule_1");
-        required.add("rule_2");
-        required.add("rule_3");
-        schema.add("required", required);
-
-        JsonObject format = new JsonObject();
-        format.addProperty("type", "json_schema");
-        format.addProperty(
-            "name",
-            "autobattle_doctrine"
-        );
-        format.addProperty("strict", true);
-        format.add("schema", schema);
-
-        JsonObject text = new JsonObject();
-        text.add("format", format);
-        root.add("text", text);
-
-        return root;
+        return ResponseCreateParams.builder()
+            .model(model)
+            .store(false)
+            .instructions(INSTRUCTIONS)
+            .maxOutputTokens(256)
+            .reasoning(
+                Reasoning.builder()
+                    .effort(ReasoningEffort.NONE)
+                    .build()
+            )
+            .input(source.toString())
+            .text(NormalizedDoctrine.class)
+            .build();
     }
 
-    private List<String> parseResponse(String body) {
-        JsonObject root = JsonParser
-            .parseString(body)
-            .getAsJsonObject();
-
-        JsonElement output = root.get("output");
-
-        if (output == null || !output.isJsonArray()) {
-            throw new IllegalStateException(
-                "OpenAI response is missing output"
-            );
-        }
-
-        for (JsonElement itemElement :
-            output.getAsJsonArray()) {
-            if (!itemElement.isJsonObject()) {
-                continue;
-            }
-
-            JsonObject item =
-                itemElement.getAsJsonObject();
-
-            if (!"message".equals(
-                stringOrNull(item, "type")
-            )) {
-                continue;
-            }
-
-            JsonElement content = item.get("content");
-
-            if (content == null
-                || !content.isJsonArray()) {
-                continue;
-            }
-
-            for (JsonElement contentElement :
-                content.getAsJsonArray()) {
-                if (!contentElement.isJsonObject()) {
-                    continue;
-                }
-
-                JsonObject part =
-                    contentElement.getAsJsonObject();
-
-                if (!"output_text".equals(
-                    stringOrNull(part, "type")
-                )) {
-                    continue;
-                }
-
-                String text = stringOrNull(
-                    part,
-                    "text"
+    private List<String> parseResponse(
+        StructuredResponse<NormalizedDoctrine> response
+    ) {
+        NormalizedDoctrine normalized =
+            response.output().stream()
+                .flatMap(item ->
+                    item.message().stream()
+                )
+                .flatMap(message ->
+                    message.content().stream()
+                )
+                .flatMap(content ->
+                    content.outputText().stream()
+                )
+                .findFirst()
+                .orElseThrow(() ->
+                    new IllegalStateException(
+                        "OpenAI response contains no structured output_text"
+                    )
                 );
 
-                if (text != null) {
-                    return parseNormalizedRules(text);
-                }
-            }
-        }
-
-        throw new IllegalStateException(
-            "OpenAI response contains no output_text"
-        );
-    }
-
-    private List<String> parseNormalizedRules(
-        String jsonText
-    ) {
-        JsonObject object = JsonParser
-            .parseString(jsonText)
-            .getAsJsonObject();
-
         return List.of(
-            requireRule(object, "rule_1"),
-            requireRule(object, "rule_2"),
-            requireRule(object, "rule_3")
+            requireRule(normalized.rule1, "rule_1"),
+            requireRule(normalized.rule2, "rule_2"),
+            requireRule(normalized.rule3, "rule_3")
         );
     }
 
     private String requireRule(
-        JsonObject object,
+        String value,
         String key
     ) {
-        String value = stringOrNull(object, key);
-
         if (value == null) {
             throw new IllegalStateException(
                 "OpenAI normalization is missing " + key
@@ -685,19 +557,17 @@ public final class OpenAiDoctrineNormalizer
         return current;
     }
 
-    private static String stringOrNull(
-        JsonObject object,
-        String key
-    ) {
-        JsonElement value = object.get(key);
+    private static String sdkBaseUrl(String configuredBaseUrl) {
+        String base = stripTrailingSlash(
+            Objects.requireNonNull(
+                configuredBaseUrl,
+                "configuredBaseUrl"
+            )
+        );
 
-        if (value == null
-            || value.isJsonNull()
-            || !value.isJsonPrimitive()) {
-            return null;
-        }
-
-        return value.getAsString();
+        return base.endsWith("/v1")
+            ? base
+            : base + "/v1";
     }
 
     private static String stripTrailingSlash(
@@ -746,6 +616,17 @@ public final class OpenAiDoctrineNormalizer
                 normalizedLines
             );
         }
+    }
+
+    public static final class NormalizedDoctrine {
+        @JsonProperty("rule_1")
+        public String rule1;
+
+        @JsonProperty("rule_2")
+        public String rule2;
+
+        @JsonProperty("rule_3")
+        public String rule3;
     }
 
     private static final class NormalizationFailure
