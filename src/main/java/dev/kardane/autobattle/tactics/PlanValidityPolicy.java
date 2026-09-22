@@ -40,7 +40,15 @@ public final class PlanValidityPolicy {
 
         if (plan.type() != TacticalPlanType.ENGAGE
             && plan.type() != TacticalPlanType.CHASE) {
-            return PlanValidityResult.validNonTarget();
+            return self.isPlanTemporarilyUnreachable(
+                plan,
+                currentTick
+            )
+                ? PlanValidityResult.invalid(
+                    PlanValidityStatus
+                        .TEMPORARILY_UNREACHABLE
+                )
+                : PlanValidityResult.validNonTarget();
         }
 
         return validateTarget(
