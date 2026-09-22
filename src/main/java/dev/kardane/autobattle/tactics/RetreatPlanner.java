@@ -176,6 +176,7 @@ final class RetreatPlanner {
 
         for (RawCandidate candidate : raw) {
             if (checked >= MAX_PATH_CHECKS
+                && reachable.size() >= 3
                 && !candidate.current()) {
                 continue;
             }
