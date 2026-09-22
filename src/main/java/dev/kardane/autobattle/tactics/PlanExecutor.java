@@ -147,10 +147,38 @@ public final class PlanExecutor {
         long currentTick,
         boolean bypassLock
     ) {
+        return assignPlan(
+            controller,
+            plan,
+            currentTick,
+            bypassLock,
+            PlanSource.AI
+        );
+    }
+
+    public boolean assignPlan(
+        RobotController controller,
+        TacticalPlan plan,
+        long currentTick,
+        boolean bypassLock,
+        PlanSource source
+    ) {
         return controller.applyPlan(
             plan,
             currentTick,
-            bypassLock
+            bypassLock,
+            source
+        );
+    }
+
+    public boolean assignProvisionalPlan(
+        RobotController controller,
+        TacticalPlan plan,
+        long currentTick
+    ) {
+        return controller.applyProvisionalPlan(
+            plan,
+            currentTick
         );
     }
 

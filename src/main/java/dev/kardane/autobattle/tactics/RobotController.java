@@ -49,8 +49,10 @@ public final class RobotController {
 
     private RobotZombie entity;
     private TacticalPlan currentPlan;
+    private PlanSource currentPlanSource;
     private long planStartedTick = -1L;
     private long lastDecisionTick = -1L;
+    private long decisionRetryNotBeforeTick = -1L;
     private boolean decisionPending;
     private long decisionRequestedTick = -1L;
     private boolean urgentRedecisionRequested;
@@ -187,6 +189,15 @@ public final class RobotController {
         return Optional.ofNullable(currentPlan);
     }
 
+    public Optional<PlanSource> currentPlanSource() {
+        return Optional.ofNullable(currentPlanSource);
+    }
+
+    public boolean hasProvisionalPlan() {
+        return currentPlan != null
+            && currentPlanSource == PlanSource.PROVISIONAL;
+    }
+
     public long planStartedTick() {
         return planStartedTick;
     }
@@ -240,6 +251,7 @@ public final class RobotController {
         urgentRedecisionRequested = false;
         decisionGeneration++;
         lastDecisionTick = -1L;
+        decisionRetryNotBeforeTick = -1L;
         redecisionRequested = true;
         redecisionTrigger = DecisionTrigger.RESPAWN;
         registry.reindexEntity(this);
@@ -263,6 +275,7 @@ public final class RobotController {
         urgentRedecisionRequested = false;
         decisionGeneration++;
         lastDecisionTick = -1L;
+        decisionRetryNotBeforeTick = -1L;
         redecisionRequested = true;
         redecisionTrigger = Objects.requireNonNull(
             trigger,
@@ -274,7 +287,12 @@ public final class RobotController {
         TacticalPlan plan,
         long currentTick
     ) {
-        return applyPlan(plan, currentTick, false);
+        return applyPlan(
+            plan,
+            currentTick,
+            false,
+            PlanSource.AI
+        );
     }
 
     public boolean applyPlan(
@@ -282,18 +300,43 @@ public final class RobotController {
         long currentTick,
         boolean bypassLock
     ) {
+        return applyPlan(
+            plan,
+            currentTick,
+            bypassLock,
+            PlanSource.AI
+        );
+    }
+
+    public boolean applyPlan(
+        TacticalPlan plan,
+        long currentTick,
+        boolean bypassLock,
+        PlanSource source
+    ) {
         Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(source, "source");
+
+        boolean replacingProvisional =
+            currentPlanSource == PlanSource.PROVISIONAL;
 
         if (!bypassLock
+            && !replacingProvisional
             && currentPlan != null
             && currentPlan.isLocked(currentTick)) {
             return false;
         }
 
         currentPlan = plan;
+        currentPlanSource = source;
         movementRecovery.reset();
         planStartedTick = currentTick;
-        lastDecisionTick = currentTick;
+
+        if (source != PlanSource.PROVISIONAL) {
+            lastDecisionTick = currentTick;
+            decisionRetryNotBeforeTick = -1L;
+        }
+
         localCombatTargetUuid = plan.targetOwnerUuid();
         retreatPlanDestination = null;
         retreatChoice = null;
@@ -307,8 +350,25 @@ public final class RobotController {
         return true;
     }
 
+    public boolean applyProvisionalPlan(
+        TacticalPlan plan,
+        long currentTick
+    ) {
+        if (currentPlan != null) {
+            return false;
+        }
+
+        return applyPlan(
+            plan,
+            currentTick,
+            true,
+            PlanSource.PROVISIONAL
+        );
+    }
+
     public void clearPlan() {
         currentPlan = null;
+        currentPlanSource = null;
         planStartedTick = -1L;
         localCombatTargetUuid = null;
         retreatPlanDestination = null;
@@ -329,6 +389,7 @@ public final class RobotController {
     ) {
         decisionPending = true;
         decisionRequestedTick = currentTick;
+        decisionRetryNotBeforeTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration = generation;
         redecisionRequested = false;
@@ -339,13 +400,35 @@ public final class RobotController {
         long generation,
         long currentTick
     ) {
+        markDecisionCompleted(
+            generation,
+            currentTick,
+            true
+        );
+    }
+
+    public void markDecisionCompleted(
+        long generation,
+        long currentTick,
+        boolean recordDecisionTick
+    ) {
         if (generation != decisionGeneration) {
             return;
         }
 
         decisionPending = false;
         decisionRequestedTick = -1L;
-        lastDecisionTick = currentTick;
+
+        if (recordDecisionTick) {
+            lastDecisionTick = currentTick;
+        }
+    }
+
+    public void deferDecisionRetryUntil(long tick) {
+        decisionRetryNotBeforeTick = Math.max(
+            decisionRetryNotBeforeTick,
+            tick
+        );
     }
 
     public boolean recoverStalledDecision(
@@ -363,6 +446,7 @@ public final class RobotController {
         decisionGeneration++;
         decisionPending = false;
         decisionRequestedTick = -1L;
+        decisionRetryNotBeforeTick = -1L;
         urgentRedecisionRequested = true;
         redecisionRequested = true;
         redecisionTrigger = DecisionTrigger.STALE_RETRY;
@@ -435,6 +519,11 @@ public final class RobotController {
             return false;
         }
 
+        if (decisionRetryNotBeforeTick >= 0L
+            && currentTick < decisionRetryNotBeforeTick) {
+            return false;
+        }
+
         if (currentPlan == null) {
             return true;
         }
@@ -450,7 +539,8 @@ public final class RobotController {
             currentPlan.lockUntilTick()
         );
 
-        if (currentTick < lockEndTick) {
+        if (currentPlanSource != PlanSource.PROVISIONAL
+            && currentTick < lockEndTick) {
             return false;
         }
 
