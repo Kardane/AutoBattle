@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.jev;
 
+import dev.kardane.autobattle.command.PlayerCommandType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -155,6 +156,75 @@ final class DecisionComposerTest {
 
         assertEquals("ENGAGE_B1", result.planId());
         assertTrue(result.lowConfidence());
+    }
+
+    @Test
+    void attackCommandOverridesStrategicIntent() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.9D),
+                choice("B1", 0.9D),
+                choice("ENGAGE", 0.9D)
+            ),
+            List.of(
+                "ENGAGE_B1",
+                "CHASE_B1",
+                "CAPTURE_CORE",
+                "RETREAT"
+            ),
+            "CAPTURE_CORE",
+            0.35D,
+            PlayerCommandType.ATTACK
+        );
+
+        assertEquals("ENGAGE_B1", result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
+    void captureCommandOverridesStrategicIntent() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("FIGHT", 0.9D),
+                choice("B1", 0.9D),
+                choice("CHASE", 0.9D)
+            ),
+            List.of(
+                "ENGAGE_B1",
+                "CHASE_B1",
+                "CAPTURE_CORE",
+                "RETREAT"
+            ),
+            "ENGAGE_B1",
+            0.35D,
+            PlayerCommandType.CAPTURE
+        );
+
+        assertEquals("CAPTURE_CORE", result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
+    void surviveCommandOverridesStrategicIntent() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("FIGHT", 0.9D),
+                choice("B1", 0.9D),
+                choice("CHASE", 0.9D)
+            ),
+            List.of(
+                "ENGAGE_B1",
+                "CHASE_B1",
+                "DEFEND_CORE",
+                "RETREAT"
+            ),
+            "ENGAGE_B1",
+            0.35D,
+            PlayerCommandType.SURVIVE
+        );
+
+        assertEquals("RETREAT", result.planId());
+        assertFalse(result.lowConfidence());
     }
 
     @Test
