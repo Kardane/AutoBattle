@@ -16,8 +16,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,9 +25,6 @@ public final class RobotController {
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
     private static final double CAPTURE_REACTION_RANGE = 2.0D;
     private static final double PATH_REQUIRED_DISTANCE = 2.0D;
-    private static final int PATH_FAILURE_THRESHOLD = 3;
-    private static final int UNREACHABLE_COOLDOWN_TICKS = 40;
-    private static final double UNREACHABLE_RESET_DISTANCE_SQR = 9.0D;
 
     private final UUID ownerUuid;
     private final BattleTeam team;
@@ -58,8 +53,12 @@ public final class RobotController {
     private long decisionGeneration;
     private UUID localCombatTargetUuid;
     private Vec3 retreatPlanDestination;
-    private final Map<UUID, ApproachFailureState>
-        approachFailures = new HashMap<>();
+    private final TargetReachabilityTracker reachability =
+        new TargetReachabilityTracker(
+            3,
+            40,
+            3.0D
+        );
 
     public RobotController(
         UUID ownerUuid,
@@ -201,7 +200,7 @@ public final class RobotController {
         clearPlan();
         entity = null;
         localCombatTargetUuid = null;
-        approachFailures.clear();
+        reachability.clear();
         decisionPending = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
@@ -222,7 +221,7 @@ public final class RobotController {
 
     private void resetDecisionState(DecisionTrigger trigger) {
         clearPlan();
-        approachFailures.clear();
+        reachability.clear();
         decisionPending = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
@@ -978,30 +977,11 @@ public final class RobotController {
         Vec3 targetPosition,
         long currentTick
     ) {
-        ApproachFailureState state =
-            approachFailures.get(targetOwnerUuid);
-
-        if (state == null) {
-            return false;
-        }
-
-        if (targetPosition.distanceToSqr(
-            state.targetPosition()
-        ) >= UNREACHABLE_RESET_DISTANCE_SQR) {
-            approachFailures.remove(targetOwnerUuid);
-            return false;
-        }
-
-        if (state.excludedUntilTick() < 0L) {
-            return false;
-        }
-
-        if (currentTick >= state.excludedUntilTick()) {
-            approachFailures.remove(targetOwnerUuid);
-            return false;
-        }
-
-        return true;
+        return reachability.isTemporarilyUnreachable(
+            targetOwnerUuid,
+            targetPosition,
+            currentTick
+        );
     }
 
     private void recordApproachAttempt(
@@ -1010,38 +990,11 @@ public final class RobotController {
         boolean success,
         long currentTick
     ) {
-        if (success) {
-            approachFailures.remove(targetOwnerUuid);
-            return;
-        }
-
-        ApproachFailureState previous =
-            approachFailures.get(targetOwnerUuid);
-
-        if (previous != null
-            && targetPosition.distanceToSqr(
-                previous.targetPosition()
-            ) >= UNREACHABLE_RESET_DISTANCE_SQR) {
-            previous = null;
-        }
-
-        int failures = previous == null
-            ? 1
-            : previous.consecutiveFailures() + 1;
-
-        long excludedUntilTick =
-            failures >= PATH_FAILURE_THRESHOLD
-                ? currentTick
-                    + UNREACHABLE_COOLDOWN_TICKS
-                : -1L;
-
-        approachFailures.put(
+        reachability.recordAttempt(
             targetOwnerUuid,
-            new ApproachFailureState(
-                failures,
-                excludedUntilTick,
-                targetPosition
-            )
+            targetPosition,
+            success,
+            currentTick
         );
     }
 
@@ -1076,12 +1029,6 @@ public final class RobotController {
         );
     }
 
-    private record ApproachFailureState(
-        int consecutiveFailures,
-        long excludedUntilTick,
-        Vec3 targetPosition
-    ) {
-    }
 
     private static double calculateArenaRadius(
         ArenaConfig arena,
