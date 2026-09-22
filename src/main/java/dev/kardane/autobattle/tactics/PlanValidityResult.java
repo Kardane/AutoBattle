@@ -33,7 +33,7 @@ public record PlanValidityResult(
         );
     }
 
-    public static PlanValidityResult valid() {
+    public static PlanValidityResult validNonTarget() {
         return valid(null, Double.NaN);
     }
 
