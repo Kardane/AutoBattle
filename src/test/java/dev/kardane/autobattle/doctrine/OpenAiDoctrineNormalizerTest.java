@@ -136,6 +136,52 @@ final class OpenAiDoctrineNormalizerTest {
     }
 
     @Test
+    void failedRequestIsNotCached() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+
+        startServer(exchange -> {
+            int call = calls.incrementAndGet();
+
+            if (call == 1) {
+                respond(
+                    exchange,
+                    400,
+                    "{\"error\":\"bad request\"}"
+                );
+                return;
+            }
+
+            respond(exchange, 200, validResponse());
+        });
+
+        OpenAiDoctrineNormalizer normalizer =
+            normalizer(1, 10);
+
+        List<String> source = List.of(
+            "a",
+            "b",
+            "c"
+        );
+
+        DoctrineNormalizationResult first =
+            normalizer.normalizeAsync(source).join();
+
+        assertEquals(
+            DoctrineNormalizationStatus.FALLBACK_ERROR,
+            first.status()
+        );
+
+        DoctrineNormalizationResult second =
+            normalizer.normalizeAsync(source).join();
+
+        assertEquals(
+            DoctrineNormalizationStatus.NORMALIZED,
+            second.status()
+        );
+        assertEquals(2, calls.get());
+    }
+
+    @Test
     void ordinaryClientErrorDoesNotRetry() throws Exception {
         AtomicInteger calls = new AtomicInteger();
 
