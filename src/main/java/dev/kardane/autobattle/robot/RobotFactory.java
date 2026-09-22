@@ -2,6 +2,7 @@ package dev.kardane.autobattle.robot;
 
 import dev.kardane.autobattle.config.RobotConfig;
 import dev.kardane.autobattle.match.BattleTeam;
+import dev.kardane.autobattle.match.TeamScoreboard;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -68,6 +69,8 @@ public final class RobotFactory {
                 "Failed to add AutoBattle robot to the level."
             );
         }
+
+        TeamScoreboard.addRobot(level, robot.getScoreboardName(), team);
 
         return robot;
     }

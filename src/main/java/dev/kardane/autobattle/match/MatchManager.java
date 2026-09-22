@@ -27,6 +27,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -63,6 +65,7 @@ public final class MatchManager {
     private MatchSession session;
     private final Map<UUID, PendingRobotDamage> pendingDamage =
         new HashMap<>();
+    private final Map<UUID, String> previousScoreboardTeams = new HashMap<>();
 
     private long serverTick;
 
@@ -545,13 +548,22 @@ public final class MatchManager {
             return false;
         }
 
-        session.addPlayer(
-            new PlayerSlot(
-                uuid,
-                assignment.team(),
-                assignment.memberIndex(),
-                assignment.slotIndex()
-            )
+        PlayerSlot slot = new PlayerSlot(
+            uuid,
+            assignment.team(),
+            assignment.memberIndex(),
+            assignment.slotIndex()
+        );
+        slot.setPlayerName(player.getGameProfile().getName());
+        session.addPlayer(slot);
+        Scoreboard scoreboard = ((ServerLevel) player.level()).getServer().getScoreboard();
+        PlayerTeam previous = scoreboard.getPlayersTeam(player.getScoreboardName());
+        if (previous != null) {
+            previousScoreboardTeams.put(uuid, previous.getName());
+        }
+        scoreboard.addPlayerToTeam(
+            player.getScoreboardName(),
+            TeamScoreboard.team(scoreboard, slot.team())
         );
 
         return true;
@@ -577,6 +589,7 @@ public final class MatchManager {
 
         if (session.phase() == MatchPhase.LOBBY) {
             session.removePlayer(uuid);
+            restoreScoreboardTeam(player, server);
             return true;
         }
 
@@ -584,11 +597,14 @@ public final class MatchManager {
             && (session.phase() == MatchPhase.DOCTRINE_SETUP
                 || session.phase() == MatchPhase.COUNTDOWN)) {
             session.removePlayer(uuid);
+            restoreScoreboardTeam(player, server);
             returnToLobbyAfterSetupAbort(server);
             return true;
         }
 
         restorePlayerView(slot, player, server);
+        commandService.restoreItems(player);
+        restoreScoreboardTeam(player, server);
         forfeitParticipant(uuid);
 
         if (activePlayerCount() == 0) {
@@ -832,6 +848,15 @@ public final class MatchManager {
             slot.score().resetRound();
             slot.runtime().resetForRound();
 
+            if (owner != null) {
+                owner.setGameMode(GameType.ADVENTURE);
+                owner.getAbilities().mayfly = true;
+                owner.getAbilities().flying = true;
+                owner.getAbilities().invulnerable = true;
+                owner.onUpdateAbilities();
+                commandService.equipItems(owner);
+            }
+
             RobotZombie robot = robotFactory.spawnRobot(
                 level,
                 session.matchId(),
@@ -893,6 +918,9 @@ public final class MatchManager {
         }
 
         session.roundState().stop();
+        if (server != null) {
+            restoreCommandItems(server);
+        }
         respawnManager.cancelAll(session);
         planExecutor.clear();
         combatTracker.reset();
@@ -941,6 +969,7 @@ public final class MatchManager {
         }
 
         session.roundState().stop();
+        restoreCommandItems(server);
         respawnManager.cancelAll(session);
         planExecutor.clear();
         combatTracker.reset();
@@ -975,6 +1004,8 @@ public final class MatchManager {
         MinecraftServer server
     ) {
         restoreAllPlayerViews(server);
+        restoreCommandItems(server);
+        restoreAllScoreboardTeams(server);
 
         if (session.currentRound() > 0
             && session.phase() != MatchPhase.LOBBY
@@ -1073,6 +1104,7 @@ public final class MatchManager {
         MinecraftServer server
     ) {
         restoreAllPlayerViews(server);
+        restoreCommandItems(server);
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
@@ -1095,6 +1127,8 @@ public final class MatchManager {
         MinecraftServer server
     ) {
         restoreAllPlayerViews(server);
+        restoreCommandItems(server);
+        restoreAllScoreboardTeams(server);
         planExecutor.clear();
         combatTracker.reset();
         pendingDamage.clear();
@@ -1171,6 +1205,40 @@ public final class MatchManager {
                     server
                 );
             }
+        }
+    }
+
+    private void restoreCommandItems(MinecraftServer server) {
+        for (PlayerSlot slot : session.players()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(slot.playerUuid());
+            if (player != null) {
+                commandService.restoreItems(player);
+                if (slot.runtime().viewOrigin().isPresent()) {
+                    player.setGameMode(GameType.SPECTATOR);
+                }
+            }
+        }
+    }
+
+    private void restoreAllScoreboardTeams(MinecraftServer server) {
+        for (PlayerSlot slot : session.players()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(slot.playerUuid());
+            if (player != null) {
+                restoreScoreboardTeam(player, server);
+            }
+        }
+        TeamScoreboard.clear(server);
+        previousScoreboardTeams.clear();
+    }
+
+    private void restoreScoreboardTeam(ServerPlayer player, MinecraftServer server) {
+        Scoreboard scoreboard = server.getScoreboard();
+        String entry = player.getScoreboardName();
+        scoreboard.removePlayerFromTeam(entry);
+        String previousName = previousScoreboardTeams.remove(player.getUUID());
+        PlayerTeam previous = previousName == null ? null : scoreboard.getPlayerTeam(previousName);
+        if (previous != null) {
+            scoreboard.addPlayerToTeam(entry, previous);
         }
     }
 

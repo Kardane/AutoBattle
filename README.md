@@ -14,9 +14,11 @@ Players do not directly control their fighters. Each player teaches one robot wi
 - Melee-only combat
 - Central CORE objective
 - Five rounds
-- One player command per round
+- One player command per round, activated by right-clicking one of three command items or by `/autobattle command attack|capture|survive`
 - TypeSafe Jev chooses high-level tactical plans; Minecraft server code executes them
 - Vanilla clients; no client-side mod required
+
+Participants and their robots share a RED or BLUE scoreboard team, so player names have the same team color. During an active round, participants can fly at the viewing position in Adventure mode and use the attack, capture, or survive item in hotbar slots 1–3. The three items share the existing one-command-per-round limit. The original inventory is restored after the round; the original game mode is restored when leaving or finishing the match. Final personal standings show player names.
 
 ## Configuration
 
@@ -206,6 +208,8 @@ Doctrine Edit Dialog
     ↓
 Next Round
 ```
+
+The review and Doctrine edit dialogs require an explicit action; Esc does not dismiss them. The Doctrine line editor also blocks Esc.
 
 Free-form Doctrine text is submitted with Minecraft's custom dialog action payload rather than being interpolated into a command string. Spaces, quotes, Korean text and other normal input therefore remain data.
 

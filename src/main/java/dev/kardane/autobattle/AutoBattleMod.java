@@ -83,7 +83,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             new PlayerCommandService(
                 config,
                 planExecutor,
-                matchLogs
+                matchLogs,
+                language
             );
 
         JsonlDecisionLogRepository decisionLogs =
@@ -183,7 +184,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
             matchManager,
             planExecutor,
             decisionService,
-            matchLogs
+            matchLogs,
+            commandService
         );
 
         LOGGER.info(

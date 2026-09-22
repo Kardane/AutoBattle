@@ -17,6 +17,7 @@ public final class PlayerSlot {
 
     private Doctrine doctrine;
     private boolean forfeited;
+    private String playerName;
 
     public PlayerSlot(
         UUID playerUuid,
@@ -48,6 +49,14 @@ public final class PlayerSlot {
 
     public UUID playerUuid() {
         return playerUuid;
+    }
+
+    public String playerName() {
+        return playerName != null ? playerName : targetId();
+    }
+
+    public void setPlayerName(String playerName) {
+        this.playerName = Objects.requireNonNull(playerName, "playerName");
     }
 
     public BattleTeam team() {

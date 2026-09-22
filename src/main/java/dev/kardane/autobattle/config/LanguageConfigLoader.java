@@ -81,8 +81,8 @@ public final class LanguageConfigLoader {
           # {red_score}, {blue_score}
           team-draw: "[AutoBattle] DRAW | RED {red_score} - BLUE {blue_score}"
           final-standings-title: "[AutoBattle] Personal contributions"
-          # {rank}, {team}, {id}, {score}
-          final-standing: "{rank}. {team} {id} - {score} contribution points"
+          # {rank}, {team}, {id}, {player}, {score}
+          final-standing: "{rank}. {player} - {score} contribution points"
           # {error}
           doctrine-rejected: "Doctrine rejected: {error}"
           # {version}
@@ -95,6 +95,11 @@ public final class LanguageConfigLoader {
           doctrine-updated: "Doctrine {line} updated to version {version}."
           doctrine-keep-unavailable: "Doctrine keep is unavailable in the current phase."
           doctrine-kept: "Doctrine kept unchanged."
+
+        items:
+          command-attack: "공격 명령 (우클릭, 라운드당 1회)"
+          command-capture: "점령 명령 (우클릭, 라운드당 1회)"
+          command-survive: "생존 명령 (우클릭, 라운드당 1회)"
 
         commands:
           # {message}
@@ -281,8 +286,8 @@ public final class LanguageConfigLoader {
             team-draw: "DRAW"
             # {red_score}, {blue_score}
             team-score: "RED {red_score} • BLUE {blue_score}"
-            # {rank}, {team}, {id}, {score}
-            entry: "{rank}. {team} {id} • {score} contribution pts"
+            # {rank}, {team}, {id}, {player}, {score}
+            entry: "{rank}. {player} • {score} contribution pts"
             close: "결과 닫기"
         """;
 

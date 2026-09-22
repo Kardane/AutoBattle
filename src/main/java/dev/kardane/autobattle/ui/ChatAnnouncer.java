@@ -191,7 +191,9 @@ public final class ChatAnnouncer {
                 "team",
                 slot.team().name(),
                 "id",
-                slot.targetId(),
+                slot.playerName(),
+                "player",
+                slot.playerName(),
                 "score",
                 slot.score().totalScore()
             ).copy().withStyle(slot.color().chatColor());

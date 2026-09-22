@@ -263,7 +263,7 @@ public final class DialogService {
                 language.component("dialogs.round-review.title"),
                 body,
                 List.of(),
-                true,
+                false,
                 DialogAction.WAIT_FOR_RESPONSE
             ),
             List.of(
@@ -355,7 +355,7 @@ public final class DialogService {
                 language.component("dialogs.doctrine-edit.title"),
                 body,
                 List.of(),
-                true,
+                false,
                 DialogAction.WAIT_FOR_RESPONSE
             ),
             buttons,
@@ -488,7 +488,9 @@ public final class DialogService {
                         "team",
                         slot.team().name(),
                         "id",
-                        slot.targetId(),
+                        slot.playerName(),
+                        "player",
+                        slot.playerName(),
                         "score",
                         slot.score().totalScore()
                     )
