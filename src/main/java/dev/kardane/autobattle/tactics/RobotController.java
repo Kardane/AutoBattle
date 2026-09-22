@@ -15,7 +15,9 @@ import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +29,8 @@ public final class RobotController {
     private static final double PATH_REQUIRED_DISTANCE = 2.0D;
     private static final double DETOUR_FORWARD_DISTANCE = 2.0D;
     private static final double DETOUR_LATERAL_DISTANCE = 3.0D;
+    private static final int RETREAT_REEVALUATE_TICKS = 15;
+    private static final int RETREAT_BLOCKED_DESTINATION_TICKS = 40;
 
     private final UUID ownerUuid;
     private final BattleTeam team;
@@ -34,6 +38,7 @@ public final class RobotController {
     private final RobotColor color;
     private final RobotRegistry registry;
     private final PlanValidityPolicy validityPolicy;
+    private final RetreatPlanner retreatPlanner;
     private RobotConfig config;
     private final RobotRuntimeState runtime =
         new RobotRuntimeState();
@@ -55,6 +60,10 @@ public final class RobotController {
     private long decisionGeneration;
     private UUID localCombatTargetUuid;
     private Vec3 retreatPlanDestination;
+    private RetreatPlanner.RetreatChoice retreatChoice;
+    private long nextRetreatEvaluationTick = -1L;
+    private final List<BlockedRetreatDestination>
+        blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
         new TargetReachabilityTracker(
             3,
@@ -106,6 +115,10 @@ public final class RobotController {
             config,
             "config"
         );
+        this.retreatPlanner = new RetreatPlanner(
+            validityPolicy,
+            config
+        );
 
         configureArena(
             Objects.requireNonNull(arena, "arena")
@@ -120,14 +133,18 @@ public final class RobotController {
             config,
             "config"
         );
+        retreatPlanner.reload(config);
         configureArena(
             Objects.requireNonNull(arena, "arena")
         );
 
         if (currentPlan != null
             && currentPlan.type() == TacticalPlanType.RETREAT) {
-            retreatPlanDestination =
-                calculateRetreatDestination().orElse(null);
+            retreatPlanDestination = null;
+            retreatChoice = null;
+            nextRetreatEvaluationTick = 0L;
+            blockedRetreatDestinations.clear();
+            movementRecovery.reset();
         }
     }
 
@@ -278,11 +295,13 @@ public final class RobotController {
         planStartedTick = currentTick;
         lastDecisionTick = currentTick;
         localCombatTargetUuid = plan.targetOwnerUuid();
-        retreatPlanDestination =
+        retreatPlanDestination = null;
+        retreatChoice = null;
+        nextRetreatEvaluationTick =
             plan.type() == TacticalPlanType.RETREAT
-                ? calculateRetreatDestination()
-                    .orElse(null)
-                : null;
+                ? currentTick
+                : -1L;
+        blockedRetreatDestinations.clear();
 
         renderPlanIntent(plan);
         return true;
@@ -293,6 +312,9 @@ public final class RobotController {
         planStartedTick = -1L;
         localCombatTargetUuid = null;
         retreatPlanDestination = null;
+        retreatChoice = null;
+        nextRetreatEvaluationTick = -1L;
+        blockedRetreatDestinations.clear();
         movementRecovery.reset();
 
         if (entity != null && !entity.isRemoved()) {
@@ -475,7 +497,10 @@ public final class RobotController {
                     currentPlan.destination(),
                     currentTick
                 );
-            case RETREAT -> retreat(currentTick);
+            case RETREAT -> retreat(
+                match,
+                currentTick
+            );
         }
     }
 
@@ -654,35 +679,52 @@ public final class RobotController {
         }
     }
 
-    private void retreat(long currentTick) {
+    private void retreat(
+        MatchSession match,
+        long currentTick
+    ) {
         entity.setTarget(null);
+        pruneBlockedRetreatDestinations(currentTick);
 
-        if (retreatPlanDestination == null) {
-            abandonCurrentMovement(
-                null,
-                DecisionTrigger.MOVEMENT_FAILED,
-                PlanValidityStatus.TARGET_MISSING
-            );
+        if (retreatPlanner.sufficientlySafe(
+            match,
+            this
+        )) {
+            completeRetreatSafely();
             return;
         }
 
         boolean arrived =
-            entity.position().distanceToSqr(
-                retreatPlanDestination
-            ) <= square(
-                config.positionReachedDistance()
-            );
+            retreatPlanDestination != null
+                && entity.position().distanceToSqr(
+                    retreatPlanDestination
+                ) <= square(
+                    config.positionReachedDistance()
+                );
 
-        if (arrived) {
-            navigateWithRecovery(
-                retreatPlanDestination,
-                config.retreatSpeed(),
-                true,
-                currentTick
+        boolean shouldReevaluate =
+            retreatChoice == null
+                || currentTick
+                    >= nextRetreatEvaluationTick
+                || arrived;
+
+        if (shouldReevaluate
+            && !refreshRetreatDestination(
+                match,
+                currentTick,
+                arrived
+            )) {
+            suppressRetreatAndRedecide(
+                currentTick,
+                DecisionTrigger.RETREAT_UNAVAILABLE
             );
-            clearPlan();
-            requestRedecision(
-                DecisionTrigger.PLAN_COMPLETED
+            return;
+        }
+
+        if (retreatPlanDestination == null) {
+            suppressRetreatAndRedecide(
+                currentTick,
+                DecisionTrigger.RETREAT_UNAVAILABLE
             );
             return;
         }
@@ -693,53 +735,145 @@ public final class RobotController {
             false,
             currentTick
         )) {
-            suppressCurrentPlanAndRedecide(
+            blockRetreatDestination(
                 retreatPlanDestination,
                 currentTick
             );
+
+            if (!refreshRetreatDestination(
+                match,
+                currentTick,
+                true
+            )) {
+                suppressRetreatAndRedecide(
+                    currentTick,
+                    DecisionTrigger.MOVEMENT_FAILED
+                );
+            }
         }
     }
 
-    private Optional<Vec3> calculateRetreatDestination() {
-        if (entity == null || entity.isRemoved()) {
-            return Optional.empty();
-        }
-
-        Vec3 away = resolveNearestEnemy()
-            .map(threat ->
-                entity.position()
-                    .subtract(threat.position())
-            )
-            .orElseGet(() ->
-                entity.position()
-                    .subtract(arenaCenter)
+    private boolean refreshRetreatDestination(
+        MatchSession match,
+        long currentTick,
+        boolean forceSwitch
+    ) {
+        Optional<RetreatPlanner.RetreatChoice> planned =
+            retreatPlanner.choose(
+                match,
+                this,
+                retreatChoice,
+                activeBlockedRetreatDestinations(
+                    currentTick
+                ),
+                forceSwitch
             );
 
-        Vec3 horizontal = new Vec3(
-            away.x,
-            0.0D,
-            away.z
+        nextRetreatEvaluationTick =
+            currentTick + RETREAT_REEVALUATE_TICKS;
+
+        if (planned.isEmpty()) {
+            return false;
+        }
+
+        RetreatPlanner.RetreatChoice selected =
+            planned.orElseThrow();
+
+        boolean changed =
+            retreatPlanDestination == null
+                || retreatPlanDestination.distanceToSqr(
+                    selected.destination()
+                ) >= 0.25D;
+
+        retreatChoice = selected;
+        retreatPlanDestination =
+            selected.destination();
+
+        if (changed) {
+            movementRecovery.reset();
+            renderIntentLine(
+                retreatPlanDestination
+            );
+
+            AutoBattleMod.LOGGER.debug(
+                "Updated retreat destination owner={} destination={} score={} enemyDistance={} pathEnemyDistance={} edgeMargin={}",
+                ownerUuid,
+                retreatPlanDestination,
+                selected.score(),
+                selected.minimumEnemyDistance(),
+                selected.pathMinimumEnemyDistance(),
+                selected.edgeMargin()
+            );
+        }
+
+        return true;
+    }
+
+    private void completeRetreatSafely() {
+        Vec3 completedDestination =
+            retreatPlanDestination;
+
+        clearPlan();
+        requestRedecision(
+            DecisionTrigger.RETREAT_SAFE
         );
 
-        if (horizontal.lengthSqr() < 1.0E-4D) {
-            horizontal = new Vec3(
-                1.0D,
-                0.0D,
-                0.0D
-            );
-        } else {
-            horizontal = horizontal.normalize();
-        }
+        AutoBattleMod.LOGGER.debug(
+            "Retreat reached safe state owner={} destination={}",
+            ownerUuid,
+            completedDestination
+        );
+    }
 
-        Vec3 destination = entity.position()
-            .add(
-                horizontal.scale(
-                    config.retreatDistance()
-                )
-            );
+    private void suppressRetreatAndRedecide(
+        long currentTick,
+        DecisionTrigger trigger
+    ) {
+        planReachability.exclude(
+            "RETREAT",
+            null,
+            currentTick
+        );
 
-        return Optional.of(
-            clampToArena(destination)
+        abandonCurrentMovement(
+            retreatPlanDestination,
+            trigger,
+            PlanValidityStatus.TEMPORARILY_UNREACHABLE
+        );
+    }
+
+    private void blockRetreatDestination(
+        Vec3 destination,
+        long currentTick
+    ) {
+        blockedRetreatDestinations.add(
+            new BlockedRetreatDestination(
+                destination,
+                currentTick
+                    + RETREAT_BLOCKED_DESTINATION_TICKS
+            )
+        );
+        pruneBlockedRetreatDestinations(currentTick);
+    }
+
+    private List<Vec3> activeBlockedRetreatDestinations(
+        long currentTick
+    ) {
+        pruneBlockedRetreatDestinations(currentTick);
+
+        return blockedRetreatDestinations.stream()
+            .map(
+                BlockedRetreatDestination::destination
+            )
+            .toList();
+    }
+
+    private void pruneBlockedRetreatDestinations(
+        long currentTick
+    ) {
+        blockedRetreatDestinations.removeIf(
+            blocked ->
+                currentTick >= blocked.untilTick()
         );
     }
 
@@ -904,34 +1038,6 @@ public final class RobotController {
             status,
             destination
         );
-    }
-
-    private Optional<RobotZombie> resolveNearestEnemy() {
-        if (entity == null) {
-            return Optional.empty();
-        }
-
-        return registry.alive().stream()
-            .filter(controller -> controller != this)
-            .filter(controller ->
-                team.isEnemy(controller.team())
-            )
-            .flatMap(
-                controller ->
-                    controller.entity().stream()
-            )
-            .filter(target ->
-                target.matchId().equals(entity.matchId())
-            )
-            .filter(target ->
-                insideArena(target.position())
-            )
-            .min(
-                Comparator.comparingDouble(
-                    target ->
-                        entity.distanceToSqr(target)
-                )
-            );
     }
 
     private Optional<RobotZombie> resolveNearestEnemyNear(
@@ -1258,6 +1364,18 @@ public final class RobotController {
         );
     }
 
+
+    private record BlockedRetreatDestination(
+        Vec3 destination,
+        long untilTick
+    ) {
+        BlockedRetreatDestination {
+            Objects.requireNonNull(
+                destination,
+                "destination"
+            );
+        }
+    }
 
     private static double calculateArenaRadius(
         ArenaConfig arena,
