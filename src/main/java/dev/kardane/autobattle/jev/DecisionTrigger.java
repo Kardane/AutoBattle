@@ -7,6 +7,7 @@ public enum DecisionTrigger {
     PLAYER_COMMAND,
     TARGET_INVALIDATED,
     PLAN_COMPLETED,
+    MOVEMENT_FAILED,
     RESPAWN,
     STALE_RETRY,
     OTHER
