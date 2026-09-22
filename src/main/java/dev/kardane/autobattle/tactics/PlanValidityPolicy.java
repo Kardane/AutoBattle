@@ -15,6 +15,7 @@ import java.util.UUID;
 public final class PlanValidityPolicy {
     private RobotConfig robotConfig;
     private Vec3 arenaCenter;
+    private double arenaRadius;
     private double arenaRadiusSqr;
 
     public PlanValidityPolicy(AutoBattleConfig config) {
@@ -192,6 +193,14 @@ public final class PlanValidityPolicy {
         ) <= arenaRadiusSqr;
     }
 
+    Vec3 arenaCenter() {
+        return arenaCenter;
+    }
+
+    double arenaRadius() {
+        return arenaRadius;
+    }
+
     private void configureArena(ArenaConfig arena) {
         BlockPos core = arena.corePos();
 
@@ -201,13 +210,14 @@ public final class PlanValidityPolicy {
             core.getZ() + 0.5D
         );
 
-        double radius = calculateArenaRadius(
+        this.arenaRadius = calculateArenaRadius(
             arena,
             arenaCenter,
             robotConfig.positionReachedDistance()
         );
 
-        this.arenaRadiusSqr = radius * radius;
+        this.arenaRadiusSqr =
+            arenaRadius * arenaRadius;
     }
 
     private static double calculateArenaRadius(
