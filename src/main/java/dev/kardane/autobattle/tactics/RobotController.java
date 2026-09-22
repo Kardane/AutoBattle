@@ -336,12 +336,12 @@ public final class RobotController {
     }
 
     public DecisionTrigger decisionTrigger() {
-        if (lastDecisionTick < 0L) {
-            return DecisionTrigger.INITIAL;
-        }
-
         if (redecisionRequested) {
             return redecisionTrigger;
+        }
+
+        if (lastDecisionTick < 0L) {
+            return DecisionTrigger.INITIAL;
         }
 
         return DecisionTrigger.INTERVAL;
