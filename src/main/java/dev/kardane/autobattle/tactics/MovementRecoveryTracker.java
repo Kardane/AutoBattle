@@ -108,6 +108,11 @@ final class MovementRecoveryTracker {
             ) >= meaningfulMoveDistanceSqr) {
             lastObservedPosition = currentPosition;
             lastMeaningfulMovementTick = currentTick;
+            consecutivePathStartFailures = 0;
+
+            if (activeWaypoint == null) {
+                stage = Stage.DIRECT;
+            }
         }
 
         if (allowedToStop) {
