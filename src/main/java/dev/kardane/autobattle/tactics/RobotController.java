@@ -21,6 +21,7 @@ import java.util.UUID;
 public final class RobotController {
     private static final double INTENT_PARTICLE_SPACING = 0.2D;
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
+    private static final double CAPTURE_REACTION_RANGE = 2.0D;
 
     private final UUID ownerUuid;
     private final BattleTeam team;
@@ -40,6 +41,7 @@ public final class RobotController {
     private long planStartedTick = -1L;
     private long lastDecisionTick = -1L;
     private boolean decisionPending;
+    private boolean urgentRedecisionRequested;
     private boolean redecisionRequested;
     private DecisionTrigger redecisionTrigger =
         DecisionTrigger.INITIAL;
@@ -183,19 +185,51 @@ public final class RobotController {
         entity = null;
         localCombatTargetUuid = null;
         decisionPending = false;
+        urgentRedecisionRequested = false;
         decisionGeneration++;
+        lastDecisionTick = -1L;
         redecisionRequested = true;
         redecisionTrigger = DecisionTrigger.RESPAWN;
         registry.reindexEntity(this);
+    }
+
+    public void resetDecisionStateForRound() {
+        resetDecisionState(DecisionTrigger.INITIAL);
+    }
+
+    public void resetDecisionStateForRespawn() {
+        resetDecisionState(DecisionTrigger.RESPAWN);
+    }
+
+    private void resetDecisionState(DecisionTrigger trigger) {
+        clearPlan();
+        decisionPending = false;
+        urgentRedecisionRequested = false;
+        decisionGeneration++;
+        lastDecisionTick = -1L;
+        redecisionRequested = true;
+        redecisionTrigger = Objects.requireNonNull(
+            trigger,
+            "trigger"
+        );
     }
 
     public boolean applyPlan(
         TacticalPlan plan,
         long currentTick
     ) {
+        return applyPlan(plan, currentTick, false);
+    }
+
+    public boolean applyPlan(
+        TacticalPlan plan,
+        long currentTick,
+        boolean bypassLock
+    ) {
         Objects.requireNonNull(plan, "plan");
 
-        if (currentPlan != null
+        if (!bypassLock
+            && currentPlan != null
             && currentPlan.isLocked(currentTick)) {
             return false;
         }
@@ -228,6 +262,7 @@ public final class RobotController {
 
     public void markDecisionRequested(long generation) {
         decisionPending = true;
+        urgentRedecisionRequested = false;
         decisionGeneration = generation;
         redecisionRequested = false;
         redecisionTrigger = DecisionTrigger.INTERVAL;
@@ -250,6 +285,19 @@ public final class RobotController {
     }
 
     public void requestRedecision(DecisionTrigger trigger) {
+        redecisionRequested = true;
+        redecisionTrigger = Objects.requireNonNull(
+            trigger,
+            "trigger"
+        );
+    }
+
+    public void requestUrgentRedecision(
+        DecisionTrigger trigger
+    ) {
+        decisionGeneration++;
+        decisionPending = false;
+        urgentRedecisionRequested = true;
         redecisionRequested = true;
         redecisionTrigger = Objects.requireNonNull(
             trigger,
@@ -285,18 +333,26 @@ public final class RobotController {
         int lockTicks,
         int debounceTicks
     ) {
-        if (!alive() || decisionPending) {
+        if (!alive()) {
             return false;
+        }
+
+        if (urgentRedecisionRequested) {
+            return !decisionPending;
+        }
+
+        if (decisionPending) {
+            return false;
+        }
+
+        if (currentPlan == null) {
+            return true;
         }
 
         if (lastDecisionTick >= 0L
             && currentTick - lastDecisionTick
                 < debounceTicks) {
             return false;
-        }
-
-        if (currentPlan == null) {
-            return true;
         }
 
         long lockEndTick = Math.max(
@@ -334,12 +390,8 @@ public final class RobotController {
             case CHASE -> chase(
                 config.chaseLeashDistance()
             );
-            case CAPTURE -> moveToPosition(
-                currentPlan.destination(),
-                config.captureSpeed(),
-                square(config.positionReachedDistance()),
-                false
-            );
+            case CAPTURE ->
+                capture(currentPlan.destination());
             case DEFEND ->
                 defend(currentPlan.destination());
             case RETREAT -> retreat();
@@ -380,6 +432,40 @@ public final class RobotController {
                 );
             },
             this::invalidateCurrentTarget
+        );
+    }
+
+    private void capture(Vec3 destination) {
+        Vec3 boundedDestination =
+            clampToArena(destination);
+
+        Optional<RobotZombie> nearbyThreat =
+            resolveNearestEnemyNear(
+                entity.position(),
+                CAPTURE_REACTION_RANGE
+            );
+
+        if (nearbyThreat.isPresent()) {
+            RobotZombie target = nearbyThreat.orElseThrow();
+            localCombatTargetUuid = target.ownerUuid();
+            entity.setTarget(target);
+        } else {
+            localCombatTargetUuid = null;
+            entity.setTarget(null);
+        }
+
+        if (entity.position().distanceToSqr(
+            boundedDestination
+        ) <= square(config.positionReachedDistance())) {
+            entity.getNavigation().stop();
+            return;
+        }
+
+        entity.getNavigation().moveTo(
+            boundedDestination.x,
+            boundedDestination.y,
+            boundedDestination.z,
+            config.captureSpeed()
         );
     }
 
