@@ -3,6 +3,7 @@ package dev.kardane.autobattle.tactics;
 import dev.kardane.autobattle.config.ArenaConfig;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.config.RobotConfig;
+import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.robot.RobotZombie;
 
@@ -13,6 +14,7 @@ import java.util.UUID;
 
 public final class PlanExecutor {
     private final RobotRegistry registry;
+    private final PlanValidityPolicy validityPolicy;
     private RobotConfig robotConfig;
     private ArenaConfig arenaConfig;
 
@@ -23,6 +25,9 @@ public final class PlanExecutor {
         this.registry = Objects.requireNonNull(
             registry,
             "registry"
+        );
+        this.validityPolicy = new PlanValidityPolicy(
+            Objects.requireNonNull(config, "config")
         );
 
         reloadConfig(
@@ -38,6 +43,7 @@ public final class PlanExecutor {
 
         this.robotConfig = config.robot();
         this.arenaConfig = config.arena();
+        this.validityPolicy.reload(config);
 
         for (RobotController controller : registry.all()) {
             controller.reloadConfig(
@@ -60,7 +66,8 @@ public final class PlanExecutor {
                     robot.targetId(),
                     registry,
                     robotConfig,
-                    arenaConfig
+                    arenaConfig,
+                    validityPolicy
                 );
 
                 registry.register(created);
@@ -110,6 +117,10 @@ public final class PlanExecutor {
         return registry.all();
     }
 
+    public PlanValidityPolicy validityPolicy() {
+        return validityPolicy;
+    }
+
     public boolean assignPlan(
         RobotZombie robot,
         TacticalPlan plan,
@@ -143,9 +154,12 @@ public final class PlanExecutor {
         );
     }
 
-    public void tick(long currentTick) {
+    public void tick(
+        MatchSession match,
+        long currentTick
+    ) {
         for (RobotController controller : registry.all()) {
-            controller.tick(currentTick);
+            controller.tick(match, currentTick);
         }
     }
 
