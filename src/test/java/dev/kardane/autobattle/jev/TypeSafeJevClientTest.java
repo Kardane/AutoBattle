@@ -1,18 +1,28 @@
 package dev.kardane.autobattle.jev;
 
 import com.google.gson.JsonObject;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import dev.kardane.autobattle.doctrine.Doctrine;
 import dev.kardane.autobattle.doctrine.DoctrineNormalizationStatus;
 import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.robot.RobotColor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 final class TypeSafeJevClientTest {
+    private HttpServer server;
+
     private final TypeSafeJevClient client =
         new TypeSafeJevClient(
             "test-key",
@@ -20,6 +30,96 @@ final class TypeSafeJevClientTest {
             "test-model",
             1500
         );
+
+    @AfterEach
+    void stopServer() {
+        if (server != null) {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void transientFailuresOpenCircuitAndShortCircuitLaterCalls()
+        throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+
+        startServer(exchange -> {
+            calls.incrementAndGet();
+            respond(
+                exchange,
+                503,
+                "{\"error\":\"unavailable\"}"
+            );
+        });
+
+        TypeSafeJevClient resilient =
+            localClient(500);
+
+        DecisionRequest request = request(
+            List.of(
+                "CAPTURE_CORE",
+                "RETREAT"
+            )
+        );
+
+        for (int index = 0; index < 8; index++) {
+            assertThrows(
+                CompletionException.class,
+                () -> resilient.decide(request).join()
+            );
+        }
+
+        assertEquals(8, calls.get());
+
+        assertThrows(
+            CompletionException.class,
+            () -> resilient.decide(request).join()
+        );
+
+        assertEquals(
+            8,
+            calls.get(),
+            "open circuit must not call upstream"
+        );
+    }
+
+    @Test
+    void ordinaryClientErrorsDoNotOpenCircuit()
+        throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+
+        startServer(exchange -> {
+            calls.incrementAndGet();
+            respond(
+                exchange,
+                400,
+                "{\"error\":\"bad request\"}"
+            );
+        });
+
+        TypeSafeJevClient resilient =
+            localClient(500);
+
+        DecisionRequest request = request(
+            List.of(
+                "CAPTURE_CORE",
+                "RETREAT"
+            )
+        );
+
+        for (int index = 0; index < 10; index++) {
+            assertThrows(
+                CompletionException.class,
+                () -> resilient.decide(request).join()
+            );
+        }
+
+        assertEquals(
+            10,
+            calls.get(),
+            "HTTP 400 must remain a per-request failure"
+        );
+    }
 
     @Test
     void requestUsesTeamAwareDecomposedState() {
@@ -148,6 +248,52 @@ final class TypeSafeJevClientTest {
 
         assertFalse(questions.has("combat_target"));
         assertTrue(questions.has("pursuit_style"));
+    }
+
+    private TypeSafeJevClient localClient(int timeoutMs) {
+        return new TypeSafeJevClient(
+            "test-key",
+            "http://127.0.0.1:"
+                + server.getAddress().getPort(),
+            "test-model",
+            timeoutMs
+        );
+    }
+
+    private void startServer(
+        com.sun.net.httpserver.HttpHandler handler
+    ) throws IOException {
+        server = HttpServer.create(
+            new InetSocketAddress(
+                "127.0.0.1",
+                0
+            ),
+            0
+        );
+        server.createContext(
+            "/v1/systemone",
+            handler
+        );
+        server.start();
+    }
+
+    private void respond(
+        HttpExchange exchange,
+        int status,
+        String body
+    ) throws IOException {
+        byte[] bytes = body.getBytes(
+            StandardCharsets.UTF_8
+        );
+
+        exchange.sendResponseHeaders(
+            status,
+            bytes.length
+        );
+
+        try (var output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
     }
 
     private DecisionRequest request(

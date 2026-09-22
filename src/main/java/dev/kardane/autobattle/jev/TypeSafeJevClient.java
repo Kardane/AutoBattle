@@ -6,7 +6,17 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.kardane.autobattle.doctrine.Doctrine;
 import dev.kardane.autobattle.match.BattleTeam;
+import dev.kardane.autobattle.resilience.ApiResilienceScheduler;
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadConfig;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.timelimiter.TimeLimiter;
+import io.github.resilience4j.timelimiter.TimeLimiterConfig;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -17,6 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 public final class TypeSafeJevClient implements JevClient {
     public static final String DEFAULT_BASE_URL =
@@ -32,11 +46,21 @@ public final class TypeSafeJevClient implements JevClient {
     private static final String PURSUIT_STYLE =
         "pursuit_style";
 
+    private static final int MAX_CONCURRENT_REQUESTS = 16;
+    private static final int CIRCUIT_WINDOW_SIZE = 12;
+    private static final int CIRCUIT_MINIMUM_CALLS = 8;
+    private static final float CIRCUIT_FAILURE_RATE = 50.0F;
+    private static final Duration CIRCUIT_OPEN_DURATION =
+        Duration.ofSeconds(5);
+
     private final HttpClient httpClient;
     private final String apiKey;
     private final String baseUrl;
     private final String model;
     private final int timeoutMs;
+    private final Bulkhead bulkhead;
+    private final TimeLimiter timeLimiter;
+    private final CircuitBreaker circuitBreaker;
 
     public TypeSafeJevClient(
         String apiKey,
@@ -60,6 +84,58 @@ public final class TypeSafeJevClient implements JevClient {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(timeoutMs))
             .build();
+
+        this.bulkhead = Bulkhead.of(
+            "typesafe-jev",
+            BulkheadConfig.custom()
+                .maxConcurrentCalls(
+                    MAX_CONCURRENT_REQUESTS
+                )
+                .maxWaitDuration(Duration.ZERO)
+                .writableStackTraceEnabled(false)
+                .build()
+        );
+
+        this.timeLimiter = TimeLimiter.of(
+            "typesafe-jev",
+            TimeLimiterConfig.custom()
+                .timeoutDuration(
+                    Duration.ofMillis(timeoutMs)
+                )
+                .cancelRunningFuture(false)
+                .build()
+        );
+
+        this.circuitBreaker = CircuitBreaker.of(
+            "typesafe-jev",
+            CircuitBreakerConfig.custom()
+                .slidingWindowType(
+                    CircuitBreakerConfig
+                        .SlidingWindowType.COUNT_BASED
+                )
+                .slidingWindowSize(CIRCUIT_WINDOW_SIZE)
+                .minimumNumberOfCalls(
+                    CIRCUIT_MINIMUM_CALLS
+                )
+                .failureRateThreshold(
+                    CIRCUIT_FAILURE_RATE
+                )
+                .waitDurationInOpenState(
+                    CIRCUIT_OPEN_DURATION
+                )
+                .permittedNumberOfCallsInHalfOpenState(2)
+                .automaticTransitionFromOpenToHalfOpenEnabled(
+                    true
+                )
+                .recordException(
+                    this::recordCircuitFailure
+                )
+                .ignoreExceptions(
+                    BulkheadFullException.class
+                )
+                .writableStackTraceEnabled(false)
+                .build()
+        );
     }
 
     @Override
@@ -69,6 +145,52 @@ public final class TypeSafeJevClient implements JevClient {
         Objects.requireNonNull(request, "request");
 
         long startedNanos = System.nanoTime();
+
+        Supplier<CompletionStage<DecisionResponse>> call =
+            () -> sendRequest(
+                request,
+                startedNanos
+            );
+
+        Supplier<CompletionStage<DecisionResponse>> isolated =
+            Bulkhead.decorateCompletionStage(
+                bulkhead,
+                call
+            );
+
+        Supplier<CompletionStage<DecisionResponse>> timed =
+            TimeLimiter.decorateCompletionStage(
+                timeLimiter,
+                ApiResilienceScheduler.shared(),
+                isolated
+            );
+
+        Supplier<CompletionStage<DecisionResponse>> guarded =
+            CircuitBreaker.decorateCompletionStage(
+                circuitBreaker,
+                timed
+            );
+
+        return guarded.get()
+            .toCompletableFuture()
+            .handle((result, error) -> {
+                if (error == null) {
+                    return CompletableFuture
+                        .completedFuture(result);
+                }
+
+                return CompletableFuture
+                    .<DecisionResponse>failedFuture(
+                        asJevRequestException(error)
+                    );
+            })
+            .thenCompose(future -> future);
+    }
+
+    private CompletableFuture<DecisionResponse> sendRequest(
+        DecisionRequest request,
+        long startedNanos
+    ) {
         String body = buildRequestBody(request).toString();
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
@@ -118,6 +240,82 @@ public final class TypeSafeJevClient implements JevClient {
                     );
                 }
             });
+    }
+
+    private boolean recordCircuitFailure(Throwable error) {
+        Throwable root = unwrap(error);
+
+        if (root instanceof BulkheadFullException) {
+            return false;
+        }
+
+        if (root instanceof JevRequestException requestError) {
+            Integer status = requestError.httpStatus();
+
+            if (status == null) {
+                return true;
+            }
+
+            if (status >= 200 && status < 300) {
+                return true;
+            }
+
+            return status == 408
+                || status == 429
+                || status >= 500;
+        }
+
+        return root instanceof TimeoutException
+            || root instanceof IOException
+            || !(root instanceof CallNotPermittedException);
+    }
+
+    private JevRequestException asJevRequestException(
+        Throwable error
+    ) {
+        Throwable root = unwrap(error);
+
+        if (root instanceof JevRequestException requestError) {
+            return requestError;
+        }
+
+        String message;
+
+        if (root instanceof CallNotPermittedException) {
+            message =
+                "TypeSafe circuit breaker is open";
+        } else if (root instanceof BulkheadFullException) {
+            message =
+                "TypeSafe request bulkhead is full";
+        } else if (root instanceof TimeoutException) {
+            message =
+                "TypeSafe request exceeded "
+                    + timeoutMs
+                    + "ms";
+        } else {
+            message =
+                "TypeSafe request failed: "
+                    + root.getClass().getSimpleName()
+                    + ": "
+                    + truncate(root.getMessage(), 512);
+        }
+
+        return new JevRequestException(
+            message,
+            null,
+            root
+        );
+    }
+
+    private Throwable unwrap(Throwable error) {
+        Throwable current = error;
+
+        while (current instanceof CompletionException
+            && current.getCause() != null) {
+            current = current.getCause();
+        }
+
+        return current;
     }
 
     JsonObject buildRequestBody(DecisionRequest request) {
