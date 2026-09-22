@@ -101,30 +101,42 @@ public final class ValidPlanFactory {
             .ownerTeam()
             .orElse(null);
 
-        if (self.team() == coreOwner) {
-            plans.add(
-                TacticalPlan.defend(
+        TacticalPlan objective =
+            self.team() == coreOwner
+                ? TacticalPlan.defend(
                     coreCenter(match),
                     currentTick,
                     lockTicks
                 )
-            );
-        } else {
-            plans.add(
-                TacticalPlan.capture(
+                : TacticalPlan.capture(
                     coreCenter(match),
                     currentTick,
                     lockTicks
-                )
-            );
+                );
+
+        if (validityPolicy.validate(
+            match,
+            self,
+            objective,
+            currentTick
+        ).valid()) {
+            plans.add(objective);
         }
 
-        plans.add(
+        TacticalPlan retreat =
             TacticalPlan.retreat(
                 currentTick,
                 lockTicks
-            )
-        );
+            );
+
+        if (validityPolicy.validate(
+            match,
+            self,
+            retreat,
+            currentTick
+        ).valid()) {
+            plans.add(retreat);
+        }
 
         return List.copyOf(plans);
     }
