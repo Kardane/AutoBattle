@@ -93,6 +93,30 @@ final class TargetReachabilityTracker {
         );
     }
 
+    void excludeNow(
+        UUID targetOwnerUuid,
+        Vec3 targetPosition,
+        long currentTick
+    ) {
+        Objects.requireNonNull(
+            targetOwnerUuid,
+            "targetOwnerUuid"
+        );
+        Objects.requireNonNull(
+            targetPosition,
+            "targetPosition"
+        );
+
+        failures.put(
+            targetOwnerUuid,
+            new FailureState(
+                failureThreshold,
+                currentTick + cooldownTicks,
+                targetPosition
+            )
+        );
+    }
+
     boolean isTemporarilyUnreachable(
         UUID targetOwnerUuid,
         Vec3 targetPosition,
