@@ -47,6 +47,15 @@ dependencies {
     implementation "com.github.ben-manes.caffeine:caffeine:${project.caffeine_version}"
     include "com.github.ben-manes.caffeine:caffeine:${project.caffeine_version}"
 
+    implementation "io.github.resilience4j:resilience4j-retry:${project.resilience4j_version}"
+    include "io.github.resilience4j:resilience4j-retry:${project.resilience4j_version}"
+    implementation "io.github.resilience4j:resilience4j-timelimiter:${project.resilience4j_version}"
+    include "io.github.resilience4j:resilience4j-timelimiter:${project.resilience4j_version}"
+    implementation "io.github.resilience4j:resilience4j-circuitbreaker:${project.resilience4j_version}"
+    include "io.github.resilience4j:resilience4j-circuitbreaker:${project.resilience4j_version}"
+    implementation "io.github.resilience4j:resilience4j-bulkhead:${project.resilience4j_version}"
+    include "io.github.resilience4j:resilience4j-bulkhead:${project.resilience4j_version}"
+
     testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
 }
