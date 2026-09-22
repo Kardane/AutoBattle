@@ -40,7 +40,7 @@ public final class PlanValidityPolicy {
 
         if (plan.type() != TacticalPlanType.ENGAGE
             && plan.type() != TacticalPlanType.CHASE) {
-            return PlanValidityResult.valid();
+            return PlanValidityResult.validNonTarget();
         }
 
         return validateTarget(
