@@ -244,22 +244,17 @@ final class RetreatPlanner {
             .findFirst()
             .orElse(null);
 
-        if (current == null || current.risky()) {
-            return Optional.of(best);
-        }
-
         if (best.destination().distanceToSqr(
             current.destination()
         ) < 0.25D) {
             return Optional.of(current);
         }
 
-        if (best.score()
-            >= current.score() + SWITCH_SCORE_MARGIN) {
-            return Optional.of(best);
-        }
-
-        return Optional.of(current);
+        return Optional.of(
+            shouldSwitch(current, best)
+                ? best
+                : current
+        );
     }
 
     boolean sufficientlySafe(
@@ -341,6 +336,10 @@ final class RetreatPlanner {
             selfPosition.distanceTo(candidate);
         double verticalCost =
             Math.abs(candidate.y - selfPosition.y);
+
+        if (verticalCost > 3.0D) {
+            return;
+        }
 
         double allySupport = Double.isFinite(
             nearestAllyDistance
@@ -542,6 +541,18 @@ final class RetreatPlanner {
         }
 
         return result;
+    }
+
+    static boolean shouldSwitch(
+        RetreatChoice current,
+        RetreatChoice best
+    ) {
+        Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(best, "best");
+
+        return current.risky()
+            || best.score()
+                >= current.score() + SWITCH_SCORE_MARGIN;
     }
 
     static double geometryScore(
