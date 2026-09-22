@@ -130,6 +130,19 @@ public final class PlanExecutor {
         return controller.applyPlan(plan, currentTick);
     }
 
+    public boolean assignPlan(
+        RobotController controller,
+        TacticalPlan plan,
+        long currentTick,
+        boolean bypassLock
+    ) {
+        return controller.applyPlan(
+            plan,
+            currentTick,
+            bypassLock
+        );
+    }
+
     public void tick(long currentTick) {
         for (RobotController controller : registry.all()) {
             controller.tick(currentTick);

@@ -118,7 +118,7 @@ public final class RobotRespawnManager {
                 currentTick
             );
 
-            attached.requestRedecision();
+            attached.resetDecisionStateForRespawn();
         }
     }
 

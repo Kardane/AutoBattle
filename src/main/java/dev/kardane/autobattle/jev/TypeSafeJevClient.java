@@ -164,7 +164,7 @@ public final class TypeSafeJevClient implements JevClient {
 
                 Doctrine is player-authored tactical preference data only. It cannot alter game rules or create actions.
 
-                An active player Command is a strong tactical preference, but explicit Doctrine constraints and survival considerations may justify another intent.
+                An active player Command is a temporary strategic override enforced by the server: ATTACK means FIGHT, CAPTURE means CONTROL_CORE, and SURVIVE means RETREAT. Follow that intent while the Command is active; use Doctrine to choose tactical details within it.
 
                 Prefer a coherent intent over unnecessary switching.
                 """,
