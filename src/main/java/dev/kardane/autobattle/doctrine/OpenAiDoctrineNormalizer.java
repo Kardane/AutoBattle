@@ -16,14 +16,22 @@ import com.openai.models.responses.ResponseCreateParams;
 import com.openai.models.responses.StructuredResponse;
 import com.openai.models.responses.StructuredResponseCreateParams;
 import dev.kardane.autobattle.config.DoctrineNormalizerConfig;
+import dev.kardane.autobattle.resilience.ApiResilienceScheduler;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.timelimiter.TimeLimiter;
+import io.github.resilience4j.timelimiter.TimeLimiterConfig;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 public final class OpenAiDoctrineNormalizer
         implements DoctrineNormalizer {
@@ -61,9 +69,8 @@ public final class OpenAiDoctrineNormalizer
     private final OpenAIClientAsync client;
     private final String model;
     private final int requestTimeoutMs;
-    private final int totalTimeoutMs;
-    private final int maxAttempts;
-    private final int retryBackoffMs;
+    private final Retry retry;
+    private final TimeLimiter totalTimeLimiter;
 
     private final AsyncCache<
         NormalizationKey,
@@ -86,16 +93,37 @@ public final class OpenAiDoctrineNormalizer
 
         this.model = config.model();
         this.requestTimeoutMs = config.requestTimeoutMs();
-        this.totalTimeoutMs = config.totalTimeoutMs();
-        this.maxAttempts = config.maxAttempts();
-        this.retryBackoffMs = config.retryBackoffMs();
+
+        this.retry = Retry.of(
+            "openai-doctrine-normalizer",
+            RetryConfig.<UpstreamResult>custom()
+                .maxAttempts(config.maxAttempts())
+                .waitDuration(
+                    Duration.ofMillis(
+                        config.retryBackoffMs()
+                    )
+                )
+                .retryOnException(this::isTransient)
+                .build()
+        );
+
+        this.totalTimeLimiter = TimeLimiter.of(
+            "openai-doctrine-normalizer-total",
+            TimeLimiterConfig.custom()
+                .timeoutDuration(
+                    Duration.ofMillis(
+                        config.totalTimeoutMs()
+                    )
+                )
+                .cancelRunningFuture(false)
+                .build()
+        );
 
         this.client = OpenAIOkHttpClientAsync.builder()
             .apiKey(apiKey)
             .baseUrl(sdkBaseUrl(config.baseUrl()))
             .timeout(Duration.ofMillis(requestTimeoutMs))
-            // Keep AutoBattle's current attempt/backoff semantics until
-            // the planned Resilience4j migration. Avoid double retries.
+            // Resilience4j owns retries. Avoid SDK-level double retries.
             .maxRetries(0)
             .build();
     }
@@ -163,11 +191,6 @@ public final class OpenAiDoctrineNormalizer
         }
 
         long startedNanos = System.nanoTime();
-        long deadlineNanos = startedNanos
-            + TimeUnit.MILLISECONDS.toNanos(
-                totalTimeoutMs
-            );
-
         AtomicBoolean owner = new AtomicBoolean(false);
 
         CompletableFuture<UpstreamResult> shared =
@@ -175,11 +198,9 @@ public final class OpenAiDoctrineNormalizer
                 key,
                 (ignored, executor) -> {
                     owner.set(true);
-                    return attempt(
+                    return executeResilientRequest(
                         source,
-                        1,
-                        startedNanos,
-                        deadlineNanos
+                        startedNanos
                     );
                 }
             );
@@ -248,159 +269,112 @@ public final class OpenAiDoctrineNormalizer
         });
     }
 
-    private CompletableFuture<UpstreamResult> attempt(
+    private CompletableFuture<UpstreamResult>
+    executeResilientRequest(
+        List<String> source,
+        long startedNanos
+    ) {
+        AtomicInteger attempts = new AtomicInteger();
+
+        Supplier<CompletionStage<UpstreamResult>>
+            singleAttempt = () -> invokeOnce(
+                source,
+                attempts.incrementAndGet(),
+                startedNanos
+            );
+
+        Supplier<CompletionStage<UpstreamResult>>
+            retried = Retry.decorateCompletionStage(
+                retry,
+                ApiResilienceScheduler.shared(),
+                singleAttempt
+            );
+
+        Supplier<CompletionStage<UpstreamResult>>
+            timeLimited =
+                TimeLimiter.decorateCompletionStage(
+                    totalTimeLimiter,
+                    ApiResilienceScheduler.shared(),
+                    retried
+                );
+
+        CompletionStage<UpstreamResult> stage =
+            timeLimited.get();
+
+        return stage.handle((result, error) -> {
+            if (error == null) {
+                return CompletableFuture.completedFuture(
+                    result
+                );
+            }
+
+            Throwable root = unwrap(error);
+
+            if (root instanceof NormalizationFailure failure) {
+                return CompletableFuture
+                    .<UpstreamResult>failedFuture(failure);
+            }
+
+            Integer status = httpStatus(root);
+            String message = root == null
+                ? "OpenAI normalization failed"
+                : root.getClass().getSimpleName()
+                    + ": "
+                    + truncate(root.getMessage(), 512);
+
+            return CompletableFuture
+                .<UpstreamResult>failedFuture(
+                    failure(
+                        message,
+                        attempts.get(),
+                        startedNanos,
+                        status,
+                        root
+                    )
+                );
+        }).thenCompose(future -> future);
+    }
+
+    private CompletableFuture<UpstreamResult> invokeOnce(
         List<String> source,
         int attemptNumber,
-        long startedNanos,
-        long deadlineNanos
+        long startedNanos
     ) {
-        long remainingMs = remainingMs(deadlineNanos);
-
-        if (remainingMs < 1L) {
-            return CompletableFuture.failedFuture(
-                failure(
-                    "OpenAI normalization total timeout exceeded",
-                    attemptNumber - 1,
-                    startedNanos,
-                    null,
-                    null
-                )
-            );
-        }
-
-        long timeoutMs = Math.max(
-            1L,
-            Math.min(
-                requestTimeoutMs,
-                remainingMs
-            )
-        );
-
         StructuredResponseCreateParams<NormalizedDoctrine>
             request = buildRequest(source);
 
         return client.responses()
             .withOptions(options ->
                 options.timeout(
-                    Duration.ofMillis(timeoutMs)
+                    Duration.ofMillis(requestTimeoutMs)
                 )
             )
             .create(request)
-            .handle((response, error) -> {
-                if (error == null && response != null) {
-                    try {
-                        List<String> normalized =
-                            parseResponse(response);
+            .thenApply(response -> {
+                try {
+                    List<String> normalized =
+                        parseResponse(response);
 
-                        return CompletableFuture.completedFuture(
-                            new UpstreamResult(
-                                normalized,
-                                attemptNumber,
-                                elapsedMs(startedNanos),
-                                200
-                            )
-                        );
-                    } catch (RuntimeException exception) {
-                        return CompletableFuture
-                            .<UpstreamResult>failedFuture(
-                                failure(
-                                    "OpenAI structured response was invalid: "
-                                        + truncate(
-                                            exception.getMessage(),
-                                            512
-                                        ),
-                                    attemptNumber,
-                                    startedNanos,
-                                    200,
-                                    exception
-                                )
-                            );
-                    }
-                }
-
-                Throwable root = unwrap(error);
-                Integer status = httpStatus(root);
-
-                if (isTransient(root, status)
-                    && canRetry(
+                    return new UpstreamResult(
+                        normalized,
                         attemptNumber,
-                        deadlineNanos
-                    )) {
-                    return retryAfterDelay(
-                        source,
-                        attemptNumber + 1,
+                        elapsedMs(startedNanos),
+                        200
+                    );
+                } catch (RuntimeException exception) {
+                    throw failure(
+                        "OpenAI structured response was invalid: "
+                            + truncate(
+                                exception.getMessage(),
+                                512
+                            ),
+                        attemptNumber,
                         startedNanos,
-                        deadlineNanos
+                        200,
+                        exception
                     );
                 }
-
-                return CompletableFuture
-                    .<UpstreamResult>failedFuture(
-                        failure(
-                            root == null
-                                ? "OpenAI request failed"
-                                : root.getClass()
-                                    .getSimpleName()
-                                    + ": "
-                                    + truncate(
-                                        root.getMessage(),
-                                        512
-                                    ),
-                            attemptNumber,
-                            startedNanos,
-                            status,
-                            root
-                        )
-                    );
-            })
-            .thenCompose(future -> future);
-    }
-
-    private CompletableFuture<UpstreamResult> retryAfterDelay(
-        List<String> source,
-        int nextAttempt,
-        long startedNanos,
-        long deadlineNanos
-    ) {
-        long remainingMs = remainingMs(deadlineNanos);
-
-        if (remainingMs <= retryBackoffMs) {
-            return CompletableFuture.failedFuture(
-                failure(
-                    "OpenAI normalization total timeout exceeded before retry",
-                    nextAttempt - 1,
-                    startedNanos,
-                    null,
-                    null
-                )
-            );
-        }
-
-        return CompletableFuture.runAsync(
-                () -> {
-                },
-                CompletableFuture.delayedExecutor(
-                    retryBackoffMs,
-                    TimeUnit.MILLISECONDS
-                )
-            )
-            .thenCompose(ignored ->
-                attempt(
-                    source,
-                    nextAttempt,
-                    startedNanos,
-                    deadlineNanos
-                )
-            );
-    }
-
-    private boolean canRetry(
-        int attemptNumber,
-        long deadlineNanos
-    ) {
-        return attemptNumber < maxAttempts
-            && remainingMs(deadlineNanos)
-                > retryBackoffMs + 1L;
+            });
     }
 
     private boolean isRetryableStatus(int status) {
@@ -409,20 +383,27 @@ public final class OpenAiDoctrineNormalizer
             || status >= 500;
     }
 
-    private boolean isTransient(
-        Throwable error,
-        Integer status
-    ) {
+    private boolean isTransient(Throwable error) {
+        Throwable root = unwrap(error);
+
+        if (root instanceof NormalizationFailure) {
+            return false;
+        }
+
+        Integer status = httpStatus(root);
+
         if (status != null) {
             return isRetryableStatus(status);
         }
 
-        return error instanceof OpenAIIoException
-            || error instanceof OpenAIRetryableException;
+        return root instanceof OpenAIIoException
+            || root instanceof OpenAIRetryableException;
     }
 
     private Integer httpStatus(Throwable error) {
-        return error instanceof OpenAIServiceException service
+        Throwable root = unwrap(error);
+
+        return root instanceof OpenAIServiceException service
             ? service.statusCode()
             : null;
     }
@@ -560,19 +541,6 @@ public final class OpenAiDoctrineNormalizer
         }
 
         return normalized;
-    }
-
-    private long remainingMs(long deadlineNanos) {
-        long nanos = deadlineNanos - System.nanoTime();
-
-        if (nanos <= 0L) {
-            return 0L;
-        }
-
-        return Math.max(
-            1L,
-            TimeUnit.NANOSECONDS.toMillis(nanos)
-        );
     }
 
     private long elapsedMs(long startedNanos) {
