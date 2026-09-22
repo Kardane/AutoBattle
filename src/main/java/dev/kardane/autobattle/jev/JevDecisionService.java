@@ -1,5 +1,6 @@
 package dev.kardane.autobattle.jev;
 
+import dev.kardane.autobattle.command.PlayerCommandType;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
@@ -372,12 +373,16 @@ public final class JevDecisionService {
         List<String> currentIds =
             List.copyOf(byId.keySet());
 
+        PlayerCommandType commandType =
+            activeCommandType(request);
+
         if (error != null || response == null) {
             DecisionApplyResult result = applyFallback(
                 controller,
                 byId,
                 currentTick,
-                DecisionApplyResult.API_ERROR_FALLBACK
+                DecisionApplyResult.API_ERROR_FALLBACK,
+                commandType
             );
 
             finishDecision(controller, context, currentTick);
@@ -404,7 +409,8 @@ public final class JevDecisionService {
                 response,
                 request.validPlanIds(),
                 previousPlanId,
-                minimumConfidence
+                minimumConfidence,
+                commandType
             );
 
         DecisionComposition currentComposition =
@@ -412,7 +418,8 @@ public final class JevDecisionService {
                 response,
                 currentIds,
                 previousPlanId,
-                minimumConfidence
+                minimumConfidence,
+                commandType
             );
 
         String composedPlanId =
@@ -454,7 +461,8 @@ public final class JevDecisionService {
                 controller,
                 byId,
                 currentTick,
-                fallbackResult
+                fallbackResult,
+                commandType
             );
 
             finishDecision(controller, context, currentTick);
@@ -480,7 +488,8 @@ public final class JevDecisionService {
                 controller,
                 byId,
                 currentTick,
-                DecisionApplyResult.INVALID_PLAN
+                DecisionApplyResult.INVALID_PLAN,
+                commandType
             );
 
             finishDecision(controller, context, currentTick);
@@ -519,7 +528,8 @@ public final class JevDecisionService {
         boolean applied = planExecutor.assignPlan(
             controller,
             selected,
-            currentTick
+            currentTick,
+            commandType != null
         );
 
         finishDecision(controller, context, currentTick);
@@ -570,10 +580,36 @@ public final class JevDecisionService {
         RobotController controller,
         Map<String, TacticalPlan> byId,
         long currentTick,
-        DecisionApplyResult fallbackResult
+        DecisionApplyResult fallbackResult,
+        PlayerCommandType commandType
     ) {
         TacticalPlan current = controller.currentPlan()
             .orElse(null);
+
+        TacticalPlan commandFallback =
+            chooseCommandFallback(
+                commandType,
+                current,
+                byId
+            );
+
+        if (commandFallback != null) {
+            if (current != null
+                && commandFallback.externalId().equals(
+                    current.externalId()
+                )) {
+                return DecisionApplyResult.KEPT_CURRENT_PLAN;
+            }
+
+            planExecutor.assignPlan(
+                controller,
+                commandFallback,
+                currentTick,
+                true
+            );
+
+            return fallbackResult;
+        }
 
         if (current != null
             && byId.containsKey(current.externalId())) {
@@ -600,6 +636,79 @@ public final class JevDecisionService {
         );
 
         return fallbackResult;
+    }
+
+    private TacticalPlan chooseCommandFallback(
+        PlayerCommandType commandType,
+        TacticalPlan current,
+        Map<String, TacticalPlan> byId
+    ) {
+        if (commandType == null) {
+            return null;
+        }
+
+        return switch (commandType) {
+            case CAPTURE -> {
+                TacticalPlan objective =
+                    byId.get("DEFEND_CORE");
+
+                if (objective == null) {
+                    objective = byId.get("CAPTURE_CORE");
+                }
+
+                yield objective;
+            }
+            case SURVIVE -> byId.get("RETREAT");
+            case ATTACK -> {
+                if (current != null
+                    && isCombatPlan(current.externalId())
+                    && byId.containsKey(
+                        current.externalId()
+                    )) {
+                    yield current;
+                }
+
+                TacticalPlan engage = byId.entrySet()
+                    .stream()
+                    .filter(entry ->
+                        entry.getKey().startsWith(
+                            "ENGAGE_"
+                        )
+                    )
+                    .map(Map.Entry::getValue)
+                    .findFirst()
+                    .orElse(null);
+
+                if (engage != null) {
+                    yield engage;
+                }
+
+                yield byId.entrySet()
+                    .stream()
+                    .filter(entry ->
+                        entry.getKey().startsWith(
+                            "CHASE_"
+                        )
+                    )
+                    .map(Map.Entry::getValue)
+                    .findFirst()
+                    .orElse(null);
+            }
+        };
+    }
+
+    private boolean isCombatPlan(String planId) {
+        return planId != null
+            && (planId.startsWith("ENGAGE_")
+                || planId.startsWith("CHASE_"));
+    }
+
+    private PlayerCommandType activeCommandType(
+        DecisionRequest request
+    ) {
+        return request.snapshot().command() == null
+            ? null
+            : request.snapshot().command().type();
     }
 
     private TacticalPlan chooseFallback(
