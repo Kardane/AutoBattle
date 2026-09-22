@@ -68,6 +68,37 @@ final class TargetReachabilityTrackerTest {
     }
 
     @Test
+    void finalRecoveryCanExcludeImmediately() {
+        TargetReachabilityTracker tracker =
+            new TargetReachabilityTracker(
+                3,
+                40,
+                3.0D
+            );
+
+        tracker.excludeNow(
+            TARGET,
+            ORIGIN,
+            10L
+        );
+
+        assertTrue(
+            tracker.isTemporarilyUnreachable(
+                TARGET,
+                ORIGIN,
+                49L
+            )
+        );
+        assertFalse(
+            tracker.isTemporarilyUnreachable(
+                TARGET,
+                ORIGIN,
+                50L
+            )
+        );
+    }
+
+    @Test
     void targetMovementReleasesExclusionImmediately() {
         TargetReachabilityTracker tracker =
             excludedTracker();
