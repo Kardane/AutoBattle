@@ -41,6 +41,7 @@ public final class RobotController {
     private long planStartedTick = -1L;
     private long lastDecisionTick = -1L;
     private boolean decisionPending;
+    private long decisionRequestedTick = -1L;
     private boolean urgentRedecisionRequested;
     private boolean redecisionRequested;
     private DecisionTrigger redecisionTrigger =
@@ -185,6 +186,7 @@ public final class RobotController {
         entity = null;
         localCombatTargetUuid = null;
         decisionPending = false;
+        decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration++;
         lastDecisionTick = -1L;
@@ -204,6 +206,7 @@ public final class RobotController {
     private void resetDecisionState(DecisionTrigger trigger) {
         clearPlan();
         decisionPending = false;
+        decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration++;
         lastDecisionTick = -1L;
@@ -260,8 +263,12 @@ public final class RobotController {
         }
     }
 
-    public void markDecisionRequested(long generation) {
+    public void markDecisionRequested(
+        long generation,
+        long currentTick
+    ) {
         decisionPending = true;
+        decisionRequestedTick = currentTick;
         urgentRedecisionRequested = false;
         decisionGeneration = generation;
         redecisionRequested = false;
@@ -277,7 +284,29 @@ public final class RobotController {
         }
 
         decisionPending = false;
+        decisionRequestedTick = -1L;
         lastDecisionTick = currentTick;
+    }
+
+    public boolean recoverStalledDecision(
+        long currentTick,
+        int timeoutTicks
+    ) {
+        if (!decisionPending
+            || decisionRequestedTick < 0L
+            || timeoutTicks < 1
+            || currentTick - decisionRequestedTick
+                <= timeoutTicks) {
+            return false;
+        }
+
+        decisionGeneration++;
+        decisionPending = false;
+        decisionRequestedTick = -1L;
+        urgentRedecisionRequested = true;
+        redecisionRequested = true;
+        redecisionTrigger = DecisionTrigger.STALE_RETRY;
+        return true;
     }
 
     public void requestRedecision() {
@@ -297,6 +326,7 @@ public final class RobotController {
     ) {
         decisionGeneration++;
         decisionPending = false;
+        decisionRequestedTick = -1L;
         urgentRedecisionRequested = true;
         redecisionRequested = true;
         redecisionTrigger = Objects.requireNonNull(
