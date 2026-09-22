@@ -843,7 +843,11 @@ public final class MatchManager {
                 spawn.yaw()
             );
 
-            planExecutor.register(robot, serverTick);
+            RobotController controller = planExecutor.register(
+                robot,
+                serverTick
+            );
+            controller.resetDecisionStateForRound();
         }
 
         session.roundState().start(
