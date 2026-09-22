@@ -3,22 +3,35 @@ package dev.kardane.autobattle.tactics;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.MatchPhase;
 import dev.kardane.autobattle.match.MatchSession;
-import dev.kardane.autobattle.match.PlayerSlot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 public final class ValidPlanFactory {
     private AutoBattleConfig config;
+    private final PlanValidityPolicy validityPolicy;
 
     public ValidPlanFactory(AutoBattleConfig config) {
+        this(
+            config,
+            new PlanValidityPolicy(config)
+        );
+    }
+
+    public ValidPlanFactory(
+        AutoBattleConfig config,
+        PlanValidityPolicy validityPolicy
+    ) {
         this.config = Objects.requireNonNull(
             config,
             "config"
+        );
+        this.validityPolicy = Objects.requireNonNull(
+            validityPolicy,
+            "validityPolicy"
         );
     }
 
@@ -27,6 +40,7 @@ public final class ValidPlanFactory {
             config,
             "config"
         );
+        validityPolicy.reload(config);
     }
 
     public List<TacticalPlan> create(
@@ -41,54 +55,44 @@ public final class ValidPlanFactory {
 
         List<TacticalPlan> plans = new ArrayList<>();
         long lockTicks = config.decisionLockTicks();
-        var selfEntity = self.entity().orElseThrow();
 
-        for (RobotController enemy : match.robots().alive()) {
-            if (enemy == self
-                || !self.team().isEnemy(enemy.team())) {
+        for (RobotController enemy : match.robots().all()) {
+            if (enemy == self) {
                 continue;
             }
 
-            PlayerSlot enemySlot = match.player(
-                enemy.ownerUuid()
-            ).orElse(null);
-
-            if (enemySlot == null || enemySlot.forfeited()) {
-                continue;
-            }
-
-            var enemyEntity = enemy.entity().orElse(null);
-
-            if (enemyEntity == null) {
-                continue;
-            }
-
-            double distance =
-                selfEntity.distanceTo(enemyEntity);
             String suffix = enemy.targetId();
 
-            if (distance <= config.robot()
-                .engageLeashDistance()) {
-                plans.add(
-                    TacticalPlan.engage(
-                        enemy.ownerUuid(),
-                        "ENGAGE_" + suffix,
-                        currentTick,
-                        lockTicks
-                    )
-                );
+            TacticalPlan engage = TacticalPlan.engage(
+                enemy.ownerUuid(),
+                "ENGAGE_" + suffix,
+                currentTick,
+                lockTicks
+            );
+
+            if (validityPolicy.validate(
+                match,
+                self,
+                engage,
+                currentTick
+            ).valid()) {
+                plans.add(engage);
             }
 
-            if (distance <= config.robot()
-                .chaseLeashDistance()) {
-                plans.add(
-                    TacticalPlan.chase(
-                        enemy.ownerUuid(),
-                        "CHASE_" + suffix,
-                        currentTick,
-                        lockTicks
-                    )
-                );
+            TacticalPlan chase = TacticalPlan.chase(
+                enemy.ownerUuid(),
+                "CHASE_" + suffix,
+                currentTick,
+                lockTicks
+            );
+
+            if (validityPolicy.validate(
+                match,
+                self,
+                chase,
+                currentTick
+            ).valid()) {
+                plans.add(chase);
             }
         }
 
@@ -134,5 +138,4 @@ public final class ValidPlanFactory {
             pos.getZ() + 0.5D
         );
     }
-
 }
