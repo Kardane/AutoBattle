@@ -105,10 +105,8 @@ public final class ProvisionalPlanPolicy {
                         false
                     );
                     case CAPTURE -> objective(candidates);
-                    case SURVIVE -> byId(
-                        candidates,
-                        "RETREAT"
-                    );
+                    case SURVIVE ->
+                        retreatOrHold(candidates);
                 };
 
             if (commandPlan.isPresent()) {
@@ -117,11 +115,11 @@ public final class ProvisionalPlanPolicy {
         }
 
         if (hpRatio <= dangerousHpRatio) {
-            Optional<TacticalPlan> retreat =
-                byId(candidates, "RETREAT");
+            Optional<TacticalPlan> survival =
+                retreatOrHold(candidates);
 
-            if (retreat.isPresent()) {
-                return retreat;
+            if (survival.isPresent()) {
+                return survival;
             }
         }
 
@@ -137,6 +135,17 @@ public final class ProvisionalPlanPolicy {
         }
 
         return objective(candidates);
+    }
+
+    private static Optional<TacticalPlan> retreatOrHold(
+        List<TacticalPlan> candidates
+    ) {
+        Optional<TacticalPlan> retreat =
+            byId(candidates, "RETREAT");
+
+        return retreat.isPresent()
+            ? retreat
+            : byId(candidates, "HOLD_POSITION");
     }
 
     private static Optional<TacticalPlan> nearestCombat(
