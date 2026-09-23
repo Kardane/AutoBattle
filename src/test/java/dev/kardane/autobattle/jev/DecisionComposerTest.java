@@ -33,6 +33,26 @@ final class DecisionComposerTest {
     }
 
     @Test
+    void completedRetreatCannotBeRetainedWhenNoLongerLegal() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.9D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION"
+            ),
+            "RETREAT",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
     void controlCoreRecomposesFromCaptureToDefend() {
         DecisionResponse response = response(
             choice("CONTROL_CORE", 0.9D),
