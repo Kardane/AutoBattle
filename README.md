@@ -93,8 +93,8 @@ ai:
   decision-debounce-seconds: 0.5
   request-timeout-ms: 1500
   minimum-confidence: 0.35
-  # RETREAT is always available to Jev.
-  # This threshold is only for deterministic server fallback.
+  # RETREAT is offered while an enemy remains inside the configured safe distance.
+  # If emergency retreat is unavailable or already complete, low-HP fallback uses HOLD_POSITION.
   fallback-retreat-hp-ratio: 0.25
 
 doctrine:
@@ -253,7 +253,7 @@ Server code deterministically composes those answers into legal plans such as `E
 
 `CAPTURE_CORE` treats entry into the configured CORE bounds as arrival instead of forcing robots to reach the exact center. If a living enemy occupies the CORE, the capturing robot pursues the nearest such enemy inside the objective and resumes occupancy behavior after the contest is cleared. This avoids center-stacking path failures and symmetric stalls where both teams occupy the CORE without entering attack range.
 
-When a robot is below the fallback retreat HP threshold, provisional behavior prefers `RETREAT` even when enemies are already far away. After the retreat planner reaches a safe distance, `RobotController` keeps the `RETREAT` plan, stops navigation, and waits for the normal decision interval instead of immediately switching back to `CAPTURE_CORE` or `DEFEND_CORE`.
+When a robot is below the fallback retreat HP threshold, provisional and deterministic fallback prefer `RETREAT` while retreat is legal. If RETREAT is temporarily unavailable, they prefer `HOLD_POSITION` instead of sending the low-health robot back into combat or the objective. Once the retreat planner reaches its safe-distance condition, `RobotController` stops movement and emits a one-shot urgent `RETREAT_SAFE` redecision. `ValidPlanFactory` omits RETREAT while the robot is already safe, so the completed retreat cannot be retained indefinitely by low-confidence composition; low-health robots can HOLD to recover, while recovered robots can return to FIGHT, SUPPORT, or CONTROL_CORE.
 
 Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` stops at the current position for up to four seconds, reacts to an enemy within `robot.hold-reaction-range` blocks, and then requests a fresh decision. An expired HOLD is not retained by low-confidence fallback; a deliberate high-confidence HOLD response starts a fresh four-second window. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
 
