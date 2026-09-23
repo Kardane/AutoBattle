@@ -1273,16 +1273,15 @@ public final class RobotController {
 
         if (!retreatSafeRedecisionRequested) {
             retreatSafeRedecisionRequested = true;
-            requestRedecision(
+            requestUrgentRedecision(
                 DecisionTrigger.RETREAT_SAFE
             );
-        }
 
-        AutoBattleMod.LOGGER.debug(
-            "Retreat reached safe state owner={} redecisionRequested={}",
-            ownerUuid,
-            retreatSafeRedecisionRequested
-        );
+            AutoBattleMod.LOGGER.debug(
+                "Retreat reached safe state owner={} and requested redecision",
+                ownerUuid
+            );
+        }
     }
 
     private void suppressRetreatAndRedecide(
