@@ -70,7 +70,6 @@ public final class RobotController {
     private long nextRetreatEvaluationTick = -1L;
     private long holdUntilTick = -1L;
     private boolean holdCompletionRequested;
-    private boolean retreatSafeRedecisionRequested;
     private final List<BlockedRetreatDestination>
         blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
@@ -373,7 +372,6 @@ public final class RobotController {
             plan.type() == TacticalPlanType.RETREAT
                 ? currentTick
                 : -1L;
-        retreatSafeRedecisionRequested = false;
         holdUntilTick =
             plan.type() == TacticalPlanType.HOLD
                 ? currentTick
@@ -414,7 +412,6 @@ public final class RobotController {
         retreatPlanDestination = null;
         retreatChoice = null;
         nextRetreatEvaluationTick = -1L;
-        retreatSafeRedecisionRequested = false;
         holdUntilTick = -1L;
         holdCompletionRequested = false;
         blockedRetreatDestinations.clear();
@@ -1134,11 +1131,9 @@ public final class RobotController {
         pruneBlockedRetreatDestinations(currentTick);
 
         if (isRetreatSafe(match)) {
-            holdRetreatSafely();
+            completeRetreatIntoHold(currentTick);
             return;
         }
-
-        retreatSafeRedecisionRequested = false;
 
         boolean arrived =
             retreatPlanDestination != null
@@ -1255,33 +1250,31 @@ public final class RobotController {
         return true;
     }
 
-    private void holdRetreatSafely() {
-        localCombatTargetUuid = null;
-        retreatPlanDestination = null;
-        retreatChoice = null;
-        nextRetreatEvaluationTick = -1L;
-        holdUntilTick = -1L;
-        holdCompletionRequested = false;
-        blockedRetreatDestinations.clear();
-        movementRecovery.reset();
+    private void completeRetreatIntoHold(
+        long currentTick
+    ) {
+        TacticalPlan hold = TacticalPlan.hold(
+            currentTick,
+            0L
+        );
 
-        if (entity != null && !entity.isRemoved()) {
-            entity.setDisplayedPlan(null);
-            entity.setTarget(null);
-            entity.getNavigation().stop();
-        }
+        applyPlan(
+            hold,
+            currentTick,
+            true,
+            PlanSource.FALLBACK
+        );
 
-        if (!retreatSafeRedecisionRequested) {
-            retreatSafeRedecisionRequested = true;
-            requestUrgentRedecision(
-                DecisionTrigger.RETREAT_SAFE
-            );
+        stopLocalMovement();
 
-            AutoBattleMod.LOGGER.debug(
-                "Retreat reached safe state owner={} and requested redecision",
-                ownerUuid
-            );
-        }
+        requestUrgentRedecision(
+            DecisionTrigger.RETREAT_SAFE
+        );
+
+        AutoBattleMod.LOGGER.debug(
+            "Retreat completed into HOLD owner={}",
+            ownerUuid
+        );
     }
 
     private void suppressRetreatAndRedecide(
