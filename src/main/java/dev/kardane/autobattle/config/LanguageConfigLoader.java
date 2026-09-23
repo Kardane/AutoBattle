@@ -246,6 +246,9 @@ public final class LanguageConfigLoader {
             input-1: "Doctrine 1"
             input-2: "Doctrine 2"
             input-3: "Doctrine 3"
+            examples-hint: "아래 문장은 전략 입력을 위한 예시입니다. 버튼 없이 참고해서 원하는 내용을 직접 3문장으로 작성하세요."
+            # {name}, {lines}
+            example-entry: "{name} 예시: {lines}"
             save: "3문장 저장"
 
           round-review:
@@ -315,53 +318,55 @@ public final class LanguageConfigLoader {
                 new SafeConstructor(options)
             );
 
+            Object defaultsRaw = yaml.load(
+                DEFAULT_YAML
+            );
+
+            Map<String, Object> defaults =
+                stringMap(
+                    defaultsRaw,
+                    "default messages"
+                );
+
+            Map<String, Object> existing;
+
             try (Reader reader = Files.newBufferedReader(
                 path,
                 StandardCharsets.UTF_8
             )) {
-                Object defaultsRaw = yaml.load(
-                    DEFAULT_YAML
-                );
-
-                Map<String, Object> defaults =
-                    stringMap(
-                        defaultsRaw,
-                        "default messages"
-                    );
-
                 Object raw = yaml.load(reader);
 
-                Map<String, Object> existing =
+                existing =
                     stringMap(
                         raw,
                         "messages.yml"
                     );
-
-                LanguageConfigMigrationService migrations =
-                    new LanguageConfigMigrationService();
-
-                LanguageConfigMigrationService.MigrationResult migrated =
-                    migrations.migrate(
-                        existing,
-                        defaults
-                    );
-
-                Map<String, String> values =
-                    new LinkedHashMap<>();
-
-                flatten(
-                    "",
-                    migrated.messages(),
-                    values
-                );
-
-                migrations.backupAndWrite(
-                    path,
-                    migrated
-                );
-
-                return new LanguageConfig(values);
             }
+
+            LanguageConfigMigrationService migrations =
+                new LanguageConfigMigrationService();
+
+            LanguageConfigMigrationService.MigrationResult migrated =
+                migrations.migrate(
+                    existing,
+                    defaults
+                );
+
+            Map<String, String> values =
+                new LinkedHashMap<>();
+
+            flatten(
+                "",
+                migrated.messages(),
+                values
+            );
+
+            migrations.backupAndWrite(
+                path,
+                migrated
+            );
+
+            return new LanguageConfig(values);
         } catch (IOException exception) {
             throw new IllegalStateException(
                 "Failed to load AutoBattle messages: "

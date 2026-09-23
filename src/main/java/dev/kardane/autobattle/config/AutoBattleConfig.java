@@ -117,6 +117,7 @@ public record AutoBattleConfig(
                 AutoBattleConstants.ROBOT_ATTACK_DAMAGE,
                 AutoBattleConstants.ROBOT_MOVEMENT_SPEED,
                 AutoBattleConstants.ROBOT_FOLLOW_RANGE,
+                AutoBattleConstants.HOLD_REACTION_RANGE,
                 AutoBattleConstants.REGEN_DELAY_TICKS,
                 AutoBattleConstants.REGEN_INTERVAL_TICKS,
                 AutoBattleConstants.REGEN_AMOUNT,

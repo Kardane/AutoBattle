@@ -12,6 +12,9 @@ base {
 
 repositories {
     mavenCentral()
+    maven {
+        url = 'https://maven.nucleoid.xyz'
+    }
 }
 
 configurations {
@@ -56,11 +59,21 @@ dependencies {
     implementation "io.github.resilience4j:resilience4j-bulkhead:${project.resilience4j_version}"
     include "io.github.resilience4j:resilience4j-bulkhead:${project.resilience4j_version}"
 
+    // Compile against the Polymer resource-pack hook used by the BGM system.
+    // The test server already supplies Polymer through polymer-bundled.
+    modCompileOnly "eu.pb4:polymer-resource-pack:${project.polymer_resource_pack_version}"
+    modCompileOnly "eu.pb4:polymer-core:${project.polymer_version}"
+
     testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
 }
 
 processResources {
+    from("docs") {
+        include("*.ogg")
+        into("autobattle/default_music")
+    }
+
     filesMatching("fabric.mod.json") {
         expand(
             "version": project.version,

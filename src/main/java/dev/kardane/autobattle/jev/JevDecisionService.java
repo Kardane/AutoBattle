@@ -10,6 +10,7 @@ import dev.kardane.autobattle.tactics.PlanSource;
 import dev.kardane.autobattle.tactics.ProvisionalPlanPolicy;
 import dev.kardane.autobattle.tactics.RobotController;
 import dev.kardane.autobattle.tactics.TacticalPlan;
+import dev.kardane.autobattle.tactics.TacticalPlanType;
 import dev.kardane.autobattle.tactics.ValidPlanFactory;
 import net.minecraft.server.MinecraftServer;
 
@@ -267,6 +268,12 @@ public final class JevDecisionService {
         String previousPlanId = controller.currentPlan()
             .map(TacticalPlan::externalId)
             .orElse(null);
+        boolean expiredHold = controller.isHoldExpired(
+            currentTick
+        );
+        String previousPlanIdForComposition = expiredHold
+            ? null
+            : previousPlanId;
 
         if (!match.matchId().equals(context.matchId())) {
             return logAndReturn(
@@ -413,7 +420,8 @@ public final class JevDecisionService {
             if (provisional != null
                 && byId.containsKey(
                     provisional.externalId()
-                )) {
+                )
+                && !expiredHold) {
                 finishDecision(
                     controller,
                     context,
@@ -470,7 +478,7 @@ public final class JevDecisionService {
             composer.compose(
                 response,
                 request.validPlanIds(),
-                previousPlanId,
+                previousPlanIdForComposition,
                 minimumConfidence,
                 commandType
             );
@@ -479,7 +487,7 @@ public final class JevDecisionService {
             composer.compose(
                 response,
                 currentIds,
-                previousPlanId,
+                previousPlanIdForComposition,
                 minimumConfidence,
                 commandType
             );
@@ -570,7 +578,7 @@ public final class JevDecisionService {
             );
         }
 
-        if (composedPlanId.equals(previousPlanId)
+        if (composedPlanId.equals(previousPlanIdForComposition)
             && !controller.hasProvisionalPlan()) {
             finishDecision(controller, context, currentTick);
 
@@ -588,7 +596,7 @@ public final class JevDecisionService {
             );
         }
 
-        if (composedPlanId.equals(previousPlanId)
+        if (composedPlanId.equals(previousPlanIdForComposition)
             && controller.hasProvisionalPlan()
             && currentComposition.lowConfidence()) {
             planExecutor.assignPlan(
@@ -681,6 +689,12 @@ public final class JevDecisionService {
         TacticalPlan current = controller.currentPlan()
             .orElse(null);
 
+        if (controller.isHoldExpired(currentTick)
+            && current != null
+            && current.type() == TacticalPlanType.HOLD) {
+            current = null;
+        }
+
         TacticalPlan commandFallback =
             chooseCommandFallback(
                 commandType,
@@ -718,7 +732,16 @@ public final class JevDecisionService {
             return fallbackResult;
         }
 
+        boolean currentHoldHasAlternative = current != null
+            && current.type() == TacticalPlanType.HOLD
+            && byId.values()
+                .stream()
+                .anyMatch(plan ->
+                    plan.type() != TacticalPlanType.HOLD
+                );
+
         if (current != null
+            && !currentHoldHasAlternative
             && byId.containsKey(current.externalId())) {
             if (controller.hasProvisionalPlan()) {
                 TacticalPlan promoted =
@@ -852,6 +875,24 @@ public final class JevDecisionService {
             return byId.get("RETREAT");
         }
 
+        // A low-confidence answer must trigger active reacquisition when
+        // possible. Prefer combat/search plans before objective or HOLD.
+        TacticalPlan combat = firstPlanWithPrefix(
+            byId,
+            "ENGAGE_"
+        );
+
+        if (combat == null) {
+            combat = firstPlanWithPrefix(
+                byId,
+                "CHASE_"
+            );
+        }
+
+        if (combat != null) {
+            return combat;
+        }
+
         TacticalPlan objective = byId.get(
             "CAPTURE_CORE"
         );
@@ -864,8 +905,40 @@ public final class JevDecisionService {
             return objective;
         }
 
-        return byId.values()
+        TacticalPlan assist = firstPlanWithPrefix(
+            byId,
+            "ASSIST_"
+        );
+
+        if (assist != null) {
+            return assist;
+        }
+
+        TacticalPlan retreat = byId.get("RETREAT");
+
+        if (retreat != null) {
+            return retreat;
+        }
+
+        TacticalPlan active = byId.values()
             .stream()
+            .filter(plan -> plan.type() != TacticalPlanType.HOLD)
+            .findFirst()
+            .orElse(null);
+
+        return active != null
+            ? active
+            : byId.get("HOLD_POSITION");
+    }
+
+    private TacticalPlan firstPlanWithPrefix(
+        Map<String, TacticalPlan> byId,
+        String prefix
+    ) {
+        return byId.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().startsWith(prefix))
+            .map(Map.Entry::getValue)
             .findFirst()
             .orElse(null);
     }

@@ -84,6 +84,29 @@ final class RobotControllerPlanSourceTest {
         assertEquals(12L, controller.lastDecisionTick());
     }
 
+    @Test
+    void holdExpiryIsResetWhenHoldIsAppliedAgain() {
+        RobotController controller = controller();
+
+        assertTrue(
+            controller.applyPlan(
+                TacticalPlan.hold(10L, 40L),
+                10L
+            )
+        );
+        assertFalse(controller.isHoldExpired(89L));
+        assertTrue(controller.isHoldExpired(90L));
+
+        assertTrue(
+            controller.applyPlan(
+                TacticalPlan.hold(90L, 40L),
+                90L
+            )
+        );
+        assertFalse(controller.isHoldExpired(169L));
+        assertTrue(controller.isHoldExpired(170L));
+    }
+
     private RobotController controller() {
         AutoBattleConfig config =
             AutoBattleConfig.defaults();

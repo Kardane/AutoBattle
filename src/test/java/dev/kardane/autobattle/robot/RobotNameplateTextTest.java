@@ -76,4 +76,37 @@ final class RobotNameplateTextTest {
             ) > 0
         );
     }
+
+    @Test
+    void behaviorUsesAColorForItsTacticalKind() {
+        Component red = RobotNameplateText.build(
+            "R1",
+            Component.literal("Alice"),
+            BattleTeam.RED,
+            50.0F,
+            100.0F,
+            "공격"
+        );
+        Component blue = RobotNameplateText.build(
+            "B1",
+            Component.literal("Bob"),
+            BattleTeam.BLUE,
+            50.0F,
+            100.0F,
+            "공격"
+        );
+
+        assertEquals(
+            RobotNameplateText.behaviorColor("공격"),
+            red.getSiblings().get(4).getStyle().getColor().getValue()
+        );
+        assertEquals(
+            RobotNameplateText.behaviorColor("공격"),
+            blue.getSiblings().get(4).getStyle().getColor().getValue()
+        );
+        assertTrue(
+            RobotNameplateText.behaviorColor("공격")
+                != RobotNameplateText.behaviorColor("후퇴")
+        );
+    }
 }

@@ -3,6 +3,8 @@ package dev.kardane.autobattle.ui;
 import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.doctrine.Doctrine;
+import dev.kardane.autobattle.doctrine.DoctrinePresetLibrary;
+import dev.kardane.autobattle.doctrine.DoctrinePresetLibrary.DoctrinePreset;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.review.CriticalDecision;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public final class DialogService {
@@ -86,13 +89,41 @@ public final class DialogService {
     }
 
     public void openDoctrineSetup(ServerPlayer player) {
+        List<DoctrinePreset> examples =
+            DoctrinePresetLibrary.suggestions(
+                ThreadLocalRandom.current()
+            );
+
         List<DialogBody> body = List.of(
             line(
                 language.text(
                     "dialogs.doctrine-setup.body"
                 )
+            ),
+            line(
+                language.text(
+                    "dialogs.doctrine-setup.examples-hint"
+                )
+            ),
+            line(
+                examples.stream()
+                    .map(example ->
+                        language.format(
+                            "dialogs.doctrine-setup.example-entry",
+                            "name",
+                            example.label(),
+                            "lines",
+                            String.join(
+                                " / ",
+                                example.lines()
+                            )
+                        )
+                    )
+                    .collect(Collectors.joining("\n"))
             )
         );
+
+        List<String> initialLines = List.of("", "", "");
 
         List<Input> inputs = List.of(
             doctrineInput(
@@ -100,21 +131,31 @@ public final class DialogService {
                 language.text(
                     "dialogs.doctrine-setup.input-1"
                 ),
-                ""
+                initialLines.get(0)
             ),
             doctrineInput(
                 "d2",
                 language.text(
                     "dialogs.doctrine-setup.input-2"
                 ),
-                ""
+                initialLines.get(1)
             ),
             doctrineInput(
                 "d3",
                 language.text(
                     "dialogs.doctrine-setup.input-3"
                 ),
-                ""
+                initialLines.get(2)
+            )
+        );
+
+        List<ActionButton> actions = List.of(
+            actionButton(
+                language.text(
+                    "dialogs.doctrine-setup.save"
+                ),
+                DOCTRINE_SUBMIT,
+                null
             )
         );
 
@@ -126,15 +167,7 @@ public final class DialogService {
                 false,
                 DialogAction.CLOSE
             ),
-            List.of(
-                actionButton(
-                    language.text(
-                        "dialogs.doctrine-setup.save"
-                    ),
-                    DOCTRINE_SUBMIT,
-                    null
-                )
-            ),
+            actions,
             Optional.empty(),
             1
         );

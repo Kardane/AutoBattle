@@ -24,6 +24,7 @@ public final class AutoBattleConstants {
     public static final double ROBOT_ATTACK_DAMAGE = 10.0D;
     public static final double ROBOT_MOVEMENT_SPEED = 0.30D;
     public static final double ROBOT_FOLLOW_RANGE = 32.0D;
+    public static final double HOLD_REACTION_RANGE = 12.0D;
 
     public static final int REGEN_DELAY_TICKS = 20 * 5;
     public static final int REGEN_INTERVAL_TICKS = 20;

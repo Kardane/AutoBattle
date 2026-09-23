@@ -27,7 +27,6 @@ public final class RobotController {
     private static final double INTENT_PARTICLE_SPACING = 0.2D;
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
     private static final double CAPTURE_REACTION_RANGE = 2.0D;
-    private static final double HOLD_REACTION_RANGE = 4.0D;
     private static final double ASSIST_REACTION_RANGE = 4.0D;
     private static final double ASSIST_MIN_DISTANCE = 2.0D;
     private static final double ASSIST_MAX_DISTANCE = 4.0D;
@@ -71,6 +70,7 @@ public final class RobotController {
     private RetreatPlanner.RetreatChoice retreatChoice;
     private long nextRetreatEvaluationTick = -1L;
     private long holdUntilTick = -1L;
+    private boolean holdCompletionRequested;
     private final List<BlockedRetreatDestination>
         blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
@@ -194,6 +194,13 @@ public final class RobotController {
 
     public Optional<TacticalPlan> currentPlan() {
         return Optional.ofNullable(currentPlan);
+    }
+
+    public boolean isHoldExpired(long currentTick) {
+        return currentPlan != null
+            && currentPlan.type() == TacticalPlanType.HOLD
+            && holdUntilTick >= 0L
+            && currentTick >= holdUntilTick;
     }
 
     public Optional<PlanSource> currentPlanSource() {
@@ -361,6 +368,7 @@ public final class RobotController {
                 ? currentTick
                     + AutoBattleConstants.HOLD_DURATION_TICKS
                 : -1L;
+        holdCompletionRequested = false;
         blockedRetreatDestinations.clear();
 
         if (entity != null && !entity.isRemoved()) {
@@ -395,6 +403,8 @@ public final class RobotController {
         retreatPlanDestination = null;
         retreatChoice = null;
         nextRetreatEvaluationTick = -1L;
+        holdUntilTick = -1L;
+        holdCompletionRequested = false;
         blockedRetreatDestinations.clear();
         movementRecovery.reset();
 
@@ -806,7 +816,7 @@ public final class RobotController {
         Optional<RobotZombie> nearbyThreat =
             resolveNearestEnemyNear(
                 entity.position(),
-                HOLD_REACTION_RANGE,
+                config.holdReactionRange(),
                 currentTick,
                 false
             );
@@ -834,7 +844,9 @@ public final class RobotController {
         }
 
         if (holdUntilTick >= 0L
-            && currentTick >= holdUntilTick) {
+            && currentTick >= holdUntilTick
+            && !holdCompletionRequested) {
+            holdCompletionRequested = true;
             requestRedecision(
                 DecisionTrigger.HOLD_COMPLETE
             );
@@ -1181,6 +1193,7 @@ public final class RobotController {
         retreatChoice = null;
         nextRetreatEvaluationTick = -1L;
         holdUntilTick = -1L;
+        holdCompletionRequested = false;
         blockedRetreatDestinations.clear();
         movementRecovery.reset();
 

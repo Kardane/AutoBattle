@@ -5,6 +5,7 @@ import dev.kardane.autobattle.config.LanguageService;
 import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.match.MatchSession;
 import dev.kardane.autobattle.match.PlayerSlot;
+import dev.kardane.autobattle.music.BgmRuntime;
 import dev.kardane.autobattle.review.RoundReviewService;
 import dev.kardane.autobattle.tactics.PlanExecutor;
 import dev.kardane.autobattle.tactics.RobotController;
@@ -76,6 +77,7 @@ public final class UiCoordinator {
         long currentTick = server.getTickCount();
 
         switch (match.phase()) {
+            case LOBBY -> onLobby(server);
             case ROUND_ACTIVE -> {
                 bossBar.updateRound(
                     match,
@@ -105,6 +107,7 @@ public final class UiCoordinator {
         MinecraftServer server,
         MatchSession match
     ) {
+        onLobby(server);
         forEachActivePlayer(
             server,
             match,
@@ -117,6 +120,7 @@ public final class UiCoordinator {
         MatchSession match,
         long currentTick
     ) {
+        BgmRuntime.ensureGlobal(server, "match");
         syncBossBarPlayers(server);
 
         lastCoreOwner = match.core()
@@ -362,6 +366,10 @@ public final class UiCoordinator {
         bossBar.clear();
         sidebar.clear(server);
         lastCoreOwner = null;
+    }
+
+    public void onLobby(MinecraftServer server) {
+        BgmRuntime.ensureGlobal(server, "lobby");
     }
 
     private void syncBossBarPlayers(

@@ -86,6 +86,8 @@ public final class AutoBattleConfigLoader {
           attack-damage: 10.0
           movement-speed: 0.30
           follow-range: 32.0
+          # HOLD reacts to an enemy within this many blocks.
+          hold-reaction-range: 12.0
 
           regen-delay-seconds: 5.0
           regen-interval-seconds: 1.0
@@ -495,6 +497,11 @@ public final class AutoBattleConfigLoader {
                 robot,
                 "follow-range",
                 defaults.robot().followRange()
+            ),
+            doubleValue(
+                robot,
+                "hold-reaction-range",
+                defaults.robot().holdReactionRange()
             ),
             secondsToTicks(
                 doubleValue(

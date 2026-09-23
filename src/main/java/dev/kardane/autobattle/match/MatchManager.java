@@ -529,12 +529,15 @@ public final class MatchManager {
 
     public boolean join(ServerPlayer player) {
         UUID uuid = player.getUUID();
+        MinecraftServer server =
+            ((ServerLevel) player.level()).getServer();
 
         if (session.phase() != MatchPhase.LOBBY) {
             return false;
         }
 
         if (session.player(uuid).isPresent()) {
+            ui.onLobby(server);
             return true;
         }
 
@@ -565,6 +568,8 @@ public final class MatchManager {
             player.getScoreboardName(),
             TeamScoreboard.team(scoreboard, slot.team())
         );
+
+        ui.onLobby(server);
 
         return true;
     }
@@ -1125,6 +1130,7 @@ public final class MatchManager {
         );
 
         ui.cleanup(server);
+        ui.onLobby(server);
     }
 
     private void resetToFreshLobby(
@@ -1138,6 +1144,7 @@ public final class MatchManager {
         pendingDamage.clear();
         ui.cleanup(server);
         session = createSession();
+        ui.onLobby(server);
     }
 
     private void positionParticipantsForRound(

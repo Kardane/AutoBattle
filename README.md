@@ -28,7 +28,9 @@ On first server launch, AutoBattle creates:
 config/
 └─ autobattle/
    ├─ config.yml
-   └─ messages.yml
+   ├─ messages.yml
+   ├─ music.json
+   └─ music/
 ```
 
 Existing `config/autobattle.yml` installations are automatically moved to `config/autobattle/config.yml` the first time the new loader runs. Existing v1 `config.yml` / `messages.yml` files are then migrated automatically to schema v2. User API keys and tuning values are preserved, the previous file is backed up, and the migrated file is validated before atomic replacement.
@@ -48,7 +50,7 @@ The reload command can be used during any phase. It reloads both YAML files atom
 - minimum/maximum team size (default 1..8 per team), round count, round/countdown/respawn/command timing
 - AI decision interval, lock, debounce, timeout, minimum confidence, and emergency fallback RETREAT HP threshold
 - Doctrine maximum line length
-- robot HP, damage, movement/follow range, regeneration
+- robot HP, damage, movement/follow range, HOLD reaction range, regeneration
 - tactical movement speeds and leash distances
 - kill/assist/CORE scoring and assist window
 - CORE capture/hold timings
@@ -98,6 +100,14 @@ ai:
 doctrine:
   max-line-length: 120
 
+robot:
+  max-health: 100.0
+  attack-damage: 10.0
+  movement-speed: 0.30
+  follow-range: 32.0
+  # HOLD reacts to an enemy within this many blocks.
+  hold-reaction-range: 12.0
+
 arena:
   dimension: "minecraft:overworld"
   core:
@@ -123,6 +133,69 @@ arena:
 `arena.radius` is the circular boundary used by robot movement, target validity, and retreat planning. `core.radius` remains the separate CORE capture radius. Each robot spawn is randomized within `team-spawns.random-radius` of its team's configured lane; the same resolver is used for round starts and respawns.
 
 The full file is generated with comments and all available options.
+
+### BGM
+
+AutoBattle includes a server-side BGM system based on the OGG/Polymer flow
+from [minigame-shader](https://github.com/biryeongtrain/minigame-shader).
+Put `.ogg` Vorbis files under `config/autobattle/music/`. AutoBattle adds them
+to Polymer's generated resource pack, waits for each player's pack to finish
+loading, and then sends normal Minecraft music packets. No client-side mod is
+required. BGM starts automatically in the lobby and switches to the match
+playlist when a round starts. The bundled `docs/lobby.ogg` and `docs/bgm1.ogg` through
+`docs/bgm5.ogg` files are copied into that directory on first startup when a
+same-named user file does not already exist.
+
+The generated default playlists are:
+
+- `lobby`: `lobby.ogg`, repeated continuously while the match is waiting to
+  start, including doctrine setup.
+- `match`: `bgm1.ogg` through `bgm5.ogg`, automatically shuffled and repeated
+  after a round starts. A new shuffle avoids repeating the track that just
+  finished.
+
+Playback waits for each player's Polymer resource pack acknowledgement and
+also attaches the current track to players who become ready after a playlist
+has started.
+
+`config/autobattle/music.json` is created automatically:
+
+```json
+{
+  "autoStart": true
+}
+```
+
+`autoStart` enables a startup recovery path if the server lifecycle reaches a
+ready listener before the lobby playlist is created. Normal lobby and round
+phase transitions start their playlists automatically. Optional playlists are stored in
+`config/autobattle/music/playlists.json`:
+
+```json
+{
+  "lobby": {
+    "tracks": ["lobby/first.ogg", "lobby/second.ogg"],
+    "repeat": true
+  }
+}
+```
+
+The track IDs are generated from their relative paths and can be inspected
+with `/autobattle music list`. Operators can control playback with:
+
+```text
+/autobattle music list
+/autobattle music play <track-id|playlist> [players]
+/autobattle music stop [players]
+/autobattle music next [players]
+/autobattle music global play <track-id|playlist>
+/autobattle music global stop
+/autobattle music global next
+```
+
+After adding or replacing OGG files, restart the server so Polymer rebuilds and
+publishes the resource pack. Broken, non-Vorbis, truncated, and chained OGG
+streams are skipped with a server log warning.
 
 `messages.yml` controls text shown through the Sidebar, BossBar, ActionBar, chat announcements, and native Dialogs. Dynamic values use placeholders such as `{round}`, `{total_rounds}`, `{seconds}`, `{score}`, `{hp}`, `{color}`, and `{plan}`.
 
@@ -176,11 +249,11 @@ pursuit_style:    ENGAGE | CHASE
 ally_target:      <living ally target ID when SUPPORT>
 ```
 
-Server code deterministically composes those answers into legal plans such as `ENGAGE_B3`, `CHASE_R5`, `ASSIST_R2`, `HOLD_POSITION`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Same-team robots are never combat candidates, and ASSIST candidates are limited to living same-team allies. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
+Server code deterministically composes those answers into legal plans such as `ENGAGE_B3`, `CHASE_R5`, `ASSIST_R2`, `HOLD_POSITION`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Same-team robots are never combat candidates, and ASSIST candidates are limited to living same-team allies. HOLD requires at least 0.60 confidence (or the configured global minimum when it is higher); a low-confidence HOLD is replaced by an active ENGAGE/CHASE, objective, ASSIST, or RETREAT fallback when one is legal. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
 
 When a robot is below the fallback retreat HP threshold, provisional behavior prefers `RETREAT` even when enemies are already far away. After the retreat planner reaches a safe distance, `RobotController` keeps the `RETREAT` plan, stops navigation, and waits for the normal decision interval instead of immediately switching back to `CAPTURE_CORE` or `DEFEND_CORE`.
 
-Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` stops at the current position for up to four seconds, still allowing local self-defense, and then requests a fresh decision. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
+Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` stops at the current position for up to four seconds, reacts to an enemy within `robot.hold-reaction-range` blocks, and then requests a fresh decision. An expired HOLD is not retained by low-confidence fallback; a deliberate high-confidence HOLD response starts a fresh four-second window. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
 
 ## Doctrine normalization
 
@@ -204,6 +277,8 @@ Players join and are immediately Ready
 Operator runs /autobattle admin start when RED and BLUE counts are equal (`startround` remains a legacy/debug command)
     ↓
 Doctrine Setup Dialog
+    - three Korean strategy examples selected from a library of twelve three-line examples
+    - examples are shown as text only; enter or edit the three strategy lines manually
     - Doctrine 1
     - Doctrine 2
     - Doctrine 3
@@ -220,7 +295,7 @@ Doctrine Edit Dialog
 Next Round
 ```
 
-The review and Doctrine edit dialogs require an explicit action; Esc does not dismiss them. The Doctrine line editor also blocks Esc.
+The review and Doctrine edit dialogs require an explicit action; Esc does not dismiss them. The Doctrine line editor also blocks Esc. The initial Doctrine setup dialog shows three Korean strategy examples chosen from twelve complete three-line bundles; the examples are read-only text and the player enters the final three lines manually.
 
 Free-form Doctrine text is submitted with Minecraft's custom dialog action payload rather than being interpolated into a command string. Spaces, quotes, Korean text and other normal input therefore remain data.
 
@@ -245,6 +320,7 @@ The Doctrine view command requires permission level 2 because it reveals another
 - Minecraft 1.21.8
 - Fabric Loader 0.18.0
 - Fabric API 0.136.0+1.21.8
+- Polymer 0.13.13+1.21.8 (BGM resource-pack transport)
 - Java 21
 - Mojang official mappings
 - TypeSafe System One / Jev

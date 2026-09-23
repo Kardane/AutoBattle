@@ -3,7 +3,8 @@
   "package": "dev.kardane.autobattle.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "ServerCommonPacketListenerImplMixin"
+    "ServerCommonPacketListenerImplMixin",
+    "MusicBuildMixin"
   ],
   "injectors": {
     "defaultRequire": 1

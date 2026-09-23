@@ -5,6 +5,7 @@ public record RobotConfig(
     double attackDamage,
     double movementSpeed,
     double followRange,
+    double holdReactionRange,
     int regenDelayTicks,
     int regenIntervalTicks,
     float regenAmount,
@@ -24,6 +25,7 @@ public record RobotConfig(
             || attackDamage < 0.0D
             || movementSpeed <= 0.0D
             || followRange <= 0.0D
+            || holdReactionRange <= 0.0D
             || regenDelayTicks < 0
             || regenIntervalTicks < 1
             || regenAmount < 0.0F

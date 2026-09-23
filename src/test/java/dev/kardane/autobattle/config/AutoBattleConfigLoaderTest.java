@@ -41,6 +41,10 @@ final class AutoBattleConfigLoaderTest {
 
         root.put("arena", arena);
 
+        Map<String, Object> robot = new LinkedHashMap<>();
+        robot.put("hold-reaction-range", 18.0D);
+        root.put("robot", robot);
+
         AutoBattleConfig parsed =
             AutoBattleConfigLoader.parse(root);
 
@@ -60,6 +64,14 @@ final class AutoBattleConfigLoaderTest {
         assertEquals(
             -53.0D,
             parsed.arena().viewerSpawn().y()
+        );
+        assertEquals(
+            18.0D,
+            parsed.robot().holdReactionRange()
+        );
+        assertEquals(
+            12.0D,
+            AutoBattleConfig.defaults().robot().holdReactionRange()
         );
     }
 }

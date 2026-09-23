@@ -319,6 +319,48 @@ final class DecisionComposerTest {
     }
 
     @Test
+    void lowConfidenceHoldIsRejectedEvenAboveGlobalMinimum() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("HOLD", 0.50D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION",
+                "RETREAT"
+            ),
+            "HOLD_POSITION",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertTrue(result.lowConfidence());
+    }
+
+    @Test
+    void lowConfidenceIntentDoesNotKeepCurrentHold() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.20D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION",
+                "RETREAT"
+            ),
+            "HOLD_POSITION",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertTrue(result.lowConfidence());
+    }
+
+    @Test
     void lowConfidenceIntentKeepsLegalCurrentPlan() {
         DecisionComposition result = composer.compose(
             response(

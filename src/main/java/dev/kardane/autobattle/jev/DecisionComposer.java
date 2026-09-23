@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Objects;
 
 public final class DecisionComposer {
+    private static final double HOLD_MINIMUM_CONFIDENCE = 0.60D;
+
     public DecisionComposition compose(
         DecisionResponse response,
         List<String> currentPlanIds,
@@ -60,6 +62,7 @@ public final class DecisionComposer {
             || intent.confidence() < minimumConfidence) {
             return new DecisionComposition(
                 containsPlan(currentPlanIds, currentPlanId)
+                    && !isHoldPlan(currentPlanId)
                     ? currentPlanId
                     : null,
                 true,
@@ -86,12 +89,11 @@ public final class DecisionComposer {
                 currentPlanId,
                 minimumConfidence
             );
-            case "HOLD" -> new DecisionComposition(
-                currentPlanIds.contains("HOLD_POSITION")
-                    ? "HOLD_POSITION"
-                    : null,
-                false,
-                false
+            case "HOLD" -> composeHold(
+                currentPlanIds,
+                currentPlanId,
+                intent.confidence(),
+                minimumConfidence
             );
             case "FIGHT" -> composeFight(
                 response,
@@ -105,6 +107,37 @@ public final class DecisionComposer {
                 false
             );
         };
+    }
+
+    private DecisionComposition composeHold(
+        List<String> currentPlanIds,
+        String currentPlanId,
+        double confidence,
+        double minimumConfidence
+    ) {
+        double requiredConfidence = Math.max(
+            minimumConfidence,
+            HOLD_MINIMUM_CONFIDENCE
+        );
+
+        if (confidence < requiredConfidence) {
+            return new DecisionComposition(
+                containsPlan(currentPlanIds, currentPlanId)
+                    && !isHoldPlan(currentPlanId)
+                    ? currentPlanId
+                    : null,
+                true,
+                false
+            );
+        }
+
+        return new DecisionComposition(
+            currentPlanIds.contains("HOLD_POSITION")
+                ? "HOLD_POSITION"
+                : null,
+            false,
+            false
+        );
     }
 
     private DecisionComposition composeSupport(
@@ -275,5 +308,9 @@ public final class DecisionComposer {
     private boolean isAssistPlan(String planId) {
         return planId != null
             && planId.startsWith("ASSIST_");
+    }
+
+    private boolean isHoldPlan(String planId) {
+        return "HOLD_POSITION".equals(planId);
     }
 }

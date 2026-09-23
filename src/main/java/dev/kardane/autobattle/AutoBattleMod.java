@@ -25,6 +25,7 @@ import dev.kardane.autobattle.jev.TypeSafeJevClient;
 import dev.kardane.autobattle.log.MatchLogService;
 import dev.kardane.autobattle.match.MatchManager;
 import dev.kardane.autobattle.review.RoundReviewService;
+import dev.kardane.autobattle.music.BgmRuntime;
 import dev.kardane.autobattle.robot.RobotFactory;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import dev.kardane.autobattle.tactics.PlanExecutor;
@@ -48,6 +49,8 @@ public final class AutoBattleMod implements DedicatedServerModInitializer {
 
     @Override
     public void onInitializeServer() {
+        BgmRuntime.register();
+
         AutoBattleConfig config =
             AutoBattleConfigLoader.load();
 

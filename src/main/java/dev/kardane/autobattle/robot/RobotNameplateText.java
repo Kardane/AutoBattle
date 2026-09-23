@@ -13,6 +13,14 @@ public final class RobotNameplateText {
     private static final int RED_HEALTH_COLOR = 0xFF8C00;
     private static final int BLUE_HEALTH_COLOR = 0x87CEEB;
 
+    private static final int CHASE_BEHAVIOR_COLOR = 0xFFD700;
+    private static final int ENGAGE_BEHAVIOR_COLOR = 0xFF5555;
+    private static final int CAPTURE_BEHAVIOR_COLOR = 0x55FFFF;
+    private static final int DEFEND_BEHAVIOR_COLOR = 0x5555FF;
+    private static final int ASSIST_BEHAVIOR_COLOR = 0x55FF55;
+    private static final int HOLD_BEHAVIOR_COLOR = 0xAAAAAA;
+    private static final int RETREAT_BEHAVIOR_COLOR = 0xAA00AA;
+
     private RobotNameplateText() {
     }
 
@@ -37,9 +45,7 @@ public final class RobotNameplateText {
 
         MutableComponent healthLine = Component.empty();
         int filled = filledSegments(health, maxHealth);
-        int filledColor = team == BattleTeam.RED
-            ? RED_HEALTH_COLOR
-            : BLUE_HEALTH_COLOR;
+        int teamColor = teamHealthColor(team);
 
         for (int index = 0;
              index < HEALTH_BAR_LENGTH;
@@ -48,7 +54,7 @@ public final class RobotNameplateText {
                 Component.literal("|")
                     .withColor(
                         index < filled
-                            ? filledColor
+                            ? teamColor
                             : EMPTY_HEALTH_COLOR
                     )
             );
@@ -61,8 +67,29 @@ public final class RobotNameplateText {
             .append("\n")
             .append(
                 Component.literal(behavior)
-                    .withStyle(team.robotColor().chatColor())
+                    .withColor(behaviorColor(behavior))
             );
+    }
+
+    static int teamHealthColor(BattleTeam team) {
+        return team == BattleTeam.RED
+            ? RED_HEALTH_COLOR
+            : BLUE_HEALTH_COLOR;
+    }
+
+    static int behaviorColor(String behavior) {
+        Objects.requireNonNull(behavior, "behavior");
+
+        return switch (behavior) {
+            case "추격", "CHASE" -> CHASE_BEHAVIOR_COLOR;
+            case "공격", "ENGAGE" -> ENGAGE_BEHAVIOR_COLOR;
+            case "점령", "CAPTURE" -> CAPTURE_BEHAVIOR_COLOR;
+            case "방어", "DEFEND" -> DEFEND_BEHAVIOR_COLOR;
+            case "지원", "ASSIST" -> ASSIST_BEHAVIOR_COLOR;
+            case "후퇴", "RETREAT" -> RETREAT_BEHAVIOR_COLOR;
+            case "대기", "HOLD" -> HOLD_BEHAVIOR_COLOR;
+            default -> HOLD_BEHAVIOR_COLOR;
+        };
     }
 
     public static String behaviorLabel(

@@ -1,9 +1,11 @@
 package dev.kardane.autobattle.robot;
 
+import com.mojang.math.Transformation;
 import dev.kardane.autobattle.AutoBattleMod;
 import dev.kardane.autobattle.match.BattleTeam;
 import dev.kardane.autobattle.tactics.TacticalPlanType;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.server.level.ServerLevel;
@@ -16,6 +18,8 @@ import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.TagValueInput;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -34,6 +38,9 @@ public final class RobotZombie extends Zombie {
         "default_background";
     private static final String TAG_ALIGNMENT = "alignment";
     private static final int NAMEPLATE_LINE_WIDTH = 320;
+    // Vanilla entity nameplates use a translucent black background.
+    private static final int NAMEPLATE_BACKGROUND = 0x40000000;
+    private static final float NAMEPLATE_VERTICAL_OFFSET = 1.0F;
 
     private final UUID ownerUuid;
     private final BattleTeam team;
@@ -215,7 +222,7 @@ public final class RobotZombie extends Zombie {
         display.setInvulnerable(true);
         display.setPos(
             getX(),
-            getY() + getBbHeight() + 0.35D,
+            getY(),
             getZ()
         );
         display.addTag(NAMEPLATE_TAG);
@@ -272,11 +279,26 @@ public final class RobotZombie extends Zombie {
         data.putFloat(Display.TAG_HEIGHT, 2.0F);
         data.putInt(TAG_LINE_WIDTH, NAMEPLATE_LINE_WIDTH);
         data.putByte(TAG_TEXT_OPACITY, (byte) -1);
-        data.putInt(TAG_BACKGROUND, 0);
-        data.putBoolean(TAG_SHADOW, true);
+        data.putInt(TAG_BACKGROUND, NAMEPLATE_BACKGROUND);
+        data.putBoolean(TAG_SHADOW, false);
         data.putBoolean(TAG_SEE_THROUGH, true);
         data.putBoolean(TAG_DEFAULT_BACKGROUND, false);
-        data.putString(TAG_ALIGNMENT, "left");
+        data.putString(TAG_ALIGNMENT, "center");
+        Transformation.EXTENDED_CODEC.encodeStart(
+            NbtOps.INSTANCE,
+            new Transformation(
+                new Vector3f(
+                    0.0F,
+                    getBbHeight() + NAMEPLATE_VERTICAL_OFFSET,
+                    0.0F
+                ),
+                new Quaternionf(),
+                new Vector3f(1.0F, 1.0F, 1.0F),
+                new Quaternionf()
+            )
+        ).result().ifPresent(
+            encoded -> data.put(Display.TAG_TRANSFORMATION, encoded)
+        );
 
         nameplate.load(
             TagValueInput.create(
