@@ -160,21 +160,19 @@ public final class ValidPlanFactory {
             plans.add(hold);
         }
 
-        if (!self.isRetreatSafe(match)) {
-            TacticalPlan retreat =
-                TacticalPlan.retreat(
-                    currentTick,
-                    lockTicks
-                );
+        TacticalPlan retreat =
+            TacticalPlan.retreat(
+                currentTick,
+                lockTicks
+            );
 
-            if (validityPolicy.validate(
-                match,
-                self,
-                retreat,
-                currentTick
-            ).valid()) {
-                plans.add(retreat);
-            }
+        if (validityPolicy.validate(
+            match,
+            self,
+            retreat,
+            currentTick
+        ).valid()) {
+            plans.add(retreat);
         }
 
         return List.copyOf(plans);
