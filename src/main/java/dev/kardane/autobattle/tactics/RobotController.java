@@ -70,6 +70,7 @@ public final class RobotController {
     private long nextRetreatEvaluationTick = -1L;
     private long holdUntilTick = -1L;
     private boolean holdCompletionRequested;
+    private boolean retreatSafeRedecisionRequested;
     private final List<BlockedRetreatDestination>
         blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
@@ -200,6 +201,16 @@ public final class RobotController {
             && currentPlan.type() == TacticalPlanType.HOLD
             && holdUntilTick >= 0L
             && currentTick >= holdUntilTick;
+    }
+
+    public boolean isRetreatSafe(MatchSession match) {
+        Objects.requireNonNull(match, "match");
+
+        return alive()
+            && retreatPlanner.sufficientlySafe(
+                match,
+                this
+            );
     }
 
     public Optional<PlanSource> currentPlanSource() {
@@ -362,6 +373,7 @@ public final class RobotController {
             plan.type() == TacticalPlanType.RETREAT
                 ? currentTick
                 : -1L;
+        retreatSafeRedecisionRequested = false;
         holdUntilTick =
             plan.type() == TacticalPlanType.HOLD
                 ? currentTick
@@ -402,6 +414,7 @@ public final class RobotController {
         retreatPlanDestination = null;
         retreatChoice = null;
         nextRetreatEvaluationTick = -1L;
+        retreatSafeRedecisionRequested = false;
         holdUntilTick = -1L;
         holdCompletionRequested = false;
         blockedRetreatDestinations.clear();
@@ -1120,13 +1133,12 @@ public final class RobotController {
         entity.setTarget(null);
         pruneBlockedRetreatDestinations(currentTick);
 
-        if (retreatPlanner.sufficientlySafe(
-            match,
-            this
-        )) {
+        if (isRetreatSafe(match)) {
             holdRetreatSafely();
             return;
         }
+
+        retreatSafeRedecisionRequested = false;
 
         boolean arrived =
             retreatPlanDestination != null
@@ -1259,9 +1271,17 @@ public final class RobotController {
             entity.getNavigation().stop();
         }
 
+        if (!retreatSafeRedecisionRequested) {
+            retreatSafeRedecisionRequested = true;
+            requestRedecision(
+                DecisionTrigger.RETREAT_SAFE
+            );
+        }
+
         AutoBattleMod.LOGGER.debug(
-            "Retreat holding safe state owner={}",
-            ownerUuid
+            "Retreat reached safe state owner={} redecisionRequested={}",
+            ownerUuid,
+            retreatSafeRedecisionRequested
         );
     }
 
