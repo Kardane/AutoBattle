@@ -355,6 +355,25 @@ final class TypeSafeJevClientTest {
     }
 
     @Test
+    void safeCandidateSetDoesNotOfferRetreatIntent() {
+        JsonObject criteria = client
+            .buildRequestBody(
+                request(
+                    List.of(
+                        "CAPTURE_CORE",
+                        "HOLD_POSITION"
+                    )
+                )
+            )
+            .getAsJsonObject("questions")
+            .getAsJsonObject("strategic_intent")
+            .getAsJsonObject("criteria");
+
+        assertTrue(criteria.has("HOLD"));
+        assertFalse(criteria.has("RETREAT"));
+    }
+
+    @Test
     void singleLegalAllyTargetIsNotAskedAsChoice() {
         JsonObject questions = client
             .buildRequestBody(
