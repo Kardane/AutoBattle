@@ -804,7 +804,13 @@ public final class JevDecisionService {
 
                 yield objective;
             }
-            case SURVIVE -> byId.get("RETREAT");
+            case SURVIVE -> {
+                TacticalPlan retreat = byId.get("RETREAT");
+
+                yield retreat != null
+                    ? retreat
+                    : byId.get("HOLD_POSITION");
+            }
             case ATTACK -> {
                 if (current != null
                     && isCombatPlan(current.externalId())
@@ -870,9 +876,18 @@ public final class JevDecisionService {
             )
             .orElse(0.0D);
 
-        if (hpRatio <= config.ai().fallbackRetreatHpRatio()
-            && byId.containsKey("RETREAT")) {
-            return byId.get("RETREAT");
+        if (hpRatio <= config.ai().fallbackRetreatHpRatio()) {
+            TacticalPlan retreat = byId.get("RETREAT");
+
+            if (retreat != null) {
+                return retreat;
+            }
+
+            TacticalPlan hold = byId.get("HOLD_POSITION");
+
+            if (hold != null) {
+                return hold;
+            }
         }
 
         // A low-confidence answer must trigger active reacquisition when
