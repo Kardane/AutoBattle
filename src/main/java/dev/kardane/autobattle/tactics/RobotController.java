@@ -26,7 +26,6 @@ import java.util.UUID;
 public final class RobotController {
     private static final double INTENT_PARTICLE_SPACING = 0.2D;
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
-    private static final double CAPTURE_REACTION_RANGE = 2.0D;
     private static final double ASSIST_REACTION_RANGE = 4.0D;
     private static final double ASSIST_MIN_DISTANCE = 2.0D;
     private static final double ASSIST_MAX_DISTANCE = 4.0D;
