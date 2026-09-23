@@ -615,6 +615,7 @@ public final class RobotController {
             );
             case CAPTURE ->
                 capture(
+                    match,
                     currentPlan.destination(),
                     currentTick
                 );
@@ -705,40 +706,61 @@ public final class RobotController {
     }
 
     private void capture(
+        MatchSession match,
         Vec3 destination,
         long currentTick
     ) {
         Vec3 boundedDestination =
             clampToArena(destination);
 
-        Optional<RobotZombie> nearbyThreat =
-            resolveNearestEnemyNear(
-                entity.position(),
-                CAPTURE_REACTION_RANGE,
-                currentTick,
-                false
+        Optional<RobotZombie> contestingEnemy =
+            resolveNearestEnemyInsideCore(
+                match,
+                currentTick
             );
 
-        if (nearbyThreat.isPresent()) {
-            RobotZombie target = nearbyThreat.orElseThrow();
-            localCombatTargetUuid = target.ownerUuid();
+        if (contestingEnemy.isPresent()) {
+            RobotZombie target =
+                contestingEnemy.orElseThrow();
+
+            localCombatTargetUuid =
+                target.ownerUuid();
             entity.setTarget(target);
-        } else {
-            localCombatTargetUuid = null;
-            entity.setTarget(null);
+
+            boolean inAttackRange =
+                entity.distanceTo(target)
+                    <= PATH_REQUIRED_DISTANCE;
+
+            if (!navigateWithRecovery(
+                target.position(),
+                config.engageSpeed(),
+                inAttackRange,
+                currentTick
+            )) {
+                reachability.excludeNow(
+                    target.ownerUuid(),
+                    target.position(),
+                    currentTick
+                );
+                stopLocalMovement();
+                movementRecovery.reset();
+            }
+            return;
         }
 
-        boolean arrived =
-            entity.position().distanceToSqr(
-                boundedDestination
-            ) <= square(
-                config.positionReachedDistance()
-            );
+        localCombatTargetUuid = null;
+        entity.setTarget(null);
+
+        if (match.core().isInside(entity)) {
+            entity.getNavigation().stop();
+            movementRecovery.reset();
+            return;
+        }
 
         if (!navigateWithRecovery(
             boundedDestination,
             config.captureSpeed(),
-            arrived,
+            false,
             currentTick
         )) {
             suppressCurrentPlanAndRedecide(
@@ -746,6 +768,41 @@ public final class RobotController {
                 currentTick
             );
         }
+    }
+
+    private Optional<RobotZombie> resolveNearestEnemyInsideCore(
+        MatchSession match,
+        long currentTick
+    ) {
+        if (entity == null) {
+            return Optional.empty();
+        }
+
+        return registry.alive().stream()
+            .filter(controller -> controller != this)
+            .filter(controller ->
+                team.isEnemy(controller.team())
+            )
+            .flatMap(controller ->
+                controller.entity().stream()
+            )
+            .filter(target ->
+                target.matchId().equals(entity.matchId())
+            )
+            .filter(match.core()::isInside)
+            .filter(target ->
+                !isTargetTemporarilyUnreachable(
+                    target.ownerUuid(),
+                    target.position(),
+                    currentTick
+                )
+            )
+            .min(
+                Comparator.comparingDouble(
+                    target ->
+                        entity.distanceToSqr(target)
+                )
+            );
     }
 
     private void defend(
