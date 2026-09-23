@@ -248,6 +248,28 @@ final class DecisionComposerTest {
     }
 
     @Test
+    void surviveCommandHoldsWhenRetreatIsNoLongerLegal() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("FIGHT", 0.9D),
+                choice("B1", 0.9D),
+                choice("CHASE", 0.9D)
+            ),
+            List.of(
+                "ENGAGE_B1",
+                "CAPTURE_CORE",
+                "HOLD_POSITION"
+            ),
+            "HOLD_POSITION",
+            0.35D,
+            PlayerCommandType.SURVIVE
+        );
+
+        assertEquals("HOLD_POSITION", result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
     void supportIntentComposesAssistPlan() {
         DecisionComposition result = composer.compose(
             response(
