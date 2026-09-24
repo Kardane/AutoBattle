@@ -1520,7 +1520,7 @@ public final class RobotController {
         );
     }
 
-    private boolean suppressFailedProvisionalMovement(
+    boolean suppressFailedProvisionalMovement(
         Vec3 destination,
         DecisionTrigger trigger
     ) {
