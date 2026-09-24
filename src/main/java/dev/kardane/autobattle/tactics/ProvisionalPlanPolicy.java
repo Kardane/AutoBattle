@@ -3,6 +3,7 @@ package dev.kardane.autobattle.tactics;
 import dev.kardane.autobattle.command.PlayerCommandType;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.MatchSession;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.robot.RobotZombie;
 
@@ -34,6 +35,22 @@ public final class ProvisionalPlanPolicy {
         RobotController controller,
         List<TacticalPlan> candidates,
         long currentTick
+    ) {
+        return choose(
+            match,
+            controller,
+            candidates,
+            currentTick,
+            null
+        );
+    }
+
+    public Optional<TacticalPlan> choose(
+        MatchSession match,
+        RobotController controller,
+        List<TacticalPlan> candidates,
+        long currentTick,
+        DecisionTrigger trigger
     ) {
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(controller, "controller");
@@ -73,6 +90,15 @@ public final class ProvisionalPlanPolicy {
                     (double) self.distanceTo(target)
                 )
                 .orElse(Double.POSITIVE_INFINITY);
+
+        if (trigger == DecisionTrigger.RESPAWN) {
+            Optional<TacticalPlan> hold =
+                byId(candidates, "HOLD_POSITION");
+
+            if (hold.isPresent()) {
+                return hold;
+            }
+        }
 
         return chooseCandidate(
             candidates,
