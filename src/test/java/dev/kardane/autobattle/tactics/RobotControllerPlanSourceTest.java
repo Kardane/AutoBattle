@@ -2,6 +2,7 @@ package dev.kardane.autobattle.tactics;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.BattleTeam;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,46 @@ final class RobotControllerPlanSourceTest {
         assertEquals(
             generation,
             controller.decisionGeneration()
+        );
+    }
+
+    @Test
+    void provisionalMovementFailureDoesNotBlacklistOrRetry() {
+        RobotController controller = controller();
+        TacticalPlan provisional =
+            TacticalPlan.capture(
+                new Vec3(0.5D, 80.0D, 0.5D),
+                10L,
+                40L
+            );
+
+        assertTrue(
+            controller.applyProvisionalPlan(
+                provisional,
+                10L
+            )
+        );
+
+        assertTrue(
+            controller.suppressFailedProvisionalMovement(
+                provisional.destination(),
+                DecisionTrigger.MOVEMENT_FAILED
+            )
+        );
+
+        assertTrue(controller.currentPlan().isEmpty());
+        assertTrue(controller.provisionalBehaviorSuppressed());
+        assertFalse(
+            controller.isPlanTemporarilyUnreachable(
+                provisional,
+                11L
+            )
+        );
+        assertFalse(
+            controller.applyProvisionalPlan(
+                provisional,
+                11L
+            )
         );
     }
 
