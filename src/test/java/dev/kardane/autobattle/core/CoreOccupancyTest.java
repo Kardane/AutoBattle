@@ -67,6 +67,47 @@ final class CoreOccupancyTest {
     }
 
     @Test
+    void coreOwnerScoresOnlyWithSoleOccupancy() {
+        assertTrue(
+            CoreController.ownerHasSoleOccupancy(
+                BattleTeam.RED,
+                CoreOccupancy.RED_ONLY
+            )
+        );
+        assertTrue(
+            CoreController.ownerHasSoleOccupancy(
+                BattleTeam.BLUE,
+                CoreOccupancy.BLUE_ONLY
+            )
+        );
+
+        assertFalse(
+            CoreController.ownerHasSoleOccupancy(
+                BattleTeam.RED,
+                CoreOccupancy.CONTESTED
+            )
+        );
+        assertFalse(
+            CoreController.ownerHasSoleOccupancy(
+                BattleTeam.RED,
+                CoreOccupancy.EMPTY
+            )
+        );
+        assertFalse(
+            CoreController.ownerHasSoleOccupancy(
+                BattleTeam.RED,
+                CoreOccupancy.BLUE_ONLY
+            )
+        );
+        assertFalse(
+            CoreController.ownerHasSoleOccupancy(
+                null,
+                CoreOccupancy.RED_ONLY
+            )
+        );
+    }
+
+    @Test
     void negativeCountsAreRejected() {
         assertThrows(
             IllegalArgumentException.class,
