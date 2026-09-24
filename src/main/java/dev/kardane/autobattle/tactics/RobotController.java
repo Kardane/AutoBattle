@@ -71,6 +71,7 @@ public final class RobotController {
     private long nextRetreatEvaluationTick = -1L;
     private long holdUntilTick = -1L;
     private boolean holdCompletionRequested;
+    private Vec3 holdAnchorPosition;
     private final List<BlockedRetreatDestination>
         blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
@@ -215,6 +216,15 @@ public final class RobotController {
 
     public Optional<PlanSource> currentPlanSource() {
         return Optional.ofNullable(currentPlanSource);
+    }
+
+    public boolean shouldKeepExpiredHold(
+        TacticalPlan proposedPlan,
+        long currentTick
+    ) {
+        return isHoldExpired(currentTick)
+            && proposedPlan != null
+            && proposedPlan.type() == TacticalPlanType.HOLD;
     }
 
     public boolean hasProvisionalPlan() {
@@ -386,6 +396,12 @@ public final class RobotController {
                     + AutoBattleConstants.HOLD_DURATION_TICKS
                 : -1L;
         holdCompletionRequested = false;
+        holdAnchorPosition =
+            plan.type() == TacticalPlanType.HOLD
+                && entity != null
+                && !entity.isRemoved()
+                    ? entity.position()
+                    : null;
         blockedRetreatDestinations.clear();
 
         if (entity != null && !entity.isRemoved()) {
@@ -423,6 +439,7 @@ public final class RobotController {
         nextRetreatEvaluationTick = -1L;
         holdUntilTick = -1L;
         holdCompletionRequested = false;
+        holdAnchorPosition = null;
         blockedRetreatDestinations.clear();
         movementRecovery.reset();
 
@@ -919,10 +936,19 @@ public final class RobotController {
             return;
         }
 
+        Vec3 anchor = holdAnchorPosition == null
+            ? entity.position()
+            : clampToArena(holdAnchorPosition);
+
+        double defenseRange = Math.min(
+            config.holdReactionRange(),
+            PATH_REQUIRED_DISTANCE
+        );
+
         Optional<RobotZombie> nearbyThreat =
             resolveNearestEnemyNear(
                 entity.position(),
-                config.holdReactionRange(),
+                defenseRange,
                 currentTick,
                 false
             );
@@ -931,22 +957,30 @@ public final class RobotController {
             RobotZombie target = nearbyThreat.orElseThrow();
             localCombatTargetUuid = target.ownerUuid();
             entity.setTarget(target);
+            entity.getNavigation().stop();
+            movementRecovery.reset();
+        } else {
+            localCombatTargetUuid = null;
+            entity.setTarget(null);
 
-            boolean inAttackRange =
-                entity.distanceTo(target)
-                    <= PATH_REQUIRED_DISTANCE;
+            boolean atAnchor =
+                entity.position().distanceToSqr(anchor)
+                    <= square(
+                        config.positionReachedDistance()
+                    );
 
-            if (!navigateWithRecovery(
-                target.position(),
-                config.engageSpeed(),
-                inAttackRange,
+            if (atAnchor) {
+                entity.getNavigation().stop();
+                movementRecovery.reset();
+            } else if (!navigateWithRecovery(
+                anchor,
+                config.defendSpeed(),
+                false,
                 currentTick
             )) {
-                stopLocalMovement();
+                entity.getNavigation().stop();
+                movementRecovery.reset();
             }
-        } else {
-            stopLocalMovement();
-            movementRecovery.reset();
         }
 
         if (holdUntilTick >= 0L
