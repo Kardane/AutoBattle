@@ -111,11 +111,14 @@ public final class AutoBattleConfigLoader {
           kill: 5
           assist: 2
           core-capture: 3
+          # Awarded only after the current CORE owner maintains
+          # sole occupancy for a complete hold interval.
           core-hold: 1
           assist-window-seconds: 5.0
 
         core:
           capture-seconds: 3.0
+          # Empty, contested, or enemy-only occupancy resets this timer.
           hold-score-interval-seconds: 2.0
 
         arena:
