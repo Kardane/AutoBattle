@@ -53,6 +53,27 @@ final class DecisionComposerTest {
     }
 
     @Test
+    void lowConfidenceCannotReviveCompletedRetreat() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.20D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION"
+            ),
+            "RETREAT",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertTrue(result.lowConfidence());
+        assertFalse(result.targetUnavailable());
+    }
+
+    @Test
     void controlCoreRecomposesFromCaptureToDefend() {
         DecisionResponse response = response(
             choice("CONTROL_CORE", 0.9D),
