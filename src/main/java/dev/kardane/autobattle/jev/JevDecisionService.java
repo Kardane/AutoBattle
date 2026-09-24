@@ -209,7 +209,8 @@ public final class JevDecisionService {
             match,
             controller,
             currentTick,
-            candidates
+            candidates,
+            trigger
         );
 
         java.util.concurrent.CompletableFuture<DecisionResponse> future;
@@ -980,7 +981,8 @@ public final class JevDecisionService {
             match,
             controller,
             currentTick,
-            candidates
+            candidates,
+            null
         );
     }
 
@@ -988,10 +990,12 @@ public final class JevDecisionService {
         MatchSession match,
         RobotController controller,
         long currentTick,
-        List<TacticalPlan> candidates
+        List<TacticalPlan> candidates,
+        DecisionTrigger trigger
     ) {
         if (!controller.hasPendingDecision()
             || controller.currentPlan().isPresent()
+            || controller.provisionalBehaviorSuppressed()
             || candidates.isEmpty()) {
             return;
         }
@@ -1000,7 +1004,8 @@ public final class JevDecisionService {
                 match,
                 controller,
                 candidates,
-                currentTick
+                currentTick,
+                trigger
             )
             .ifPresent(plan ->
                 planExecutor.assignProvisionalPlan(
