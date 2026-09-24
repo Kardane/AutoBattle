@@ -940,10 +940,10 @@ public final class RobotController {
             ? entity.position()
             : clampToArena(holdAnchorPosition);
 
-        double defenseRange = Math.min(
-            config.holdReactionRange(),
-            PATH_REQUIRED_DISTANCE
-        );
+        double defenseRange =
+            effectiveHoldDefenseRange(
+                config.holdReactionRange()
+            );
 
         Optional<RobotZombie> nearbyThreat =
             resolveNearestEnemyNear(
@@ -1927,6 +1927,15 @@ public final class RobotController {
             0.0D,
             robot.getBbHeight() * 0.5D,
             0.0D
+        );
+    }
+
+    static double effectiveHoldDefenseRange(
+        double configuredRange
+    ) {
+        return Math.min(
+            configuredRange,
+            PATH_REQUIRED_DISTANCE
         );
     }
 
