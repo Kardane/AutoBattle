@@ -936,9 +936,12 @@ public final class RobotController {
             return;
         }
 
-        Vec3 anchor = holdAnchorPosition == null
-            ? entity.position()
-            : clampToArena(holdAnchorPosition);
+        if (holdAnchorPosition == null) {
+            holdAnchorPosition = entity.position();
+        }
+
+        Vec3 anchor =
+            clampToArena(holdAnchorPosition);
 
         double defenseRange =
             effectiveHoldDefenseRange(
