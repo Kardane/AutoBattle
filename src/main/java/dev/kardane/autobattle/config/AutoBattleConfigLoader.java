@@ -74,8 +74,8 @@ public final class AutoBattleConfigLoader {
           request-timeout-ms: 1500
           minimum-confidence: 0.35
 
-          # Used only by deterministic server fallback when an AI
-          # decision cannot be applied. RETREAT itself is always available.
+          # Used by deterministic/provisional survival fallback.
+          # RETREAT is legal only while the robot is not already safe.
           fallback-retreat-hp-ratio: 0.25
 
         doctrine:
@@ -86,8 +86,9 @@ public final class AutoBattleConfigLoader {
           attack-damage: 10.0
           movement-speed: 0.30
           follow-range: 32.0
-          # HOLD reacts to an enemy within this many blocks.
-          hold-reaction-range: 12.0
+          # HOLD only performs local self-defense and never chases.
+          # Values above melee range are clamped by the controller.
+          hold-reaction-range: 2.0
 
           regen-delay-seconds: 5.0
           regen-interval-seconds: 1.0
@@ -110,11 +111,14 @@ public final class AutoBattleConfigLoader {
           kill: 5
           assist: 2
           core-capture: 3
+          # Awarded only after the current CORE owner maintains
+          # sole occupancy for a complete hold interval.
           core-hold: 1
           assist-window-seconds: 5.0
 
         core:
           capture-seconds: 3.0
+          # Empty, contested, or enemy-only occupancy resets this timer.
           hold-score-interval-seconds: 2.0
 
         arena:

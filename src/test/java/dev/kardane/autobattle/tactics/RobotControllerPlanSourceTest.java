@@ -2,6 +2,7 @@ package dev.kardane.autobattle.tactics;
 
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.BattleTeam;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.robot.RobotRegistry;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,46 @@ final class RobotControllerPlanSourceTest {
     }
 
     @Test
+    void provisionalMovementFailureDoesNotBlacklistOrRetry() {
+        RobotController controller = controller();
+        TacticalPlan provisional =
+            TacticalPlan.capture(
+                new Vec3(0.5D, 80.0D, 0.5D),
+                10L,
+                40L
+            );
+
+        assertTrue(
+            controller.applyProvisionalPlan(
+                provisional,
+                10L
+            )
+        );
+
+        assertTrue(
+            controller.suppressFailedProvisionalMovement(
+                provisional.destination(),
+                DecisionTrigger.MOVEMENT_FAILED
+            )
+        );
+
+        assertTrue(controller.currentPlan().isEmpty());
+        assertTrue(controller.provisionalBehaviorSuppressed());
+        assertFalse(
+            controller.isPlanTemporarilyUnreachable(
+                provisional,
+                11L
+            )
+        );
+        assertFalse(
+            controller.applyProvisionalPlan(
+                provisional,
+                11L
+            )
+        );
+    }
+
+    @Test
     void formalPlanCanImmediatelyPromoteSameProvisionalPlan() {
         RobotController controller = controller();
         TacticalPlan provisional =
@@ -82,6 +123,90 @@ final class RobotControllerPlanSourceTest {
                 .orElseThrow()
         );
         assertEquals(12L, controller.lastDecisionTick());
+    }
+
+    @Test
+    void urgentRetreatSafeRedecisionInvalidatesPendingDecision() {
+        RobotController controller = controller();
+
+        long generation =
+            controller.nextDecisionGeneration();
+
+        controller.markDecisionRequested(
+            generation,
+            10L
+        );
+
+        assertTrue(controller.hasPendingDecision());
+
+        controller.requestUrgentRedecision(
+            dev.kardane.autobattle.jev.DecisionTrigger.RETREAT_SAFE
+        );
+
+        assertFalse(controller.hasPendingDecision());
+        assertEquals(
+            generation + 1L,
+            controller.decisionGeneration()
+        );
+        assertEquals(
+            dev.kardane.autobattle.jev.DecisionTrigger.RETREAT_SAFE,
+            controller.decisionTrigger()
+        );
+    }
+
+    @Test
+    void holdDefenseRangeNeverExceedsMeleeRange() {
+        assertEquals(
+            2.0D,
+            RobotController.effectiveHoldDefenseRange(
+                12.0D
+            ),
+            1.0E-9D
+        );
+        assertEquals(
+            1.5D,
+            RobotController.effectiveHoldDefenseRange(
+                1.5D
+            ),
+            1.0E-9D
+        );
+    }
+
+    @Test
+    void expiredHoldIsNotRenewedByFallbackHold() {
+        RobotController controller = controller();
+
+        assertTrue(
+            controller.applyPlan(
+                TacticalPlan.hold(10L, 40L),
+                10L,
+                true,
+                PlanSource.FALLBACK
+            )
+        );
+
+        assertFalse(
+            controller.shouldKeepExpiredHold(
+                TacticalPlan.hold(89L, 40L),
+                89L
+            )
+        );
+        assertTrue(
+            controller.shouldKeepExpiredHold(
+                TacticalPlan.hold(90L, 40L),
+                90L
+            )
+        );
+        assertFalse(
+            controller.shouldKeepExpiredHold(
+                TacticalPlan.capture(
+                    new Vec3(0.5D, 80.0D, 0.5D),
+                    90L,
+                    40L
+                ),
+                90L
+            )
+        );
     }
 
     @Test

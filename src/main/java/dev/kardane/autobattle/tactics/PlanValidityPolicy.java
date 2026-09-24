@@ -41,6 +41,13 @@ public final class PlanValidityPolicy {
         Objects.requireNonNull(self, "self");
         Objects.requireNonNull(plan, "plan");
 
+        if (plan.type() == TacticalPlanType.RETREAT
+            && self.isRetreatSafe(match)) {
+            return PlanValidityResult.invalid(
+                PlanValidityStatus.OUT_OF_RANGE
+            );
+        }
+
         if (plan.type() == TacticalPlanType.ASSIST) {
             if (self.isPlanTemporarilyUnreachable(
                 plan,

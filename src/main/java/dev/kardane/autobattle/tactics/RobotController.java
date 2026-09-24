@@ -26,7 +26,6 @@ import java.util.UUID;
 public final class RobotController {
     private static final double INTENT_PARTICLE_SPACING = 0.2D;
     private static final float INTENT_PARTICLE_SCALE = 0.9F;
-    private static final double CAPTURE_REACTION_RANGE = 2.0D;
     private static final double ASSIST_REACTION_RANGE = 4.0D;
     private static final double ASSIST_MIN_DISTANCE = 2.0D;
     private static final double ASSIST_MAX_DISTANCE = 4.0D;
@@ -59,6 +58,7 @@ public final class RobotController {
     private long lastDecisionTick = -1L;
     private long decisionRetryNotBeforeTick = -1L;
     private boolean decisionPending;
+    private boolean provisionalBehaviorSuppressed;
     private long decisionRequestedTick = -1L;
     private boolean urgentRedecisionRequested;
     private boolean redecisionRequested;
@@ -71,6 +71,7 @@ public final class RobotController {
     private long nextRetreatEvaluationTick = -1L;
     private long holdUntilTick = -1L;
     private boolean holdCompletionRequested;
+    private Vec3 holdAnchorPosition;
     private final List<BlockedRetreatDestination>
         blockedRetreatDestinations = new ArrayList<>();
     private final TargetReachabilityTracker reachability =
@@ -203,13 +204,36 @@ public final class RobotController {
             && currentTick >= holdUntilTick;
     }
 
+    public boolean isRetreatSafe(MatchSession match) {
+        Objects.requireNonNull(match, "match");
+
+        return alive()
+            && retreatPlanner.sufficientlySafe(
+                match,
+                this
+            );
+    }
+
     public Optional<PlanSource> currentPlanSource() {
         return Optional.ofNullable(currentPlanSource);
+    }
+
+    public boolean shouldKeepExpiredHold(
+        TacticalPlan proposedPlan,
+        long currentTick
+    ) {
+        return isHoldExpired(currentTick)
+            && proposedPlan != null
+            && proposedPlan.type() == TacticalPlanType.HOLD;
     }
 
     public boolean hasProvisionalPlan() {
         return currentPlan != null
             && currentPlanSource == PlanSource.PROVISIONAL;
+    }
+
+    public boolean provisionalBehaviorSuppressed() {
+        return provisionalBehaviorSuppressed;
     }
 
     public long planStartedTick() {
@@ -266,6 +290,7 @@ public final class RobotController {
         planReachability.clear();
         movementRecovery.reset();
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration++;
@@ -290,6 +315,7 @@ public final class RobotController {
         planReachability.clear();
         movementRecovery.reset();
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration++;
@@ -352,6 +378,7 @@ public final class RobotController {
         planStartedTick = currentTick;
 
         if (source != PlanSource.PROVISIONAL) {
+            provisionalBehaviorSuppressed = false;
             lastDecisionTick = currentTick;
             decisionRetryNotBeforeTick = -1L;
         }
@@ -369,6 +396,12 @@ public final class RobotController {
                     + AutoBattleConstants.HOLD_DURATION_TICKS
                 : -1L;
         holdCompletionRequested = false;
+        holdAnchorPosition =
+            plan.type() == TacticalPlanType.HOLD
+                && entity != null
+                && !entity.isRemoved()
+                    ? entity.position()
+                    : null;
         blockedRetreatDestinations.clear();
 
         if (entity != null && !entity.isRemoved()) {
@@ -383,7 +416,8 @@ public final class RobotController {
         TacticalPlan plan,
         long currentTick
     ) {
-        if (currentPlan != null) {
+        if (currentPlan != null
+            || provisionalBehaviorSuppressed) {
             return false;
         }
 
@@ -405,6 +439,7 @@ public final class RobotController {
         nextRetreatEvaluationTick = -1L;
         holdUntilTick = -1L;
         holdCompletionRequested = false;
+        holdAnchorPosition = null;
         blockedRetreatDestinations.clear();
         movementRecovery.reset();
 
@@ -419,6 +454,7 @@ public final class RobotController {
         long currentTick
     ) {
         decisionPending = true;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = currentTick;
         decisionRetryNotBeforeTick = -1L;
         urgentRedecisionRequested = false;
@@ -448,6 +484,7 @@ public final class RobotController {
         }
 
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
 
         if (recordDecisionTick) {
@@ -476,6 +513,7 @@ public final class RobotController {
 
         decisionGeneration++;
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         decisionRetryNotBeforeTick = -1L;
         urgentRedecisionRequested = true;
@@ -501,6 +539,7 @@ public final class RobotController {
     ) {
         decisionGeneration++;
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = true;
         redecisionRequested = true;
@@ -615,6 +654,7 @@ public final class RobotController {
             );
             case CAPTURE ->
                 capture(
+                    match,
                     currentPlan.destination(),
                     currentTick
                 );
@@ -691,6 +731,13 @@ public final class RobotController {
             inAttackRange,
             currentTick
         )) {
+            if (suppressFailedProvisionalMovement(
+                target.position(),
+                DecisionTrigger.MOVEMENT_FAILED
+            )) {
+                return;
+            }
+
             reachability.excludeNow(
                 target.ownerUuid(),
                 target.position(),
@@ -705,40 +752,68 @@ public final class RobotController {
     }
 
     private void capture(
+        MatchSession match,
         Vec3 destination,
         long currentTick
     ) {
         Vec3 boundedDestination =
             clampToArena(destination);
 
-        Optional<RobotZombie> nearbyThreat =
-            resolveNearestEnemyNear(
-                entity.position(),
-                CAPTURE_REACTION_RANGE,
-                currentTick,
-                false
+        Optional<RobotZombie> contestingEnemy =
+            resolveNearestEnemyInsideCore(
+                match,
+                currentTick
             );
 
-        if (nearbyThreat.isPresent()) {
-            RobotZombie target = nearbyThreat.orElseThrow();
-            localCombatTargetUuid = target.ownerUuid();
+        if (contestingEnemy.isPresent()) {
+            RobotZombie target =
+                contestingEnemy.orElseThrow();
+
+            localCombatTargetUuid =
+                target.ownerUuid();
             entity.setTarget(target);
-        } else {
-            localCombatTargetUuid = null;
-            entity.setTarget(null);
+
+            boolean inAttackRange =
+                entity.distanceTo(target)
+                    <= PATH_REQUIRED_DISTANCE;
+
+            if (!navigateWithRecovery(
+                target.position(),
+                config.engageSpeed(),
+                inAttackRange,
+                currentTick
+            )) {
+                if (suppressFailedProvisionalMovement(
+                    target.position(),
+                    DecisionTrigger.MOVEMENT_FAILED
+                )) {
+                    return;
+                }
+
+                reachability.excludeNow(
+                    target.ownerUuid(),
+                    target.position(),
+                    currentTick
+                );
+                stopLocalMovement();
+                movementRecovery.reset();
+            }
+            return;
         }
 
-        boolean arrived =
-            entity.position().distanceToSqr(
-                boundedDestination
-            ) <= square(
-                config.positionReachedDistance()
-            );
+        localCombatTargetUuid = null;
+        entity.setTarget(null);
+
+        if (match.core().isInside(entity)) {
+            entity.getNavigation().stop();
+            movementRecovery.reset();
+            return;
+        }
 
         if (!navigateWithRecovery(
             boundedDestination,
             config.captureSpeed(),
-            arrived,
+            false,
             currentTick
         )) {
             suppressCurrentPlanAndRedecide(
@@ -746,6 +821,41 @@ public final class RobotController {
                 currentTick
             );
         }
+    }
+
+    private Optional<RobotZombie> resolveNearestEnemyInsideCore(
+        MatchSession match,
+        long currentTick
+    ) {
+        if (entity == null) {
+            return Optional.empty();
+        }
+
+        return registry.alive().stream()
+            .filter(controller -> controller != this)
+            .filter(controller ->
+                team.isEnemy(controller.team())
+            )
+            .flatMap(controller ->
+                controller.entity().stream()
+            )
+            .filter(target ->
+                target.matchId().equals(entity.matchId())
+            )
+            .filter(match.core()::isInside)
+            .filter(target ->
+                !isTargetTemporarilyUnreachable(
+                    target.ownerUuid(),
+                    target.position(),
+                    currentTick
+                )
+            )
+            .min(
+                Comparator.comparingDouble(
+                    target ->
+                        entity.distanceToSqr(target)
+                )
+            );
     }
 
     private void defend(
@@ -778,6 +888,13 @@ public final class RobotController {
                 inAttackRange,
                 currentTick
             )) {
+                if (suppressFailedProvisionalMovement(
+                    target.position(),
+                    DecisionTrigger.MOVEMENT_FAILED
+                )) {
+                    return;
+                }
+
                 reachability.excludeNow(
                     target.ownerUuid(),
                     target.position(),
@@ -813,10 +930,28 @@ public final class RobotController {
     }
 
     private void holdPosition(long currentTick) {
+        if (currentPlanSource == PlanSource.PROVISIONAL) {
+            stopLocalMovement();
+            movementRecovery.reset();
+            return;
+        }
+
+        if (holdAnchorPosition == null) {
+            holdAnchorPosition = entity.position();
+        }
+
+        Vec3 anchor =
+            clampToArena(holdAnchorPosition);
+
+        double defenseRange =
+            effectiveHoldDefenseRange(
+                config.holdReactionRange()
+            );
+
         Optional<RobotZombie> nearbyThreat =
             resolveNearestEnemyNear(
                 entity.position(),
-                config.holdReactionRange(),
+                defenseRange,
                 currentTick,
                 false
             );
@@ -825,22 +960,30 @@ public final class RobotController {
             RobotZombie target = nearbyThreat.orElseThrow();
             localCombatTargetUuid = target.ownerUuid();
             entity.setTarget(target);
+            entity.getNavigation().stop();
+            movementRecovery.reset();
+        } else {
+            localCombatTargetUuid = null;
+            entity.setTarget(null);
 
-            boolean inAttackRange =
-                entity.distanceTo(target)
-                    <= PATH_REQUIRED_DISTANCE;
+            boolean atAnchor =
+                entity.position().distanceToSqr(anchor)
+                    <= square(
+                        config.positionReachedDistance()
+                    );
 
-            if (!navigateWithRecovery(
-                target.position(),
-                config.engageSpeed(),
-                inAttackRange,
+            if (atAnchor) {
+                entity.getNavigation().stop();
+                movementRecovery.reset();
+            } else if (!navigateWithRecovery(
+                anchor,
+                config.defendSpeed(),
+                false,
                 currentTick
             )) {
-                stopLocalMovement();
+                entity.getNavigation().stop();
+                movementRecovery.reset();
             }
-        } else {
-            stopLocalMovement();
-            movementRecovery.reset();
         }
 
         if (holdUntilTick >= 0L
@@ -1064,11 +1207,8 @@ public final class RobotController {
         entity.setTarget(null);
         pruneBlockedRetreatDestinations(currentTick);
 
-        if (retreatPlanner.sufficientlySafe(
-            match,
-            this
-        )) {
-            holdRetreatSafely();
+        if (isRetreatSafe(match)) {
+            completeRetreatIntoHold(currentTick);
             return;
         }
 
@@ -1187,24 +1327,29 @@ public final class RobotController {
         return true;
     }
 
-    private void holdRetreatSafely() {
-        localCombatTargetUuid = null;
-        retreatPlanDestination = null;
-        retreatChoice = null;
-        nextRetreatEvaluationTick = -1L;
-        holdUntilTick = -1L;
-        holdCompletionRequested = false;
-        blockedRetreatDestinations.clear();
-        movementRecovery.reset();
+    private void completeRetreatIntoHold(
+        long currentTick
+    ) {
+        TacticalPlan hold = TacticalPlan.hold(
+            currentTick,
+            0L
+        );
 
-        if (entity != null && !entity.isRemoved()) {
-            entity.setDisplayedPlan(null);
-            entity.setTarget(null);
-            entity.getNavigation().stop();
-        }
+        applyPlan(
+            hold,
+            currentTick,
+            true,
+            PlanSource.FALLBACK
+        );
+
+        stopLocalMovement();
+
+        requestUrgentRedecision(
+            DecisionTrigger.RETREAT_SAFE
+        );
 
         AutoBattleMod.LOGGER.debug(
-            "Retreat holding safe state owner={}",
+            "Retreat completed into HOLD owner={}",
             ownerUuid
         );
     }
@@ -1213,6 +1358,13 @@ public final class RobotController {
         long currentTick,
         DecisionTrigger trigger
     ) {
+        if (suppressFailedProvisionalMovement(
+            retreatPlanDestination,
+            trigger
+        )) {
+            return;
+        }
+
         planReachability.exclude(
             "RETREAT",
             null,
@@ -1383,6 +1535,13 @@ public final class RobotController {
         Vec3 destination,
         long currentTick
     ) {
+        if (suppressFailedProvisionalMovement(
+            destination,
+            DecisionTrigger.MOVEMENT_FAILED
+        )) {
+            return;
+        }
+
         if (currentPlan != null) {
             planReachability.exclude(
                 currentPlan.externalId(),
@@ -1396,6 +1555,32 @@ public final class RobotController {
             DecisionTrigger.MOVEMENT_FAILED,
             PlanValidityStatus.TEMPORARILY_UNREACHABLE
         );
+    }
+
+    boolean suppressFailedProvisionalMovement(
+        Vec3 destination,
+        DecisionTrigger trigger
+    ) {
+        if (currentPlanSource != PlanSource.PROVISIONAL) {
+            return false;
+        }
+
+        String failedPlanId = currentPlan == null
+            ? null
+            : currentPlan.externalId();
+
+        clearPlan();
+        provisionalBehaviorSuppressed = true;
+
+        AutoBattleMod.LOGGER.debug(
+            "Stopped failed provisional movement owner={} plan={} trigger={} destination={}",
+            ownerUuid,
+            failedPlanId,
+            trigger,
+            destination
+        );
+
+        return true;
     }
 
     private void abandonCurrentMovement(
@@ -1745,6 +1930,15 @@ public final class RobotController {
             0.0D,
             robot.getBbHeight() * 0.5D,
             0.0D
+        );
+    }
+
+    static double effectiveHoldDefenseRange(
+        double configuredRange
+    ) {
+        return Math.min(
+            configuredRange,
+            PATH_REQUIRED_DISTANCE
         );
     }
 

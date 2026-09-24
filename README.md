@@ -93,8 +93,8 @@ ai:
   decision-debounce-seconds: 0.5
   request-timeout-ms: 1500
   minimum-confidence: 0.35
-  # RETREAT is always available to Jev.
-  # This threshold is only for deterministic server fallback.
+  # RETREAT is offered while an enemy remains inside the configured safe distance.
+  # If emergency retreat is unavailable or already complete, low-HP fallback uses HOLD_POSITION.
   fallback-retreat-hp-ratio: 0.25
 
 doctrine:
@@ -105,8 +105,9 @@ robot:
   attack-damage: 10.0
   movement-speed: 0.30
   follow-range: 32.0
-  # HOLD reacts to an enemy within this many blocks.
-  hold-reaction-range: 12.0
+  # HOLD only performs local self-defense and never chases.
+  # The controller clamps this to the 2-block melee range.
+  hold-reaction-range: 2.0
 
 arena:
   dimension: "minecraft:overworld"
@@ -131,6 +132,8 @@ arena:
 ```
 
 `arena.radius` is the circular boundary used by robot movement, target validity, and retreat planning. `core.radius` remains the separate CORE capture radius. Each robot spawn is randomized within `team-spawns.random-radius` of its team's configured lane; the same resolver is used for round starts and respawns.
+
+CORE hold scoring uses KOTH-style control semantics. Capturing a CORE establishes ownership, but ownership alone does not generate hold score. The owner must also be the only team currently occupying the CORE. Empty, contested, and enemy-only occupancy pause hold scoring and reset the hold interval, so returning to sole control requires a fresh complete interval before the next hold point. `roundCoreHoldTicks` therefore measures actual sole-owner occupancy rather than elapsed time since capture.
 
 The full file is generated with comments and all available options.
 
@@ -251,9 +254,13 @@ ally_target:      <living ally target ID when SUPPORT>
 
 Server code deterministically composes those answers into legal plans such as `ENGAGE_B3`, `CHASE_R5`, `ASSIST_R2`, `HOLD_POSITION`, `CAPTURE_CORE`, `DEFEND_CORE`, or `RETREAT`. Same-team robots are never combat candidates, and ASSIST candidates are limited to living same-team allies. HOLD requires at least 0.60 confidence (or the configured global minimum when it is higher); a low-confidence HOLD is replaced by an active ENGAGE/CHASE, objective, ASSIST, or RETREAT fallback when one is legal. Apply-time state is validated again, so a CORE ownership change can recompose `CONTROL_CORE` instead of discarding the entire response. Doctrine text is state data, not executable game logic.
 
-When a robot is below the fallback retreat HP threshold, provisional behavior prefers `RETREAT` even when enemies are already far away. After the retreat planner reaches a safe distance, `RobotController` keeps the `RETREAT` plan, stops navigation, and waits for the normal decision interval instead of immediately switching back to `CAPTURE_CORE` or `DEFEND_CORE`.
+`CAPTURE_CORE` treats entry into the configured CORE bounds as arrival instead of forcing robots to reach the exact center. If a living enemy occupies the CORE, the capturing robot pursues the nearest such enemy inside the objective and resumes occupancy behavior after the contest is cleared. This avoids center-stacking path failures and symmetric stalls where both teams occupy the CORE without entering attack range.
 
-Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` stops at the current position for up to four seconds, reacts to an enemy within `robot.hold-reaction-range` blocks, and then requests a fresh decision. An expired HOLD is not retained by low-confidence fallback; a deliberate high-confidence HOLD response starts a fresh four-second window. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
+When a robot is below the fallback retreat HP threshold, provisional and deterministic fallback prefer `RETREAT` while retreat is legal. If RETREAT is temporarily unavailable, they prefer `HOLD_POSITION` instead of sending the low-health robot back into combat or the objective. Once the retreat planner reaches its safe-distance condition, `RobotController` immediately converts the completed RETREAT into `HOLD_POSITION`, stops local movement, and emits an urgent `RETREAT_SAFE` redecision. `PlanValidityPolicy` marks RETREAT invalid while the robot is already safe, so Jev is not offered RETREAT in the next candidate set and low-confidence composition cannot retain a completed retreat. Low-health robots can remain in HOLD to recover, while recovered robots can return to FIGHT, SUPPORT, or CONTROL_CORE.
+
+While an asynchronous decision is pending, provisional behavior is deliberately conservative. A `RESPAWN` request uses `HOLD_POSITION` provisionally instead of starting objective/combat movement before Jev answers, and provisional HOLD does not chase nearby enemies. If any provisional movement path fails, the controller stops that temporary plan for the remainder of the same pending request without adding plan or target reachability exclusions. The authoritative AI/fallback response therefore evaluates the original legal candidate set instead of inheriting blacklist state created by a temporary action.
+
+Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` records the robot's position when the plan starts and treats that point as an anchor for up to four seconds. HOLD never chases an enemy: it only targets enemies already within melee range, stops navigation while defending, and returns to the anchor if displacement moves it outside the normal position-reached tolerance. `robot.hold-reaction-range` is therefore an upper bound and is clamped to melee range; the default is 2 blocks. When HOLD expires it requests a fresh decision. A deliberate high-confidence AI HOLD may start a new four-second window, but fallback handling never renews an already-expired HOLD timer by reapplying HOLD. Jev treats HOLD as an intentional waiting action rather than a neutral fallback: Doctrine and current state must provide a positive reason to wait, such as waiting for allies or avoiding an advance until a stated condition changes. Uncertainty, current-plan continuity, or a negative constraint such as "do not chase" are not sufficient reasons for HOLD. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
 
 ## Doctrine normalization
 

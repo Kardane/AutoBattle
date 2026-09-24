@@ -70,7 +70,7 @@ final class AutoBattleConfigLoaderTest {
             parsed.robot().holdReactionRange()
         );
         assertEquals(
-            12.0D,
+            2.0D,
             AutoBattleConfig.defaults().robot().holdReactionRange()
         );
     }

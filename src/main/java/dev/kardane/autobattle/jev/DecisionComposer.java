@@ -49,7 +49,9 @@ public final class DecisionComposer {
                 case SURVIVE -> new DecisionComposition(
                     currentPlanIds.contains("RETREAT")
                         ? "RETREAT"
-                        : null,
+                        : currentPlanIds.contains("HOLD_POSITION")
+                            ? "HOLD_POSITION"
+                            : null,
                     false,
                     false
                 );

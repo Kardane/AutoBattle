@@ -33,6 +33,47 @@ final class DecisionComposerTest {
     }
 
     @Test
+    void completedRetreatCannotBeRetainedWhenNoLongerLegal() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.9D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION"
+            ),
+            "RETREAT",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
+    void lowConfidenceCannotReviveCompletedRetreat() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("RETREAT", 0.20D),
+                null,
+                null
+            ),
+            List.of(
+                "CAPTURE_CORE",
+                "HOLD_POSITION"
+            ),
+            "RETREAT",
+            0.35D
+        );
+
+        assertNull(result.planId());
+        assertTrue(result.lowConfidence());
+        assertFalse(result.targetUnavailable());
+    }
+
+    @Test
     void controlCoreRecomposesFromCaptureToDefend() {
         DecisionResponse response = response(
             choice("CONTROL_CORE", 0.9D),
@@ -224,6 +265,28 @@ final class DecisionComposerTest {
         );
 
         assertEquals("RETREAT", result.planId());
+        assertFalse(result.lowConfidence());
+    }
+
+    @Test
+    void surviveCommandHoldsWhenRetreatIsNoLongerLegal() {
+        DecisionComposition result = composer.compose(
+            response(
+                choice("FIGHT", 0.9D),
+                choice("B1", 0.9D),
+                choice("CHASE", 0.9D)
+            ),
+            List.of(
+                "ENGAGE_B1",
+                "CAPTURE_CORE",
+                "HOLD_POSITION"
+            ),
+            "HOLD_POSITION",
+            0.35D,
+            PlayerCommandType.SURVIVE
+        );
+
+        assertEquals("HOLD_POSITION", result.planId());
         assertFalse(result.lowConfidence());
     }
 

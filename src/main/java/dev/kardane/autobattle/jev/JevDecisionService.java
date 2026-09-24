@@ -209,7 +209,8 @@ public final class JevDecisionService {
             match,
             controller,
             currentTick,
-            candidates
+            candidates,
+            trigger
         );
 
         java.util.concurrent.CompletableFuture<DecisionResponse> future;
@@ -703,6 +704,13 @@ public final class JevDecisionService {
             );
 
         if (commandFallback != null) {
+            if (controller.shouldKeepExpiredHold(
+                commandFallback,
+                currentTick
+            )) {
+                return DecisionApplyResult.KEPT_CURRENT_PLAN;
+            }
+
             if (current != null
                 && commandFallback.externalId().equals(
                     current.externalId()
@@ -773,6 +781,13 @@ public final class JevDecisionService {
             return fallbackResult;
         }
 
+        if (controller.shouldKeepExpiredHold(
+            fallback,
+            currentTick
+        )) {
+            return DecisionApplyResult.KEPT_CURRENT_PLAN;
+        }
+
         planExecutor.assignPlan(
             controller,
             fallback,
@@ -804,7 +819,13 @@ public final class JevDecisionService {
 
                 yield objective;
             }
-            case SURVIVE -> byId.get("RETREAT");
+            case SURVIVE -> {
+                TacticalPlan retreat = byId.get("RETREAT");
+
+                yield retreat != null
+                    ? retreat
+                    : byId.get("HOLD_POSITION");
+            }
             case ATTACK -> {
                 if (current != null
                     && isCombatPlan(current.externalId())
@@ -870,9 +891,18 @@ public final class JevDecisionService {
             )
             .orElse(0.0D);
 
-        if (hpRatio <= config.ai().fallbackRetreatHpRatio()
-            && byId.containsKey("RETREAT")) {
-            return byId.get("RETREAT");
+        if (hpRatio <= config.ai().fallbackRetreatHpRatio()) {
+            TacticalPlan retreat = byId.get("RETREAT");
+
+            if (retreat != null) {
+                return retreat;
+            }
+
+            TacticalPlan hold = byId.get("HOLD_POSITION");
+
+            if (hold != null) {
+                return hold;
+            }
         }
 
         // A low-confidence answer must trigger active reacquisition when
@@ -965,7 +995,8 @@ public final class JevDecisionService {
             match,
             controller,
             currentTick,
-            candidates
+            candidates,
+            null
         );
     }
 
@@ -973,10 +1004,12 @@ public final class JevDecisionService {
         MatchSession match,
         RobotController controller,
         long currentTick,
-        List<TacticalPlan> candidates
+        List<TacticalPlan> candidates,
+        DecisionTrigger trigger
     ) {
         if (!controller.hasPendingDecision()
             || controller.currentPlan().isPresent()
+            || controller.provisionalBehaviorSuppressed()
             || candidates.isEmpty()) {
             return;
         }
@@ -985,7 +1018,8 @@ public final class JevDecisionService {
                 match,
                 controller,
                 candidates,
-                currentTick
+                currentTick,
+                trigger
             )
             .ifPresent(plan ->
                 planExecutor.assignProvisionalPlan(

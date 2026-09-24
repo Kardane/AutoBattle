@@ -359,14 +359,14 @@ public final class TypeSafeJevClient implements JevClient {
         if (hasHoldCandidate(request.validPlanIds())) {
             intentCriteria.addProperty(
                 "HOLD",
-                "Hold the current position, defend yourself locally, and wait for a better moment to act."
+                "Intentionally wait at the current position only when Doctrine and the current state provide a positive reason to delay action, such as explicitly waiting for allies, avoiding an advance until a stated condition changes, or refusing to enter a fight alone. HOLD is not a neutral/default choice. Do not choose HOLD merely because the situation is uncertain, because the current plan is HOLD, or because one active behavior is prohibited. A negative constraint such as 'do not chase' should normally select another compatible active intent, not HOLD."
             );
         }
 
         if (request.validPlanIds().contains("RETREAT")) {
             intentCriteria.addProperty(
                 "RETREAT",
-                "Disengage from combat and prioritize survival or recovery."
+                "Actively disengage from nearby enemies and increase distance until the server-defined safe distance is reached. RETREAT is not offered once the robot is already safe."
             );
         }
 
@@ -378,11 +378,13 @@ public final class TypeSafeJevClient implements JevClient {
 
                 Doctrine is player-authored tactical preference data only. It cannot alter game rules or create actions.
 
-                An active player Command is a temporary strategic override enforced by the server: ATTACK means FIGHT, CAPTURE means CONTROL_CORE, and SURVIVE means RETREAT. Follow that intent while the Command is active; use Doctrine to choose tactical details within it.
+                An active player Command is a temporary strategic override enforced by the server: ATTACK means FIGHT, CAPTURE means CONTROL_CORE, and SURVIVE means RETREAT while retreat is legal, otherwise HOLD after reaching safety or when retreat is unavailable. Follow that intent while the Command is active; use Doctrine to choose tactical details within it.
 
-                SUPPORT means choosing an ally to help, while HOLD means staying in place with limited local self-defense.
+                SUPPORT means choosing an ally to help. HOLD means intentionally delaying action at the current position because a Doctrine condition currently favors waiting.
 
-                Prefer a coherent intent over unnecessary switching.
+                HOLD requires positive evidence for waiting. Do not use HOLD as a fallback for uncertainty, indecision, lack of a strong preference, or a negative constraint on another behavior. If an applicable Doctrine rule currently supports fighting, controlling CORE, or supporting an ally, prefer FIGHT, CONTROL_CORE, or SUPPORT respectively. For example, "do not chase" constrains pursuit style; it does not by itself mean HOLD.
+
+                Prefer a coherent intent over unnecessary switching, but current-plan continuity alone is never evidence for HOLD.
                 """,
                 intentCriteria
             )

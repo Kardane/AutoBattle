@@ -3,6 +3,7 @@ package dev.kardane.autobattle.tactics;
 import dev.kardane.autobattle.command.PlayerCommandType;
 import dev.kardane.autobattle.config.AutoBattleConfig;
 import dev.kardane.autobattle.match.MatchSession;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import dev.kardane.autobattle.match.PlayerSlot;
 import dev.kardane.autobattle.robot.RobotZombie;
 
@@ -34,6 +35,22 @@ public final class ProvisionalPlanPolicy {
         RobotController controller,
         List<TacticalPlan> candidates,
         long currentTick
+    ) {
+        return choose(
+            match,
+            controller,
+            candidates,
+            currentTick,
+            null
+        );
+    }
+
+    public Optional<TacticalPlan> choose(
+        MatchSession match,
+        RobotController controller,
+        List<TacticalPlan> candidates,
+        long currentTick,
+        DecisionTrigger trigger
     ) {
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(controller, "controller");
@@ -79,7 +96,8 @@ public final class ProvisionalPlanPolicy {
             command,
             hpRatio,
             config.ai().fallbackRetreatHpRatio(),
-            distanceToTarget
+            distanceToTarget,
+            trigger
         );
     }
 
@@ -90,11 +108,38 @@ public final class ProvisionalPlanPolicy {
         double dangerousHpRatio,
         ToDoubleFunction<UUID> distanceToTarget
     ) {
+        return chooseCandidate(
+            candidates,
+            command,
+            hpRatio,
+            dangerousHpRatio,
+            distanceToTarget,
+            null
+        );
+    }
+
+    static Optional<TacticalPlan> chooseCandidate(
+        List<TacticalPlan> candidates,
+        PlayerCommandType command,
+        double hpRatio,
+        double dangerousHpRatio,
+        ToDoubleFunction<UUID> distanceToTarget,
+        DecisionTrigger trigger
+    ) {
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(
             distanceToTarget,
             "distanceToTarget"
         );
+
+        if (trigger == DecisionTrigger.RESPAWN) {
+            Optional<TacticalPlan> hold =
+                byId(candidates, "HOLD_POSITION");
+
+            if (hold.isPresent()) {
+                return hold;
+            }
+        }
 
         if (command != null) {
             Optional<TacticalPlan> commandPlan =
@@ -105,10 +150,8 @@ public final class ProvisionalPlanPolicy {
                         false
                     );
                     case CAPTURE -> objective(candidates);
-                    case SURVIVE -> byId(
-                        candidates,
-                        "RETREAT"
-                    );
+                    case SURVIVE ->
+                        retreatOrHold(candidates);
                 };
 
             if (commandPlan.isPresent()) {
@@ -117,11 +160,11 @@ public final class ProvisionalPlanPolicy {
         }
 
         if (hpRatio <= dangerousHpRatio) {
-            Optional<TacticalPlan> retreat =
-                byId(candidates, "RETREAT");
+            Optional<TacticalPlan> survival =
+                retreatOrHold(candidates);
 
-            if (retreat.isPresent()) {
-                return retreat;
+            if (survival.isPresent()) {
+                return survival;
             }
         }
 
@@ -137,6 +180,17 @@ public final class ProvisionalPlanPolicy {
         }
 
         return objective(candidates);
+    }
+
+    private static Optional<TacticalPlan> retreatOrHold(
+        List<TacticalPlan> candidates
+    ) {
+        Optional<TacticalPlan> retreat =
+            byId(candidates, "RETREAT");
+
+        return retreat.isPresent()
+            ? retreat
+            : byId(candidates, "HOLD_POSITION");
     }
 
     private static Optional<TacticalPlan> nearestCombat(

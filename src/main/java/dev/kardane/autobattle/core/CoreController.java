@@ -126,7 +126,11 @@ public final class CoreController {
             )
         );
 
-        tickOwnerHoldScore(match, currentTick);
+        tickOwnerHoldScore(
+            match,
+            occupancy,
+            currentTick
+        );
     }
 
     public void renderBoundary(
@@ -290,31 +294,54 @@ public final class CoreController {
 
     private void tickOwnerHoldScore(
         MatchSession match,
+        CoreOccupancy occupancy,
         long currentTick
     ) {
-        state.ownerTeam().ifPresent(team -> {
-            var teamScore = match.teamScore(team);
-            teamScore.addCoreHoldTicks(1L);
+        BattleTeam owner = state.ownerTeam()
+            .orElse(null);
 
-            if (state.nextHoldScoreTick() < 0L) {
-                state.setNextHoldScoreTick(
-                    currentTick + holdScoreIntervalTicks
-                );
-                return;
-            }
+        if (!ownerHasSoleOccupancy(
+            owner,
+            occupancy
+        )) {
+            state.setNextHoldScoreTick(-1L);
+            return;
+        }
 
-            if (currentTick < state.nextHoldScoreTick()) {
-                return;
-            }
+        var teamScore = match.teamScore(owner);
+        teamScore.addCoreHoldTicks(1L);
 
-            teamScore.addCoreHoldPoint(
-                scoring.coreHoldScore()
-            );
-
+        if (state.nextHoldScoreTick() < 0L) {
             state.setNextHoldScoreTick(
                 currentTick + holdScoreIntervalTicks
             );
-        });
+            return;
+        }
+
+        if (currentTick < state.nextHoldScoreTick()) {
+            return;
+        }
+
+        teamScore.addCoreHoldPoint(
+            scoring.coreHoldScore()
+        );
+
+        state.setNextHoldScoreTick(
+            currentTick + holdScoreIntervalTicks
+        );
+    }
+
+    static boolean ownerHasSoleOccupancy(
+        BattleTeam owner,
+        CoreOccupancy occupancy
+    ) {
+        if (owner == null) {
+            return false;
+        }
+
+        return occupancy.soleTeam()
+            .filter(owner::equals)
+            .isPresent();
     }
 
     private Vec3 center() {

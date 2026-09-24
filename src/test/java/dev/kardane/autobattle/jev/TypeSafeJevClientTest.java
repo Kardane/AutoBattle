@@ -355,6 +355,76 @@ final class TypeSafeJevClientTest {
     }
 
     @Test
+    void holdIntentRequiresPositiveWaitingReason() {
+        JsonObject strategicIntent = client
+            .buildRequestBody(
+                request(
+                    List.of(
+                        "ENGAGE_B1",
+                        "CAPTURE_CORE",
+                        "HOLD_POSITION"
+                    )
+                )
+            )
+            .getAsJsonObject("questions")
+            .getAsJsonObject("strategic_intent");
+
+        String holdCriterion = strategicIntent
+            .getAsJsonObject("criteria")
+            .get("HOLD")
+            .getAsString();
+
+        String instructions = strategicIntent
+            .get("instructions")
+            .getAsString();
+
+        assertTrue(
+            holdCriterion.contains(
+                "positive reason to delay action"
+            )
+        );
+        assertTrue(
+            holdCriterion.contains(
+                "not a neutral/default choice"
+            )
+        );
+        assertTrue(
+            holdCriterion.contains(
+                "do not chase"
+            )
+        );
+        assertTrue(
+            instructions.contains(
+                "HOLD requires positive evidence for waiting"
+            )
+        );
+        assertTrue(
+            instructions.contains(
+                "current-plan continuity alone is never evidence for HOLD"
+            )
+        );
+    }
+
+    @Test
+    void safeCandidateSetDoesNotOfferRetreatIntent() {
+        JsonObject criteria = client
+            .buildRequestBody(
+                request(
+                    List.of(
+                        "CAPTURE_CORE",
+                        "HOLD_POSITION"
+                    )
+                )
+            )
+            .getAsJsonObject("questions")
+            .getAsJsonObject("strategic_intent")
+            .getAsJsonObject("criteria");
+
+        assertTrue(criteria.has("HOLD"));
+        assertFalse(criteria.has("RETREAT"));
+    }
+
+    @Test
     void singleLegalAllyTargetIsNotAskedAsChoice() {
         JsonObject questions = client
             .buildRequestBody(
