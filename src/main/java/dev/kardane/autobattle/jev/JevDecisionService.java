@@ -704,6 +704,13 @@ public final class JevDecisionService {
             );
 
         if (commandFallback != null) {
+            if (controller.shouldKeepExpiredHold(
+                commandFallback,
+                currentTick
+            )) {
+                return DecisionApplyResult.KEPT_CURRENT_PLAN;
+            }
+
             if (current != null
                 && commandFallback.externalId().equals(
                     current.externalId()
@@ -772,6 +779,13 @@ public final class JevDecisionService {
                 DecisionTrigger.STALE_RETRY
             );
             return fallbackResult;
+        }
+
+        if (controller.shouldKeepExpiredHold(
+            fallback,
+            currentTick
+        )) {
+            return DecisionApplyResult.KEPT_CURRENT_PLAN;
         }
 
         planExecutor.assignPlan(
