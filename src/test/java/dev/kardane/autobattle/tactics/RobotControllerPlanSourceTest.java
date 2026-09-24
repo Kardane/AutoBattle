@@ -85,6 +85,35 @@ final class RobotControllerPlanSourceTest {
     }
 
     @Test
+    void urgentRetreatSafeRedecisionInvalidatesPendingDecision() {
+        RobotController controller = controller();
+
+        long generation =
+            controller.nextDecisionGeneration();
+
+        controller.markDecisionRequested(
+            generation,
+            10L
+        );
+
+        assertTrue(controller.hasPendingDecision());
+
+        controller.requestUrgentRedecision(
+            dev.kardane.autobattle.jev.DecisionTrigger.RETREAT_SAFE
+        );
+
+        assertFalse(controller.hasPendingDecision());
+        assertEquals(
+            generation + 1L,
+            controller.decisionGeneration()
+        );
+        assertEquals(
+            dev.kardane.autobattle.jev.DecisionTrigger.RETREAT_SAFE,
+            controller.decisionTrigger()
+        );
+    }
+
+    @Test
     void holdExpiryIsResetWhenHoldIsAppliedAgain() {
         RobotController controller = controller();
 
