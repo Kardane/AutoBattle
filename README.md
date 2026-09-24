@@ -133,6 +133,8 @@ arena:
 
 `arena.radius` is the circular boundary used by robot movement, target validity, and retreat planning. `core.radius` remains the separate CORE capture radius. Each robot spawn is randomized within `team-spawns.random-radius` of its team's configured lane; the same resolver is used for round starts and respawns.
 
+CORE hold scoring uses KOTH-style control semantics. Capturing a CORE establishes ownership, but ownership alone does not generate hold score. The owner must also be the only team currently occupying the CORE. Empty, contested, and enemy-only occupancy pause hold scoring and reset the hold interval, so returning to sole control requires a fresh complete interval before the next hold point. `roundCoreHoldTicks` therefore measures actual sole-owner occupancy rather than elapsed time since capture.
+
 The full file is generated with comments and all available options.
 
 ### BGM
