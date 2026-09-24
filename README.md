@@ -105,8 +105,9 @@ robot:
   attack-damage: 10.0
   movement-speed: 0.30
   follow-range: 32.0
-  # HOLD reacts to an enemy within this many blocks.
-  hold-reaction-range: 12.0
+  # HOLD only performs local self-defense and never chases.
+  # The controller clamps this to the 2-block melee range.
+  hold-reaction-range: 2.0
 
 arena:
   dimension: "minecraft:overworld"
@@ -257,7 +258,7 @@ When a robot is below the fallback retreat HP threshold, provisional and determi
 
 While an asynchronous decision is pending, provisional behavior is deliberately conservative. A `RESPAWN` request uses `HOLD_POSITION` provisionally instead of starting objective/combat movement before Jev answers, and provisional HOLD does not chase nearby enemies. If any provisional movement path fails, the controller stops that temporary plan for the remainder of the same pending request without adding plan or target reachability exclusions. The authoritative AI/fallback response therefore evaluates the original legal candidate set instead of inheriting blacklist state created by a temporary action.
 
-Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` records the robot's position when the plan starts and treats that point as an anchor for up to four seconds. HOLD never chases an enemy: it only targets enemies already within melee range, stops navigation while defending, and returns to the anchor if displacement moves it outside the normal position-reached tolerance. `robot.hold-reaction-range` is therefore an upper bound and is clamped to melee range; the default is 2 blocks. When HOLD expires it requests a fresh decision. A deliberate high-confidence AI HOLD may start a new four-second window, but fallback handling never renews an already-expired HOLD timer by reapplying HOLD. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
+Team tactics also expose `HOLD_POSITION` and `ASSIST_<ALLY>`. `HOLD_POSITION` records the robot's position when the plan starts and treats that point as an anchor for up to four seconds. HOLD never chases an enemy: it only targets enemies already within melee range, stops navigation while defending, and returns to the anchor if displacement moves it outside the normal position-reached tolerance. `robot.hold-reaction-range` is therefore an upper bound and is clamped to melee range; the default is 2 blocks. When HOLD expires it requests a fresh decision. A deliberate high-confidence AI HOLD may start a new four-second window, but fallback handling never renews an already-expired HOLD timer by reapplying HOLD. Jev treats HOLD as an intentional waiting action rather than a neutral fallback: Doctrine and current state must provide a positive reason to wait, such as waiting for allies or avoiding an advance until a stated condition changes. Uncertainty, current-plan continuity, or a negative constraint such as "do not chase" are not sufficient reasons for HOLD. `ASSIST_<ALLY>` follows the ally's current combat or objective behavior, shares a nearby enemy when appropriate, or maintains a two-to-four-block support distance. Ally snapshots sent to Jev include the ally's current plan, actual combat target, CORE occupancy, and recent damage state. Jev can therefore select `SUPPORT` with an `ally_target`, or `HOLD` when waiting is strategically preferable.
 
 ## Doctrine normalization
 
