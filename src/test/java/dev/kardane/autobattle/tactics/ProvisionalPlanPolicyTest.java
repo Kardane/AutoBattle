@@ -1,6 +1,7 @@
 package dev.kardane.autobattle.tactics;
 
 import dev.kardane.autobattle.command.PlayerCommandType;
+import dev.kardane.autobattle.jev.DecisionTrigger;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,28 @@ final class ProvisionalPlanPolicyTest {
     private static final UUID ENEMY_B = UUID.fromString(
         "00000000-0000-0000-0000-000000000002"
     );
+
+    @Test
+    void respawnProvisionalAlwaysHolds() {
+        List<TacticalPlan> candidates = List.of(
+            engage(ENEMY_A, "ENGAGE_B1"),
+            capture(),
+            hold(),
+            retreat()
+        );
+
+        assertEquals(
+            "HOLD_POSITION",
+            ProvisionalPlanPolicy.chooseCandidate(
+                candidates,
+                PlayerCommandType.ATTACK,
+                0.10D,
+                0.25D,
+                ignored -> 1.0D,
+                DecisionTrigger.RESPAWN
+            ).orElseThrow().externalId()
+        );
+    }
 
     @Test
     void activeCaptureCommandOverridesLowHealthRetreat() {
