@@ -58,6 +58,7 @@ public final class RobotController {
     private long lastDecisionTick = -1L;
     private long decisionRetryNotBeforeTick = -1L;
     private boolean decisionPending;
+    private boolean provisionalBehaviorSuppressed;
     private long decisionRequestedTick = -1L;
     private boolean urgentRedecisionRequested;
     private boolean redecisionRequested;
@@ -221,6 +222,10 @@ public final class RobotController {
             && currentPlanSource == PlanSource.PROVISIONAL;
     }
 
+    public boolean provisionalBehaviorSuppressed() {
+        return provisionalBehaviorSuppressed;
+    }
+
     public long planStartedTick() {
         return planStartedTick;
     }
@@ -275,6 +280,7 @@ public final class RobotController {
         planReachability.clear();
         movementRecovery.reset();
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration++;
@@ -299,6 +305,7 @@ public final class RobotController {
         planReachability.clear();
         movementRecovery.reset();
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = false;
         decisionGeneration++;
@@ -361,6 +368,7 @@ public final class RobotController {
         planStartedTick = currentTick;
 
         if (source != PlanSource.PROVISIONAL) {
+            provisionalBehaviorSuppressed = false;
             lastDecisionTick = currentTick;
             decisionRetryNotBeforeTick = -1L;
         }
@@ -392,7 +400,8 @@ public final class RobotController {
         TacticalPlan plan,
         long currentTick
     ) {
-        if (currentPlan != null) {
+        if (currentPlan != null
+            || provisionalBehaviorSuppressed) {
             return false;
         }
 
@@ -428,6 +437,7 @@ public final class RobotController {
         long currentTick
     ) {
         decisionPending = true;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = currentTick;
         decisionRetryNotBeforeTick = -1L;
         urgentRedecisionRequested = false;
@@ -457,6 +467,7 @@ public final class RobotController {
         }
 
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
 
         if (recordDecisionTick) {
@@ -485,6 +496,7 @@ public final class RobotController {
 
         decisionGeneration++;
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         decisionRetryNotBeforeTick = -1L;
         urgentRedecisionRequested = true;
@@ -510,6 +522,7 @@ public final class RobotController {
     ) {
         decisionGeneration++;
         decisionPending = false;
+        provisionalBehaviorSuppressed = false;
         decisionRequestedTick = -1L;
         urgentRedecisionRequested = true;
         redecisionRequested = true;
@@ -701,6 +714,13 @@ public final class RobotController {
             inAttackRange,
             currentTick
         )) {
+            if (suppressFailedProvisionalMovement(
+                target.position(),
+                DecisionTrigger.MOVEMENT_FAILED
+            )) {
+                return;
+            }
+
             reachability.excludeNow(
                 target.ownerUuid(),
                 target.position(),
@@ -746,6 +766,13 @@ public final class RobotController {
                 inAttackRange,
                 currentTick
             )) {
+                if (suppressFailedProvisionalMovement(
+                    target.position(),
+                    DecisionTrigger.MOVEMENT_FAILED
+                )) {
+                    return;
+                }
+
                 reachability.excludeNow(
                     target.ownerUuid(),
                     target.position(),
@@ -844,6 +871,13 @@ public final class RobotController {
                 inAttackRange,
                 currentTick
             )) {
+                if (suppressFailedProvisionalMovement(
+                    target.position(),
+                    DecisionTrigger.MOVEMENT_FAILED
+                )) {
+                    return;
+                }
+
                 reachability.excludeNow(
                     target.ownerUuid(),
                     target.position(),
@@ -879,6 +913,12 @@ public final class RobotController {
     }
 
     private void holdPosition(long currentTick) {
+        if (currentPlanSource == PlanSource.PROVISIONAL) {
+            stopLocalMovement();
+            movementRecovery.reset();
+            return;
+        }
+
         Optional<RobotZombie> nearbyThreat =
             resolveNearestEnemyNear(
                 entity.position(),
@@ -1281,6 +1321,13 @@ public final class RobotController {
         long currentTick,
         DecisionTrigger trigger
     ) {
+        if (suppressFailedProvisionalMovement(
+            retreatPlanDestination,
+            trigger
+        )) {
+            return;
+        }
+
         planReachability.exclude(
             "RETREAT",
             null,
@@ -1451,6 +1498,13 @@ public final class RobotController {
         Vec3 destination,
         long currentTick
     ) {
+        if (suppressFailedProvisionalMovement(
+            destination,
+            DecisionTrigger.MOVEMENT_FAILED
+        )) {
+            return;
+        }
+
         if (currentPlan != null) {
             planReachability.exclude(
                 currentPlan.externalId(),
@@ -1464,6 +1518,32 @@ public final class RobotController {
             DecisionTrigger.MOVEMENT_FAILED,
             PlanValidityStatus.TEMPORARILY_UNREACHABLE
         );
+    }
+
+    private boolean suppressFailedProvisionalMovement(
+        Vec3 destination,
+        DecisionTrigger trigger
+    ) {
+        if (currentPlanSource != PlanSource.PROVISIONAL) {
+            return false;
+        }
+
+        String failedPlanId = currentPlan == null
+            ? null
+            : currentPlan.externalId();
+
+        clearPlan();
+        provisionalBehaviorSuppressed = true;
+
+        AutoBattleMod.LOGGER.debug(
+            "Stopped failed provisional movement owner={} plan={} trigger={} destination={}",
+            ownerUuid,
+            failedPlanId,
+            trigger,
+            destination
+        );
+
+        return true;
     }
 
     private void abandonCurrentMovement(
